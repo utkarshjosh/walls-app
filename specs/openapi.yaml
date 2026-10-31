@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: Wallpaper Server — Device Sync Slice
+  version: 0.1.0
+  description: >-
+    Proposed contract, not an implemented service. Covers state, manifest,
+    download grants, and event acknowledgment only. Pairing, web CRUD, and
+    credential rotation are specified in 05-api.md for later contract expansion.
+servers:
+  - url: https://walls.utkarshjoshi.com/api/v1
+    description: Proposed deployment URL; not provisioned by this repository.
+security:
+  - deviceBearer: []
+tags:
+  - name: Device sync
+paths:
+  /devices/self/state:
+    get:
+      operationId: getDeviceState
+      tags: [Device sync]
+      summary: Read time, policy blocks, and desired state on every sync
+      description: Full relevant blocked-variant snapshot; processed before manifest/cache use.
+      responses:
+        '200':
+          description: Current device state; never cached publicly
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceState'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/Throttled'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /devices/self/manifest:
+    get:
+      operationId: getDeviceManifest
+      tags: [Device sync]
+      summary: Fetch the latest usable immutable device plan
+      parameters:
+        - in: header
+          name: If-None-Match
+          schema:
+            type: string
+          description: Previously received quoted manifest ETag
+      responses:
+        '200':
+          description: Complete plan; maximum body size 2 MiB
+          headers:
+            ETag:
+              description: Quoted hash of immutable manifest bytes
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: ./schemas/manifest.schema.json
+        '202':
+          description: No usable plan yet; compilation is pending
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, server_time]
+                properties:
+                  status:
+                    const: compiling
+                  server_time:
+                    type: string
+                    format: date-time
+        '304':
+          description: Unchanged manifest; still perform the separate state check
+          headers:
+            ETag:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/Throttled'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /devices/self/download-grants:
+    post:
+      operationId: createDownloadGrants
+      tags: [Device sync]
+      summary: Issue 15-minute object grants for authorized missing variants
+      description: >-
+        Recheck current source/asset policy and device ownership. All-or-nothing:
+        an invalid or blocked variant fails the batch with 409 and a stable code,
+        without returning any URLs. Client refetches device state before retry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [manifest_id, variant_ids]
+              properties:
+                manifest_id:
+                  type: string
+                  format: uuid
+                variant_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  uniqueItems: true
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Expiring grants; no-store response, never log URLs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Manifest absent or inaccessible to this device
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Variant blocked/not in plan, or plan no longer authorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/Throttled'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /devices/self/events:
+    post:
+      operationId: postDeviceEvents
+      tags: [Device sync]
+      summary: Acknowledge activation/policy application or report status/errors
+      description: Deduplicate by device and event UUID; duplicate deliveries are successful.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/DeviceEvent'
+      responses:
+        '200':
+          description: IDs accepted now or previously; safe to remove from local outbox
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted_event_ids]
+                properties:
+                  accepted_event_ids:
+                    type: array
+                    uniqueItems: true
+                    items:
+                      type: string
+                      format: uuid
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/Throttled'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    deviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-device-token
+      description: Device-scoped 256-bit random credential; not a browser session.
+  headers:
+    RetryAfter:
+      description: Minimum seconds before retry
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Malformed or invalid request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Absent, expired, or revoked device token; pause and require pairing
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Throttled:
+      description: Rate limited; honor Retry-After
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Temporary server/dependency failure; retain cached plan
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code, detail, request_id]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+    DeviceState:
+      type: object
+      additionalProperties: false
+      required: [device_id, state_revision, server_time, desired_schedule_revision, plan_status, blocked_variant_ids]
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        state_revision:
+          type: integer
+          minimum: 1
+        server_time:
+          type: string
+          format: date-time
+        desired_schedule_revision:
+          type: [integer, 'null']
+          minimum: 1
+        plan_status:
+          enum: [ready, compiling, needs_configuration, invalid_configuration]
+        blocked_variant_ids:
+          type: array
+          uniqueItems: true
+          maxItems: 10000
+          items:
+            type: string
+            format: uuid
+    GrantResponse:
+      type: object
+      additionalProperties: false
+      required: [grants]
+      properties:
+        grants:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [variant_id, url, expires_at, method]
+            properties:
+              variant_id:
+                type: string
+                format: uuid
+              url:
+                type: string
+                format: uri
+                pattern: '^https://'
+              expires_at:
+                type: string
+                format: date-time
+              method:
+                const: GET
+    DeviceEvent:
+      type: object
+      additionalProperties: false
+      required: [id, type, observed_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          enum: [activated, state_applied, sync_failed, apply_failed, status]
+        observed_at:
+          type: string
+          format: date-time
+        manifest_id:
+          type: string
+          format: uuid
+        state_revision:
+          type: integer
+          minimum: 1
+        cached_bytes:
+          type: integer
+          minimum: 0
+        coverage_until:
+          type: string
+          format: date-time
+        error_code:
+          type: string
+          maxLength: 100
+      allOf:
+        - if:
+            properties:
+              type:
+                const: activated
+          then:
+            required: [manifest_id, cached_bytes, coverage_until]
+        - if:
+            properties:
+              type:
+                const: state_applied
+          then:
+            required: [state_revision]
+        - if:
+            properties:
+              type:
+                enum: [sync_failed, apply_failed]
+          then:
+            required: [error_code]

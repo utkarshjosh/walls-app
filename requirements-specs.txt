@@ -1,0 +1,4 @@
+# Optional tooling for validating the planning contracts; not application dependencies.
+jsonschema==4.26.0
+openapi-spec-validator==0.9.0
+PyYAML==6.0.3

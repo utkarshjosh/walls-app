@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://walls.utkarshjoshi.com/specs/schemas/manifest.schema.json",
+  "title": "Wallpaper device manifest v1",
+  "description": "Immutable device-scoped plan. Object grants are fetched separately. Semantic time, inventory membership, and uniqueness checks are additionally required.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "device_id", "version", "schedule_id", "schedule_revision", "profile_revision", "playlist_revisions", "generated_at", "valid_from", "valid_until", "next_sync_at", "timezone", "display_policy", "fit", "variants", "entries"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "format": "uuid"},
+    "device_id": {"type": "string", "format": "uuid"},
+    "version": {"type": "integer", "minimum": 1},
+    "schedule_id": {"type": "string", "format": "uuid"},
+    "schedule_revision": {"type": "integer", "minimum": 1},
+    "profile_revision": {"type": "integer", "minimum": 1},
+    "playlist_revisions": {"type": "object", "minProperties": 1, "propertyNames": {"format": "uuid"}, "additionalProperties": {"type": "integer", "minimum": 1}},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "valid_from": {"type": "string", "format": "date-time"},
+    "valid_until": {"type": "string", "format": "date-time"},
+    "next_sync_at": {"type": "string", "format": "date-time"},
+    "timezone": {"type": "string", "minLength": 1, "maxLength": 100},
+    "display_policy": {"const": "all_attached_same"},
+    "fit": {"enum": ["fill", "fit"]},
+    "variants": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/variant"}},
+    "entries": {"type": "array", "minItems": 1, "maxItems": 10080, "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "creator", "source_url", "license_name", "license_url", "text", "modification_note"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 500},
+        "creator": {"type": "string", "maxLength": 500},
+        "source_url": {"type": ["string", "null"], "format": "uri"},
+        "license_name": {"type": "string", "minLength": 1, "maxLength": 200},
+        "license_url": {"type": ["string", "null"], "format": "uri"},
+        "text": {"type": "string", "maxLength": 4000},
+        "modification_note": {"type": "string", "maxLength": 1000}
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset_id", "sha256", "byte_size", "width", "height", "mime_type", "attribution"],
+      "properties": {
+        "id": {"type": "string", "format": "uuid"},
+        "asset_id": {"type": "string", "format": "uuid"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "byte_size": {"type": "integer", "minimum": 1, "maximum": 26214400},
+        "width": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "height": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "mime_type": {"enum": ["image/jpeg", "image/png"]},
+        "attribution": {"$ref": "#/$defs/attribution"}
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "apply_at", "variant_id", "playlist_id"],
+      "properties": {
+        "id": {"type": "string", "format": "uuid"},
+        "apply_at": {"type": "string", "format": "date-time"},
+        "variant_id": {"type": "string", "format": "uuid"},
+        "playlist_id": {"type": "string", "format": "uuid"}
+      }
+    }
+  }
+}

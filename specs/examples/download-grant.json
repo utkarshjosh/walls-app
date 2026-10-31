@@ -1,0 +1,10 @@
+{
+  "grants": [
+    {
+      "variant_id": "00000000-0000-4000-8000-000000000010",
+      "url": "https://objects.example.invalid/illustrative-grant",
+      "expires_at": "2026-10-31T16:45:00Z",
+      "method": "GET"
+    }
+  ]
+}
