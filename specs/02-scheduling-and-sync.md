@@ -1,42 +1,36 @@
 # Scheduling and synchronization specification
 
-Status: proposed v0.1. Normative behavior for FR-07–12, FR-15. Contracts: [schedule schema](schemas/schedule.schema.json), [manifest schema](schemas/manifest.schema.json), [OpenAPI](openapi.yaml).
+Proposed v0.2. Internal machinery for simple collection rotation. The user chooses folders, Shuffle/In order, and a frequency preset; this document does not imply a schedule editor. Contracts: [rotation preferences schema](schemas/schedule.schema.json), [manifest schema](schemas/manifest.schema.json), [OpenAPI](openapi.yaml).
 
-## Two independent clocks
+## Defaults and clocks
 
-**Sync clock:** one preferred daily download session at the configured wall-clock time and fixed IANA timezone. Defaults: `22:00`, `Asia/Kolkata`; users may choose morning `07:00` or any minute. The server prepares the plan ahead of time. The client initiates HTTPS; it is not kept connected all day.
+Onboarding creates one rotation setup automatically. The persisted internal schedule stores ordered collection IDs, mode (`shuffle` or `sequential`), cadence (`hourly`, `every_3_hours`, `daily`), sync window (`night` by default, optionally `morning`), and an automatically captured IANA timezone. An empty collection selection means stop rotating after sync, retaining the current desktop.
 
-**Rotation clock:** a local timer applies already cached images at UTC instants from the plan, independent of network access. Default interval 60 minutes; supported range 15–1,440 minutes. The interval means elapsed time, not exact delivery while the computer is asleep.
+The companion reports its timezone during pairing and subsequent syncs; a changed zone updates the next generated plan automatically. No timezone picker is required. Existing UTC entries remain valid until replacement activation. Hourly/three-hourly cadence is elapsed UTC time anchored to the setup's internal start instant. Daily means one change at the next local 07:00, with an immediate initial image; this time is an implementation default, not an MVP control.
 
-Initial pairing, manual Sync now, wake after a missed sync, and bounded retry are exceptions to once-daily networking. Do not poll the server on every wallpaper change. Routine daily sync adds stable device-specific jitter of 0–15 minutes; the UI describes it as a preferred time/window, not an exact guarantee.
+Background sync defaults to local 22:00 (Night), optionally 07:00 (Morning), with stable 0–15 minute device jitter. The server prepares plans ahead; the client pulls over HTTPS. Initial pairing, wake catch-up, manual Sync now, and bounded retries are exceptions to daily networking. Rotation itself makes no network call.
 
-## Schedule model and time rules
+Resolve a nonexistent local time to the first valid instant after a DST gap; an ambiguous time uses the first occurrence. Daily rotation/sync runs once per local date. UTC hourly ticks do not duplicate. The server owns timezone expansion; the client applies UTC timestamps. No weekly windows, priorities, overnight rules, or timeline preview are implemented.
 
-A schedule has a default playlist/interval plus zero or more weekly rules. Each rule supplies ISO weekday numbers (Monday=1), local start/end, playlist, interval, and order. A rule is active on `[start, end)`; `24:00` is accepted only as an end value. An overnight window is explicitly split into two rules, e.g. Monday 22:00–24:00 and Tuesday 00:00–07:00. Reject overlaps, zero-length windows, duplicate rule IDs, unknown timezones, and playlists owned by another account.
+## Live collections and traversal
 
-Rules override the default only within their windows; default segments fill the gaps. Entering a segment generates a change at its start, then changes every interval in elapsed minutes until its exclusive end. On schedule revision, the first compiled current entry applies on activation; future entries follow real segment boundaries. For the default, segment boundaries include local midnight and every override boundary.
+1. Snapshot rotation preferences, selected collection revisions/memberships, current rights, and device capabilities. Reject foreign-owner collection references; private starter copies are normal owned collections.
+2. Flatten collections in persisted selection order; each collection uses saved-at ascending with asset ID as tie breaker. Deduplicate by asset ID, retaining the first collection as provenance. Adding the same image to another selected folder does not increase its weight.
+3. Sequential mode traverses that union and wraps. Shuffle uses a persisted seed and cycle number to order eligible asset IDs deterministically; use every candidate in a cycle before repeating, avoiding an immediate boundary repeat when alternatives exist. Folder weighting and custom ordering editors are out of scope.
+4. Membership edits create a new source revision and invalidate future plans automatically. Continue after the current item if it survives; if removed, sequential mode uses its next surviving successor in prior order, falling back to the new first item. Shuffle excludes removed items, preserves surviving unconsumed order, and inserts new items deterministically into the remainder. A daily refresh alone must not restart at item one.
+5. Persist per-device traversal state and plan checkpoints. Compilation/retries do not consume the traversal cursor; advance it from acknowledged activation/progress, keyed by manifest/entry IDs so replay cannot advance twice. The client reports its active manifest and last applied entry during the next sync; offline progress is reconciled there. A precompiled plan can be regenerated from that checkpoint when needed. Local Pause/Next are playback actions, not taste signals.
 
-Resolve DST gaps by moving a nonexistent local boundary to the first valid instant after the gap. Resolve an ambiguous boundary to its first occurrence. Generate subsequent ticks by adding elapsed minutes in UTC. Do not create duplicated UTC instants; validate the expanded UTC intervals and reject an ambiguous configuration that produces overlapping segments. A daily sync time in a fold runs once (first occurrence); in a gap it runs at the first valid instant afterward.
+For large libraries, cache a moving traversal window of at most 100 distinct variants and <=40% of the cache budget, leaving space for active and staged generations. Within a seven-day manifest, repeat that cached window if necessary. The next successful sync advances the window from reconciled progress; never permanently select only the first N files. No-repeat guarantees apply within the available cached cycle, not across the entire library during offline fallback. Unchanged inputs and checkpoints must compile identically.
 
-The schedule timezone does not silently follow laptop travel. Changing timezone is a configuration revision, visible in the preview. Server/client timestamp exchange uses UTC RFC 3339; server compilation owns timezone database semantics, so client timezone-library differences cannot move already compiled entries.
-
-## Playlist selection and determinism
-
-1. Snapshot the schedule, referenced playlist revisions, eligible variants, source policy, and device constraints.
-2. Exclude removed/blocked/undecodable assets and variants that cannot fit device format constraints. Freeze the remaining IDs in playlist order.
-3. Choose the cache-bounded candidate pool before compiling: maximum 100 distinct variants and total bytes <=40% of the reported cache budget. This reserves room for an active and staged generation plus fallback/headroom. Prefer the first ordered items; for shuffled mode use a stable HMAC ranking keyed by schedule and playlist revisions (independent of horizon/segment). Surface truncation in preview/status. If no candidate fits, keep the previous valid plan and return a clear issue.
-4. Within each segment, ordered mode loops through the frozen order. Shuffle sorts candidates by `HMAC-SHA256(seed, scheduleRevision | playlistRevision | segmentStartUTC | cycleNumber | assetId)` with canonical UTF-8 separators. Each cycle uses every candidate once. If a new cycle's first entry equals the preceding cycle's last and at least two candidates exist, swap the first two. Cross-playlist/window repeats are allowed and explained.
-5. Derive the current slot from the segment's real start, even when that start predates the requested horizon. Recompiling the same revisions and overlapping time range yields the same assignments; it must not reset shuffle at each daily fetch.
-
-The seed is server-owned stable random data, persisted with the schedule. It is not a security token and need not be sent to clients. Single-item playlists repeat; empty/ineligible playlists keep the prior valid plan and expose `empty_playlist`. A compile may not publish a partial schedule silently skipping required windows.
+Ignore empty selected folders while others contain eligible images. If none remain, device state sets `rotation_enabled=false`: stop future changes and retain the visible image, with a quiet add-images prompt. Do not continue rotating images removed from every connected folder, substitute unrelated starters, or manufacture an empty manifest. A transient compilation failure is different: retain the last valid active plan. Rights withdrawals still apply immediately on contact.
 
 ## Manifest contract
 
-Compile seven days by default; at minimum supply 72 hours of desired coverage for release testing. A manifest is immutable and device-scoped. It contains a monotonic per-device `version`, schema version, ID, source revisions, timestamps, target display policy, complete UTC entries, a deduplicated variant inventory, and the next preferred sync hint. Object URLs are absent.
+Compile seven days by default; demonstrate 72 hours of offline playback for release testing; cached-window repeats are allowed. A manifest is immutable and device-scoped. It contains a monotonic per-device `version`, schema version, ID, source revisions, timestamps, target display policy, complete UTC entries, a deduplicated variant inventory, and the next preferred sync hint. Object URLs are absent.
 
 The first entry starts exactly at `valid_from`; entries strictly increase and remain before `valid_until`. Entries cover contiguous periods by holding each image until the next entry. A manifest with fewer than two distinct images is valid if intentional. The same variant can serve hundreds of entries without repeated downloads.
 
-Generate a new plan daily and on relevant edits, retaining the prior valid plan during compilation. A scheduled dispatcher queues upcoming work at least an hour before preferred sync time; first pairing/manual requests can trigger compilation on demand. Return 202 plus Retry-After if no usable plan exists. Use a transaction/revision check before publishing to prevent a stale worker from overwriting newer desired state.
+Generate a new plan daily and on preferences, collection membership, or eligibility changes, retaining the prior valid plan during transient compilation. A scheduled dispatcher queues upcoming work at least an hour before preferred sync time; first pairing/manual requests can trigger compilation on demand. Return 202 plus Retry-After if no usable plan exists. Use a transaction/revision check before publishing to prevent a stale worker from overwriting newer desired state.
 
 ## Device synchronization sequence
 
@@ -45,7 +39,8 @@ sequenceDiagram
   participant C as Mac client
   participant A as API
   participant O as Object storage
-  C->>A: GET device state (authenticate, withdrawals, server time)
+  C->>A: POST events (checkpoint, timezone, pending acknowledgments)
+  C->>A: GET device state (authenticate, withdrawals, enabled, time)
   A-->>C: State revision, blocked variants, configuration status
   C->>C: Apply withdrawals before using cached files
   C->>A: GET latest manifest + If-None-Match
@@ -57,7 +52,7 @@ sequenceDiagram
   C->>A: POST events (activated/error/coverage/state applied)
 ```
 
-Device state is fetched on **every** sync, including when the manifest is unchanged. This lets source withdrawals take effect before the replacement plan has compiled. It provides a full blocked-variant snapshot relevant to this device; retain blocks until the client confirms removal and no retained plan needs the IDs. A 304 manifest response never suppresses state checks.
+Device state is fetched on **every** sync, including when the manifest is unchanged. If `rotation_enabled=false`, retain the visible non-blocked image, stop automatic changes, and skip manifest activation; explicit local Resume cannot override disconnected/empty folders. This lets source withdrawals take effect before the replacement plan has compiled. It provides a full blocked-variant snapshot relevant to this device; retain blocks until the client confirms removal and no retained plan needs the IDs. A 304 manifest response never suppresses state checks.
 
 Grant authorization checks account/device status, current asset policy, and membership in an authorized retained manifest. A copied manifest ID does not authorize another device. Grant expiry is independent of manifest expiry: request fresh grants if needed without changing the manifest's stable body or ETag. An already issued grant may remain usable for its remaining 15-minute lifetime; object removal can shorten access when necessary.
 
@@ -65,7 +60,7 @@ Download into staging files, max two concurrent transfers; verify response byte 
 
 ## Cache and offline behavior
 
-Default cache budget 512 MiB. Budget includes active, staged, and fallback files. Protect the current wallpaper and active-plan variants; evict unreferenced LRU files first. If staging cannot fit alongside the active plan, fail with `insufficient_cache`, keep the active plan, and ask for a smaller candidate pool or larger budget at the next sync. This favors safety over guaranteed daily replacement of a full cache; do not delete active files merely to make room.
+Default cache budget 512 MiB. Budget includes active, staged, and fallback files. Protect the current wallpaper and active-plan variants; evict unreferenced LRU files first. If staging cannot fit alongside the active plan, report `insufficient_cache` internally, keep the active plan, and automatically request a reduced candidate budget at the next sync. Escalate to a user-facing storage message only when cleanup and reduction cannot make progress. This favors safety over guaranteed daily replacement of a full cache; do not delete active files merely to make room.
 
 At a timer/wake event select the greatest `apply_at <= now`. Do not replay earlier entries. If the target is unavailable, keep the current verified non-blocked file; otherwise use the last verified non-blocked fallback. On horizon expiry hold the current wallpaper and mark coverage stale. Do not invent unbounded future scheduling.
 
@@ -77,4 +72,4 @@ Network/server errors retry at 1, 5, 15, then 60 minutes with jitter, capped at 
 
 Compare `server_time` to local time. A >5-minute difference is a visible clock warning; preserve the current desktop and avoid activating time-sensitive plans until the clock is corrected or rechecked. Use wall-clock comparisons after significant time changes and monotonic timers between events.
 
-Event batches contain unique UUID event IDs; server deduplicates `(device_id, event_id)`. Include desired/active manifest IDs, state revision applied, cache bytes, coverage end, and error codes. Retry delivery safely. Local skip/pin/pause actions do not mutate the server schedule and are not retroactive changes to manifests.
+Event batches contain unique UUID event IDs; server deduplicates `(device_id, event_id)`. Include desired/active manifest IDs, state revision applied, cache bytes, coverage end, and error codes. Retry delivery safely. Include active manifest/last-entry checkpoints and detected timezone in the next sync status batch. Local skip/pause does not mutate rotation preferences and is not retroactive; no per-rotation network reporting is required.

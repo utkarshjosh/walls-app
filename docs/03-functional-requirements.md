@@ -1,32 +1,37 @@
 # Functional requirements
 
-Status: proposed. Priorities: **M** = personal MVP, **B** = shared beta, **L** = later. Each row is independently reviewable and testable. Detailed behaviors live in the linked specifications.
+Revised 2026-10-31. **M** = core MVP, **D** = later discovery, **I** = later intelligence, **L** = extension. Retained IDs have revised meanings; this supersedes earlier playlist/time-window requirements.
 
 | ID | Phase | Requirement and acceptance condition |
 | --- | --- | --- |
-| FR-01 | M | Owner signs in through one configured OIDC provider. Server sessions use secure cookies; browser mutations reject absent/invalid CSRF protection. Access is invite-only by subject allowlist initially |
-| FR-02 | M | Upload JPEG/PNG images in batches; show per-file queued/processing/ready/failed status. Reject invalid type, >25 MiB, or >60 megapixels before uncontrolled decoding |
-| FR-03 | M | View dimensions, size, title, tags, source, author, rights, and processing state. Search/filter own library by text, tag, collection, orientation, and resolution |
-| FR-04 | M | Create, rename, and delete flat collections. One wallpaper can belong to several. Removing a collection does not delete the underlying saved items |
-| FR-05 | M | Save the same wallpaper once per account and add it to multiple collections without copying its bytes. Unauthorized accounts cannot determine whether a private asset exists |
-| FR-06 | M | Create/reorder a playlist using library items; choose ordered or seeded shuffle. A playlist uses a snapshot of selected members and records a revision |
-| FR-07 | M | Create a device schedule with default playlist, IANA timezone, 15-minute to 24-hour rotation interval, and optional weekly windows; reject overlaps and preview the next 24 hours |
-| FR-08 | M | Configure one preferred daily sync time (07:00 or 22:00 presets, arbitrary HH:MM allowed). It is independent of wallpaper-change frequency |
-| FR-09 | M | Server compiles a versioned seven-day device plan on change and ahead of the next refresh. If not ready, serve the last valid plan or an explicit retry response; never an empty accidental replacement |
-| FR-10 | M | Pair Mac via short-lived browser-approved code. Show device name, platform, last contact, activated manifest, cache coverage, and revocation control |
-| FR-11 | M | Client downloads missing variants, checks size/hash/decode, atomically activates a complete plan, and retains a working fallback. A failed new download must not replace the existing wallpaper |
-| FR-12 | M | Rotate from verified local files without network calls at each change. On wake apply only the currently due item; do not replay missed changes |
-| FR-13 | M | Menu bar offers pause/resume, next, temporary pin, sync now, open web library, and status/error details. State survives restart |
-| FR-14 | M | Apply the same image to all currently attached displays using public macOS APIs. Report per-display failures; do not claim all Mission Control Spaces or independent lock-screen support |
-| FR-15 | M | Keep a bounded cache and show storage/coverage. If a requested plan exceeds the budget, report insufficient capacity and retain the active plan |
-| FR-16 | M | Export personal metadata and owned/permitted image files with provenance. Delete saved items, account data, and device credentials through explicit actions |
-| FR-17 | B | Everyone can browse a common approved discovery catalog without login; signing in enables saving and interest preferences. Private libraries never appear in it automatically |
-| FR-18 | B | Filter shared discovery by explicit interests, orientation, minimum dimensions, and source; explain matching tags. Freshness and personal hide choices affect ordering |
-| FR-19 | B | Save an approved catalog wallpaper to a private collection in one action; preserve original attribution and the source-policy snapshot |
-| FR-20 | B | Scheduled adapters ingest only approved sources; deduplicate source IDs/hashes, enforce source limits, retry transient failures, and support an operator kill switch |
-| FR-21 | B | Provide personal hide and abuse/rights reporting. Moderator can quarantine/remove content and prevent future grants/plans; connected clients receive tombstones |
-| FR-22 | B | Enforce per-user and installation-wide storage, request, device, and import quotas before consuming resources |
-| FR-23 | L | Support independent per-display playlists, nested folders, live collection-backed playlists, and multiple Macs after MVP contracts are stable |
-| FR-24 | L | Reuse library and device protocol for Android with portrait variants and OS-appropriate scheduling. iOS starts with export/manual application or a validated Shortcuts workflow |
+| FR-01 | M | OIDC sign-in, initially invite-only; secure cookies and CSRF protection |
+| FR-02 | M | Batch JPEG/PNG upload into a private collection with per-file outcomes; enforce 25 MiB / 60 MP limits |
+| FR-03 | M | Image-first library with simple collection/text/tag filters; metadata and provenance on demand |
+| FR-04 | M | Create/rename/delete flat folders; overlapping membership allowed; deleting a folder preserves library files |
+| FR-05 | M | One saved asset per account; multiple collection references never duplicate its rotation weight |
+| FR-06 | M | Connect one or more folders directly; choose Shuffle or In order without a separate playlist |
+| FR-07 | M | Automatically create the initial rotation with hourly shuffle; offer hourly, three-hourly, daily presets; no rule builder/timeline |
+| FR-08 | M | Automatically prefetch daily at night and catch up on wake. Optional Morning/Night preference is secondary; no precise time setup |
+| FR-09 | M | Generate internal seven-day plans and refresh on changes; retain working playback through failures; queue details are not routine controls |
+| FR-10 | M | Browser-approved short-lived pairing; simple Connected/Needs attention status; secondary disconnect/re-pair |
+| FR-11 | M | Verify bytes/hash/decode and atomically activate complete plans; failed staging preserves the working queue |
+| FR-12 | M | Offline local rotation; wake applies the due image without replaying missed events |
+| FR-13 | M | Primary Mac controls: Next, Pause/Resume, Open collection. Sync now/diagnostics secondary; no pin timers |
+| FR-14 | M | Same image on attached displays through public APIs; per-display errors in diagnostics |
+| FR-15 | M | Automatically bound/reduce cache candidates and repeat cached images when needed; request help only after automatic recovery fails |
+| FR-16 | M | Private export, saved-item deletion, device revocation, and account deletion in secondary settings |
+| FR-17 | D | Common Pinterest-style feed; quick saves to private collections; public browsing and authenticated saving |
+| FR-18 | D | Interest filtering and Hide without requiring learned recommendations |
+| FR-19 | D | Saving into a connected collection updates future rotation after sync, preserving attribution |
+| FR-20 | D | Approved source adapters with provenance, bounded requests, deduplication, retries, and kill switch |
+| FR-21 | D | Reports/moderator withdrawal deny publication/grants and notify connected clients of blocked assets |
+| FR-22 | M | Internal per-user/install quotas; stricter public intake limits arrive with discovery; no routine capacity administration UI |
+| FR-23 | L | Consider additional device setups after demand; granular scheduling/per-display editors are not committed features |
+| FR-24 | L | Android extension and independently validated iOS export/automation feasibility |
+| FR-25 | M | Optional interests or starter folders; general starter set/private upload also work. Automatically connect choices and apply defaults |
+| FR-26 | M | Live folder membership invalidates future plans without republishing; retain current desktop until replacement activation |
+| FR-27 | D | Public user-uploaded content requires explicit submission plus rights/moderation checks; private uploads never auto-publish |
+| FR-28 | I | Optional taste learning using explicit likes/saves/hides/dislikes; opt-in for behavioral learning, reset/disable supported |
+| FR-29 | I | Prompt to reviewable collection or rotation preferences via existing authorized operations; preserve the simple default experience |
 
-Acceptance scenarios and traceability: [specs/06-acceptance-scenarios.md](../specs/06-acceptance-scenarios.md). Important invariants: account isolation, no automatic publication, content rights before redistribution, and local rotation independent of daily sync.
+Acceptance scenarios: [specs/06-acceptance-scenarios.md](../specs/06-acceptance-scenarios.md). Starter content and direct folder rotation ship in MVP; public discovery and both intelligence tracks do not.

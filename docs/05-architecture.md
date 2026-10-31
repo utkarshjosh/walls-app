@@ -38,7 +38,7 @@ References: [Go documentation](https://go.dev/doc/), [PostgreSQL locking/SELECT]
 
 ## Server modules
 
-`identity` handles web sessions and device pairing; `library` owns saved items, collections, playlists, and provenance; `scheduling` validates rules and compiles plans; `devices` serves manifests and records activation; `media` validates/normalizes assets and grants authorized downloads; `discovery` runs source adapters and ranking; `operations` handles quotas, reporting, backup metadata, and moderation.
+`identity` handles web sessions and device pairing; `library` owns saved items, live collections, starter templates, and provenance; `rotation` applies simple preferences and compiles internal plans; `devices` serves manifests and records activation; `media` validates/normalizes assets and grants authorized downloads; `discovery` runs source adapters and ranking; `operations` handles quotas, reporting, backup metadata, and moderation.
 
 HTTP handlers validate input and authorization, call use cases, and serialize results. Domain modules do not depend on HTTP or OCI SDK types. Avoid a generic repository framework: explicit SQL queries and transaction boundaries are easier to review.
 
@@ -46,7 +46,7 @@ HTTP handlers validate input and authorization, call use cases, and serialize re
 
 Use PostgreSQL jobs with `run_at`, attempt count, lease owner/expiry, deduplication key, and last error. Workers claim short batches with `FOR UPDATE SKIP LOCKED`, commit the claim, then perform external work outside the transaction. Expired leases permit replay; side effects must be idempotent. Use unique keys and guarded state transitions so a retried upload cannot publish a second asset.
 
-Save domain changes and their outbox job in the same database transaction. For a changed schedule, compile against a consistent snapshot of schedule, playlist, rights, and device-profile revisions. Publish only if those revisions still match; otherwise enqueue again. Write the complete plan before updating the device's latest-manifest pointer.
+Save domain changes and their outbox job in the same database transaction. For changed rotation preferences or collection membership, compile against a consistent snapshot of collection, rotation, rights, device-profile, and acknowledged traversal revisions. Publish only if those revisions still match; otherwise enqueue again. Write the complete plan before updating the device's latest-manifest pointer.
 
 Asset state: `pending_upload → quarantined → processing → ready`, with terminal `rejected` or `removed`. Catalog publication is a separate moderation/rights decision. A ready private upload is not a public catalog item.
 
@@ -64,4 +64,4 @@ docs/                     # rationale, requirements, operations plan
 specs/                    # contracts, examples, acceptance scenarios
 ```
 
-Only documentation and contracts exist today. Redis, Kafka, Elasticsearch, Kubernetes, WebSockets, ML recommendations, and microservices are intentionally deferred until a demonstrated requirement pays for their operational complexity.
+Only documentation and contracts exist today. No separate playlist tables or weekly-rule engine are planned. Starter folders use curated assets and fixed tag mappings. Later discovery, taste learning, and prompt curation are optional modules; the core path has no model/vector-store dependency. Redis, Kafka, Elasticsearch, Kubernetes, WebSockets, ML recommendations, and microservices are intentionally deferred until a demonstrated requirement pays for their operational complexity.

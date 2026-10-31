@@ -1,6 +1,6 @@
 # Data model
 
-Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `timestamptz`, user schedule zones are IANA strings, and file sizes are integer bytes. Owner-scoped entities carry `user_id` explicitly.
+Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `timestamptz`, automatically captured device zones are IANA strings, and file sizes are integer bytes. Owner-scoped entities carry `user_id` explicitly.
 
 | Entity | Important fields and relationships |
 | --- | --- |
@@ -11,15 +11,16 @@ Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `
 | source_records | adapter + external ID unique pair, canonical URL, creator, license URL/name, attribution text, checked_at, policy version, permitted operations, rights evidence |
 | library_items | user + asset unique pair, title override, saved_at, hidden_at; links do not confer public rights |
 | collections | user, name, created_at, revision; flat MVP hierarchy |
-| collection_items | collection + library_item unique pair; both must have same owner |
+| collection_items | collection + library_item unique pair; same owner; saved_at plus asset ID defines stable traversal order; writes increment collection revision |
 | tags / asset_tags | normalized tags and associations; distinguish source tags from personal tags so user edits never alter the global catalog |
-| playlists | user, name, order mode, revision; members are explicit, not a live collection query |
-| playlist_items | playlist, library_item, integer position; unique playlist/item and playlist/position; reorder transaction updates revision |
-| schedules | user, timezone, default playlist, interval, sync time, rule JSON, revision; JSON validated against schema and domain invariants |
+| starter_templates / template_items | Operator-reviewed folder names, interest tags, permitted assets, provenance, revision; applying creates private collection references idempotently |
+| schedules (internal rotation preferences) | One initial setup per user; selected collections, mode, cadence preset, sync window, captured timezone, revision; no weekly-rule JSON |
+| schedule_collections | schedule + owned collection, selection position; unique membership and stable order; live references, not copied item lists |
+| traversal_state | device, source revision, seed/cycle, sequence checkpoint, acknowledged manifest/entry; idempotent progress reconciliation |
 | devices | user, name, platform, capabilities, assigned schedule, cache budget, last contact, latest and activated manifest IDs, revoked_at |
 | device_credentials | device, hashed high-entropy token, issued_at, expires_at, revoked_at, last_used_at |
 | pairings | hashed device code, hashed user code, expiry, approved user, consumed_at, attempt counters; approval and consumption atomic |
-| manifests | device, version, schedule/playlist/profile revisions, generated_at, valid_from/until, immutable JSON body, body hash, publication state |
+| manifests | device, version, schedule/collection/profile revisions, generated_at, valid_from/until, immutable JSON body, body hash, publication state |
 | device_events | device + event_id unique pair, type, manifest, observed_at, received_at, compact payload; bounded retention |
 | jobs / outbox | type, payload IDs, dedupe key, run_at, lease, attempts, status, error code |
 | catalog_entries | asset, approved_at, moderation state, visibility, interest tags, source policy revision |
@@ -28,7 +29,7 @@ Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `
 
 ## Ownership and access
 
-Library and collection requests always filter by the authenticated user. Use composite foreign keys or equivalent transactional constraints to enforce same-owner playlist members, collection members, and schedule references. A device token may only act on its own device and read assets explicitly referenced by that device's currently authorized manifests. Do not accept a caller-supplied user ID as authority.
+Library and collection requests always filter by the authenticated user. Use composite foreign keys or equivalent transactional constraints to enforce same-owner collection members and live schedule-to-collection references. A device token may only act on its own device and read assets explicitly referenced by that device's currently authorized manifests. Do not accept a caller-supplied user ID as authority.
 
 Public catalog metadata is read-only to anonymous users; full-file download grants require an account/device and a permitted asset. Private thumbnails also require authorization. Public thumbnail access is possible only after a separate catalog approval check.
 
@@ -40,12 +41,12 @@ Saving a public catalog image adds a user reference; it does not copy the source
 
 ## Deletion and garbage collection
 
-Removing a collection or playlist removes associations only. Deleting a library item removes its playlist memberships, increments affected revisions, and requests new plans. Blob GC runs only after checking live library/catalog references and retained unexpired manifests. Obsolete manifests retain their referenced variants for at least their seven-day horizon plus a one-day safety margin, unless a withdrawal requires earlier denial.
+Removing a collection removes its memberships and rotation association, preserving the library files. Deleting a library item removes its collection memberships, increments affected revisions, and requests new plans. If every selected folder is empty/disconnected, device state disables rotation after sync while preserving the visible wallpaper. No independent playlist copy retains removed items. Blob GC runs only after checking live library/catalog references and retained unexpired manifests. Obsolete manifests retain their referenced variants for at least their seven-day horizon plus a one-day safety margin, unless a withdrawal requires earlier denial.
 
 Account deletion revokes sessions/devices immediately, removes private access immediately, and schedules live-data purge within seven days. Backups expire within thirty days; a restoration must replay deletion/withdrawal records before serving traffic. Backups of private originals are not public exports.
 
 ## Indexes and migrations
 
-Start with owner/date indexes for library lists; unique owner/asset membership; playlist/position; source/external-ID; pending jobs by run_at; device/version; and searchable normalized tags. PostgreSQL text search is sufficient for the initial catalog. Use cursor pagination with stable `(created_at, id)` ordering, not unbounded offsets.
+Start with owner/date indexes for library lists; unique owner/asset membership; schedule/collection position; source/external-ID; pending jobs by run_at; device/version; and searchable normalized tags. PostgreSQL text search is sufficient for the initial catalog. Use cursor pagination with stable `(created_at, id)` ordering, not unbounded offsets.
 
 Migrations use expand → deploy → backfill → contract for destructive changes. Back up before schema changes; avoid long locks on media/job tables. Content hashes, object keys, and the blob inventory must remain recoverable together with the DB.

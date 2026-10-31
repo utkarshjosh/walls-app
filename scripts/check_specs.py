@@ -35,19 +35,8 @@ def timestamp(value):
 
 def schedule_semantics(schedule):
     ZoneInfo(schedule["timezone"])
-    ids = [window["id"] for window in schedule["windows"]]
-    require(len(ids) == len(set(ids)), "Duplicate window IDs")
-    by_day = {day: [] for day in range(1, 8)}
-    for window in schedule["windows"]:
-        start = sum(int(v) * scale for v, scale in zip(window["start"].split(":"), [60, 1]))
-        end = sum(int(v) * scale for v, scale in zip(window["end"].split(":"), [60, 1]))
-        require(start < end, "Overnight/empty window must be split or rejected")
-        for day in window["days"]:
-            by_day[day].append((start, end))
-    for windows in by_day.values():
-        windows.sort()
-        for previous, current in zip(windows, windows[1:]):
-            require(previous[1] <= current[0], "Overlapping weekly windows")
+    ids = schedule["collection_ids"]
+    require(len(ids) == len(set(ids)), "Duplicate selected collections")
 
 
 def manifest_semantics(manifest):
@@ -66,7 +55,7 @@ def manifest_semantics(manifest):
     require(all(a < b for a, b in zip(times, times[1:])), "Entries must strictly increase")
     for entry in entries:
         require(entry["variant_id"] in variants, "Entry references missing variant")
-        require(entry["playlist_id"] in manifest["playlist_revisions"], "Missing playlist revision")
+        require(entry["collection_id"] in manifest["collection_revisions"], "Missing collection revision")
     for variant in variants.values():
         require(variant["width"] * variant["height"] <= 60_000_000, "Pixel cap exceeded")
 
@@ -109,6 +98,7 @@ def main():
     manifest_semantics(manifest)
     require(manifest["schedule_id"] == schedule["id"], "Fixture schedule mismatch")
     require(manifest["schedule_revision"] == schedule["revision"], "Fixture revision mismatch")
+    require(set(manifest["collection_revisions"]) == set(schedule["collection_ids"]), "Fixture collection mismatch")
     require(len(manifest["entries"]) == 168, "Example should cover seven hourly days")
     require(sum(v["byte_size"] for v in manifest["variants"]) <= 0.4 * 512 * 1024**2,
             "Example does not fit default per-generation budget")
@@ -122,8 +112,14 @@ def main():
         )
 
     bad_interval = copy.deepcopy(schedule)
-    bad_interval["default_interval_minutes"] = 0
-    expect_failure(validators["schedule"].validate, bad_interval, "zero interval")
+    bad_interval["cadence"] = "every_minute"
+    expect_failure(validators["schedule"].validate, bad_interval, "unsupported frequency")
+    duplicate_folders = copy.deepcopy(schedule)
+    duplicate_folders["collection_ids"].append(schedule["collection_ids"][0])
+    expect_failure(validators["schedule"].validate, duplicate_folders, "duplicate selected folder")
+    legacy_rules = copy.deepcopy(schedule)
+    legacy_rules["windows"] = []
+    expect_failure(validators["schedule"].validate, legacy_rules, "removed rule-builder field")
     bad_hash = copy.deepcopy(manifest)
     bad_hash["variants"][0]["sha256"] = "not-a-sha256"
     expect_failure(validators["manifest"].validate, bad_hash, "invalid checksum")
@@ -135,7 +131,7 @@ def main():
     expect_failure(manifest_semantics, bad_reference, "missing variant")
 
     print("PASS: two Draft 2020-12 schemas, OpenAPI 3.1, four examples, domain invariants,")
-    print(f"four negative fixtures, and {check_links()} local Markdown links.")
+    print(f"six negative fixtures, and {check_links()} local Markdown links.")
     print("Application behavior, native APIs, external links, and deployment are not tested here.")
 
 

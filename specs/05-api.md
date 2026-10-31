@@ -1,6 +1,6 @@
 # API specification and endpoint inventory
 
-Status: proposed v0.1. Base path `/api/v1` at the proposed same-origin `https://walls.utkarshjoshi.com`. [OpenAPI](openapi.yaml) defines the device-sync slice; the rest of this inventory requires concrete payload schemas during its implementation stage. Do not generate an entire server from the partial file and mistake it for full product coverage.
+Status: proposed v0.2. Base path `/api/v1` at the proposed same-origin `https://walls.utkarshjoshi.com`. [OpenAPI](openapi.yaml) defines the device-sync slice; the rest of this inventory requires concrete payload schemas during its implementation stage. Do not generate an entire server from the partial file and mistake it for full product coverage.
 
 ## Conventions
 
@@ -14,12 +14,14 @@ Create operations accept `Idempotency-Key`; persist user/device scope + method/p
 
 ## Endpoint inventory
 
+Core endpoints cover uploads, collections, starter onboarding, rotation preferences, and device sync. `/discover`, `/reports`, `/hidden`, and future publication submissions are deferred to the discovery phase. There are no MVP playlist, schedule-rule, or timeline-preview endpoints. The schedule JSON Schema describes persisted internal rotation preferences, not a setup form.
+
 | Endpoint | Authentication | Behavior |
 | --- | --- | --- |
 | `GET /auth/login`, `GET /auth/callback` | OIDC redirect flow | Start/complete login and allowlist check |
 | `POST /auth/logout` | Web + CSRF | Revoke session |
 | `GET /me` | Web | Profile, quotas, interests |
-| `PATCH /me/preferences` | Web + CSRF + If-Match | Update interests/time defaults |
+| `PATCH /me/preferences` | Web + CSRF + If-Match | Update explicit interests; inferred preferences are deferred |
 | `POST /uploads` | Web + CSRF + idempotency | Reserve quota, create upload intent |
 | `PUT /uploads/{id}/content` | Web + CSRF | Bounded JPEG/PNG stream to quarantine |
 | `POST /uploads/{id}/complete` | Web + CSRF + idempotency | Queue verification; return processing asset |
@@ -28,11 +30,10 @@ Create operations accept `Idempotency-Key`; persist user/device scope + method/p
 | `DELETE /library/{id}` | Web + CSRF | Remove own reference and dependent memberships |
 | `GET/POST /collections`, `PATCH/DELETE /collections/{id}` | Web | Owner CRUD; CSRF on writes, If-Match on edits |
 | `PUT/DELETE /collections/{id}/items/{item_id}` | Web + CSRF | Idempotent owner membership change |
-| `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/{id}` | Web | Owner playlist operations, revision checks |
-| `PUT /playlists/{id}/items` | Web + CSRF + If-Match | Atomic complete item-order replacement |
-| `GET/POST /schedules`, `PUT /schedules/{id}` | Web | Validate schema/domain; publish desired revision |
-| `POST /schedules/preview` | Web + CSRF | Compile a bounded preview without saving |
-| `GET /devices`, `PATCH /devices/{id}` | Web | Owner device status/schedule assignment |
+| `GET /starter-collections` | Web | Small reviewed template set and interest tags; no live source dependency |
+| `POST /onboarding` | Web + CSRF + idempotency | Apply starter choices/interests, create private folders and default rotation atomically |
+| `GET /rotation`, `PUT /rotation` | Web; CSRF + If-Match on write | Singleton folder selection/mode/cadence; optional secondary sync window. Server manages ID/revision/timezone |
+| `GET /devices`, `PATCH /devices/{id}` | Web | Owner device status/name; initial rotation is assigned automatically |
 | `DELETE /devices/{id}` | Web + CSRF | Revoke device credentials |
 | `POST /pairings` | Public, throttled | Create expiring device/user codes; name/platform input |
 | `POST /pairings/approve` | Web + CSRF | Approve entered user code for displayed device |
@@ -55,9 +56,9 @@ Admin source, report, and moderation endpoints are restricted by role and audit 
 
 ## Limits and credential lifecycle
 
-Default personal limits: three paired devices, 5 GiB managed library quota, 25 MiB per upload, 60 MP decoded image, 100 playlist candidates per device plan, 100 entries per event/grant batch. Operator caps may be lower based on tenancy capacity. Rate limits distinguish unauthenticated pairing, signed-in writes, device sync, and public catalog reads.
+Default personal limits: three paired devices, 5 GiB managed library quota, 25 MiB per upload, 60 MP decoded image, 100 cached rotation candidates per device plan, 100 entries per event/grant batch. Operator caps may be lower based on tenancy capacity. Rate limits distinguish unauthenticated pairing, signed-in writes, device sync, and public catalog reads.
 
-Pairing codes expire in ten minutes and are single-use; retry/poll abuse is rate-limited. Device credential is random 256-bit data, hashed server-side, 90-day lifetime, normally rotated after 30 days during a sync. A token cannot enumerate other devices or access arbitrary owner images. An authenticated rotation request is idempotent to recover a lost response; store its replay response encrypted for only the five-minute recovery window, then delete it. Replay after that window returns 409 and the client re-pairs if it has lost the new credential.
+Pairing codes expire in ten minutes and are single-use; retry/poll abuse is rate-limited. Device credential is random 256-bit data, hashed server-side, 90-day lifetime, normally rotated after 30 days during a sync. A token cannot enumerate other devices or access arbitrary owner images. An authenticated credential-rotation request is idempotent to recover a lost response; store its replay response encrypted for only the five-minute recovery window, then delete it. Replay after that window returns 409 and the client re-pairs if it has lost the new credential.
 
 ## Versioning
 

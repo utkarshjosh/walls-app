@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Wallpaper Server — Device Sync Slice
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Proposed contract, not an implemented service. Covers state, manifest,
     download grants, and event acknowledgment only. Pairing, web CRUD, and
@@ -251,7 +251,7 @@ components:
     DeviceState:
       type: object
       additionalProperties: false
-      required: [device_id, state_revision, server_time, desired_schedule_revision, plan_status, blocked_variant_ids]
+      required: [device_id, state_revision, server_time, desired_schedule_revision, plan_status, rotation_enabled, blocked_variant_ids]
       properties:
         device_id:
           type: string
@@ -267,6 +267,9 @@ components:
           minimum: 1
         plan_status:
           enum: [ready, compiling, needs_configuration, invalid_configuration]
+        rotation_enabled:
+          type: boolean
+          description: False when selected folders are empty/disconnected; retain current image and stop changes.
         blocked_variant_ids:
           type: array
           uniqueItems: true
@@ -319,6 +322,19 @@ components:
         state_revision:
           type: integer
           minimum: 1
+        last_entry_id:
+          type: string
+          format: uuid
+          description: Last applied entry from manifest_id; reconcile traversal once per sync, not per change.
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Current system IANA timezone, reported at sync.
+        available_staging_bytes:
+          type: integer
+          minimum: 0
+          description: Internal feedback for automatic cache-budget reduction.
         cached_bytes:
           type: integer
           minimum: 0
@@ -328,6 +344,8 @@ components:
         error_code:
           type: string
           maxLength: 100
+      dependentRequired:
+        last_entry_id: [manifest_id]
       allOf:
         - if:
             properties:

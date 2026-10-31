@@ -2,7 +2,8 @@
   "device_id": "00000000-0000-4000-8000-000000000004",
   "state_revision": 1,
   "server_time": "2026-10-31T16:30:00Z",
-  "desired_schedule_revision": 1,
+  "desired_schedule_revision": 2,
   "plan_status": "ready",
-  "blocked_variant_ids": []
+  "blocked_variant_ids": [],
+  "rotation_enabled": true
 }

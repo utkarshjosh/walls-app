@@ -16,7 +16,7 @@ Research date: **31 October 2026**. Sources below are official product pages, do
 
 **Best immediate zero-build option:** collect files into a local folder and use macOS shuffle. **Explicitly free/ad-free app to try:** Plash, when a website-backed desktop is desirable. Neither satisfies the complete product brief. Equinox is worth evaluating for dynamic wallpaper creation.
 
-The product gap is the combination of private curation, playlist scheduling, controlled daily prefetch, offline native playback, owned storage, and a common discovery catalog. Build that combination; do not spend the first release reproducing dynamic/video rendering.
+The revised product gap is effortless rotation from live personal collections, with automatic prefetch and offline native playback. Build that simple loop first. A shared visual discovery catalog is a later addition; the product does not require users to author playlists or inspect a future schedule. Product/source research above is unchanged by this scope revision.
 
 ## Discovery changes the feasibility calculation
 

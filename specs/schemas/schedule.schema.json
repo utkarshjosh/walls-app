@@ -1,41 +1,64 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://walls.utkarshjoshi.com/specs/schemas/schedule.schema.json",
-  "title": "Wallpaper schedule v1",
-  "description": "Proposed contract. Ownership, timezone validity, window overlap, time ordering, and playlist eligibility also require domain validation.",
+  "title": "Collection rotation preferences v1 (unreleased draft)",
+  "description": "Persisted preferences, mostly generated at onboarding. The UI edits collection_ids, mode and cadence; sync_window is secondary. Identity/revision/timezone are server-managed. Empty selection stops rotation.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "revision", "timezone", "sync_time", "default_playlist_id", "default_interval_minutes", "default_order", "windows"],
+  "required": [
+    "id",
+    "revision",
+    "timezone",
+    "collection_ids",
+    "mode",
+    "cadence",
+    "sync_window"
+  ],
   "properties": {
-    "id": {"type": "string", "format": "uuid"},
-    "revision": {"type": "integer", "minimum": 1},
-    "timezone": {"type": "string", "minLength": 1, "maxLength": 100},
-    "sync_time": {"$ref": "#/$defs/localTime"},
-    "default_playlist_id": {"type": "string", "format": "uuid"},
-    "default_interval_minutes": {"type": "integer", "minimum": 15, "maximum": 1440},
-    "default_order": {"enum": ["ordered", "shuffle"]},
-    "windows": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "collection_ids": {
       "type": "array",
+      "minItems": 0,
       "maxItems": 50,
-      "items": {"$ref": "#/$defs/window"}
-    }
-  },
-  "$defs": {
-    "localTime": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"},
-    "endTime": {"type": "string", "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$"},
-    "window": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "days", "start", "end", "playlist_id", "interval_minutes", "order"],
-      "properties": {
-        "id": {"type": "string", "format": "uuid"},
-        "days": {"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": {"type": "integer", "minimum": 1, "maximum": 7}},
-        "start": {"$ref": "#/$defs/localTime"},
-        "end": {"$ref": "#/$defs/endTime"},
-        "playlist_id": {"type": "string", "format": "uuid"},
-        "interval_minutes": {"type": "integer", "minimum": 15, "maximum": 1440},
-        "order": {"enum": ["ordered", "shuffle"]}
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uuid"
       }
+    },
+    "mode": {
+      "enum": [
+        "shuffle",
+        "sequential"
+      ],
+      "default": "shuffle"
+    },
+    "cadence": {
+      "enum": [
+        "hourly",
+        "every_3_hours",
+        "daily"
+      ],
+      "default": "hourly"
+    },
+    "sync_window": {
+      "enum": [
+        "morning",
+        "night"
+      ],
+      "default": "night"
     }
   }
 }

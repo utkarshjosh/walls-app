@@ -13,6 +13,10 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-007 | Same image on attached displays for MVP | Reduces platform complexity; retain capability fields for future per-display support |
 | ADR-008 | Explicit interests and simple ranking | Explainable and cheap; no recommendation model needed at initial scale |
 | ADR-009 | Invite-only owner/pilot accounts | Bounds storage and moderation while tenancy capacity is established |
+| ADR-010 | Live collections directly feed rotation | Supersedes snapshot playlists; save/remove flows into future rotation after sync |
+| ADR-011 | Starter folders and automatic defaults | Interests map to curated seed content without AI; no schedule authoring required |
+| ADR-012 | Three everyday controls | Selected folders, Shuffle/In order, frequency preset; remove weekly rules, queue previews, pin timers, and playlist editor from MVP |
+| ADR-013 | Discovery and intelligence are deferred | Pinterest-style discovery accepts reviewed sources and explicit user submissions later; taste learning and prompt curation are independent optional tracks |
 
 ## Confirm before deployment
 
@@ -28,6 +32,8 @@ All architecture decisions are **proposed defaults** for implementation, not app
 
 ## Product choices that can wait
 
-Brand/name; code license (private, permissive, or copyleft); willingness to fund storage above free limits; initial category seed set; shared-beta user count; nested collection depth; whether independent screen playlists matter; Android-first versus an iOS export companion.
+Brand/name; code license (private, permissive, or copyleft); willingness to fund storage above free limits; later expansion of starter categories; shared-beta user count; Android-first versus an iOS export companion.
 
-Do not block the feasibility spike on those choices. No mandatory Unsplash/Pexels dependency, public sign-up, CDN, paid database, or automatic cloud upgrade is assumed.
+A small reviewed starter set is required before MVP onboarding ships; a broad catalog is not. Do not block the feasibility spike on branding or later-phase choices. No mandatory Unsplash/Pexels dependency, public sign-up, CDN, paid database, or automatic cloud upgrade is assumed.
+
+The v0.2 document/API draft revises previously unreleased contracts: collection references replace playlist references, and rotation preferences replace rule windows. No deployed client or database migration is claimed.

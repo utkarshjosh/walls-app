@@ -22,6 +22,7 @@ These are proposed test targets, not current measurements or an SLA. Measure aft
 | NFR-16 | Maintainability | Module boundaries, SQL migrations, OpenAPI/schema checks, representative end-to-end tests, supported dependency versions pinned during implementation; no invented test coverage percentage gate |
 | NFR-17 | Cost | Personal default: 5 GiB per-account managed library quota, 512 MiB Mac cache, no automatic paid capacity expansion. Installation caps must reflect live OCI tenancy allowances |
 | NFR-18 | Retention | Operational logs 14 days; device event details 30 days; revoked tokens unusable immediately online; deleted user data purged from live storage within 7 days, backups age out within 30 days |
+| NFR-19 | Simplicity | Complete preference selection in under two minutes and at most three onboarding steps, excluding auth/install/transfers. No schedule editor required; healthy operation generates no routine notifications. Verify with first-use trials |
 
 Performance budgets exclude arbitrary originals; 25 MiB and 60 MP are hard intake ceilings, not typical files. Limit worker concurrency to one initially, with a 1 GiB memory ceiling and timeout. Benchmark that ceiling using worst-case allowed images before opening uploads beyond the owner.
 

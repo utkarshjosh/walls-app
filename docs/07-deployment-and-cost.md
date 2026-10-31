@@ -37,7 +37,7 @@ Illustrative assumptions, **not provider prices**: 6 MiB original + 3 MiB deskto
 | 2,000 wallpapers | ~17.87 GiB | Already close to a 20 GB allowance before backups/versioning |
 | 10,000 wallpapers | ~89.36 GiB | Budget paid storage or tighten retention |
 
-One Mac fetching 24 new 3 MiB derivatives daily uses roughly **2.11 GiB per 30 days**. At 100 similarly active Macs this is about **211 GiB/month**, excluding thumbnails, originals, retries, and backups. A 512 MiB cache can hold about 100 such derivatives plus headroom; playlist repetition allows many more scheduled events than unique files.
+One Mac fetching 24 new 3 MiB derivatives daily uses roughly **2.11 GiB per 30 days**. At 100 similarly active Macs this is about **211 GiB/month**, excluding thumbnails, originals, retries, and backups. A 512 MiB cache can hold about 100 such derivatives plus headroom; cached-cycle repetition allows many more scheduled events than unique files.
 
 Request volume can dominate free allowances: 100 Macs × 24 object GETs × 30 days = **72,000 GETs/month**, even before web thumbnails and uploads. Track storage, requests, and transfer independently. Budgets notify; they are not assumed to be automatic spending caps. Implement application quotas and operator circuit breakers.
 
@@ -54,6 +54,8 @@ Daily: encrypted PostgreSQL dump, manifest/source/deletion records, object inven
 An object bucket is primary storage, not by itself a complete backup. A second bucket in the same tenancy protects against some application mistakes but not loss of the account. Before shared beta, keep an encrypted offline or independent-account copy of irreplaceable personal files and metadata. Record recovery-key custody outside the servers.
 
 Restore drill: provision clean services; restore DB and blobs; replay deletion/withdrawal records; verify sampled checksums and object inventory; pair a test client; confirm offline playback; then switch traffic. Target RPO 24 hours and RTO four hours. Do not auto-promote VM B as a DB primary without an explicit replication/failover design.
+
+Operator limits, telemetry, and recovery procedures below are implementation responsibilities, not screens for everyday wallpaper users. Starter collections require only a small reviewed seed set; no model inference infrastructure is budgeted for MVP.
 
 ## Release and operations
 

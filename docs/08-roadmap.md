@@ -1,30 +1,30 @@
 # Implementation roadmap
 
-Dependency order matters more than dates. Effort ranges below assume one experienced maintainer working substantially full time; they are planning estimates, not commitments. Distribution, provider approval, and available time can extend them.
+The core revision removes playlist editing, weekly rules, queue previews, and pin timers. Backend integrity and offline recovery remain necessary.
 
-| Stage | Indicative effort | Deliverable | Exit evidence |
-| --- | --- | --- | --- |
-| 0. Feasibility | 2–4 days | Native Swift wallpaper/login/wake spike; OCI upload/download/signing spike; inventory both servers | Real Mac applies a local image across attached screens; wake behavior recorded; actual S3 operations work; resource assumptions corrected |
-| 1. Foundation | 3–5 days | Go API/worker structure, PostgreSQL migrations/jobs, OIDC owner access, static web shell, local development setup | Authorized session; forbidden cross-owner request; durable job survives process restart; health/readiness checks |
-| 2. Personal library | 4–7 days | Upload/normalize, thumbnails, tags, collections, explicit playlists, quota controls | Upload failures are visible; valid file becomes a selectable playlist item; duplicate saving does not create duplicate references |
-| 3. Schedules and device protocol | 4–7 days | Schedule validation/preview, deterministic compiler, pairing, immutable manifests, object grants | Contract fixtures agree across Go/Swift; DST/overlap cases pass; schedule edit compiles without partial publication |
-| 4. Mac companion | 5–8 days | Pairing UI, cache, atomic activation, timers, pause/skip/pin, wake/restart recovery | Network-disabled 72-hour trial; corrupted/expired download recovery; no blank wallpaper on failure |
-| 5. Personal deployment | 2–4 days plus dogfood | Oracle services, TLS/domain, backup/restore, versioned release build | Restore drill succeeds; 30-day personal dogfood starts; resource measurements recorded |
-| 6. Shared discovery beta | 1–3 weeks | Approved-source ingestion, public catalog, private saves/interests, moderation/takedowns, quotas | Reviewed seed catalog, source kill switch, withdrawal propagation, isolation/load checks |
-| 7. Extensions | Re-estimate after beta | Per-display schedules, Android, richer curation, iOS feasibility | Platform-specific proof before committing feature parity |
+| Stage | Deliverable | Exit evidence |
+| --- | --- | --- |
+| 0. Feasibility | Swift wallpaper/login/wake and OCI access spikes; server inventory | Real Mac application and object grants work; capacity assumptions checked |
+| 1. Foundation | API/worker, PostgreSQL, owner access, uploads, collection model | Private safe uploads, durable jobs, basic ARM deployment |
+| 2. Effortless setup | Reviewed starter templates, tag mapping, idempotent onboarding, default rotation, pairing | User accepts folders and connects Mac without schedule configuration |
+| 3. Live folder rotation | One/many folders, deduped shuffle/sequential, frequency presets, generated plans | Save/remove in connected folders changes rotation without a second action |
+| 4. Reliable companion | Prefetch/cache, atomic activation, offline playback, Next/Pause, wake recovery | 72-hour offline trial; failed downloads preserve desktop; no routine maintenance |
+| 5. Personal release | Oracle, TLS, signing plan, backup/restore, thirty-day dogfood | First-use trial and restore succeed; resources measured; experience stays simple |
+| 6. Discovery later | Pinterest-style browse/save, approved sources, explicit user submissions, moderation | Safe shared catalog; a save into a connected folder reaches rotation |
+| 7a. Taste learning later | Opt-in signals, similarity/KNN/clustering experiments | Benefit over tag baseline; disable/reset works |
+| 7b. Prompt curation later | Natural language to reviewable collection/rotation proposal | Grounded authorized results, clear apply/undo, no calendar UI |
+| 8. Platform expansion | Android; separate iOS feasibility | Real platform proof before feature promises |
 
-The personal build is approximately 20–35 engineering days plus elapsed dogfood time. Stop after Stage 0 to revise the plan if platform or storage constraints contradict assumptions; no big architecture rewrite should be required just to test wallpaper application.
+No embeddings, vector database, model hosting, agent runtime, public scraper, or elaborate control screen is needed for stages 0–5. Intelligence tracks 7a and 7b are independent.
 
-## First implementation slice
+## First slice
 
-One owner, one Mac, three owned JPEGs, one ordered playlist, one hourly schedule, daily sync, and one authenticated object store. Demonstrate the entire loop before building discovery ranking or elaborate library UI.
+One owner selects a starter folder, pairs a Mac, and gets hourly shuffled wallpaper. Add a second folder, confirm shared images are deduplicated, and save a new image into a connected folder. It joins rotation after sync without creating a playlist.
 
-## Quality gates
+## Validation and estimates
 
-- Server: unit tests for scheduler/selection, database integration for ownership/jobs, API contract tests, and decoder failure fixtures.
-- Web: one end-to-end upload → playlist → schedule → device-status flow; keyboard checks on core screens.
-- Mac: integration test with local fixtures, checksum/cache interruption tests, real-machine wake/display experiments, energy measurement.
-- Operations: deploy to a test environment, exercise bad migration/application rollback, restore backup, check ARM64 compatibility.
-- Public beta: recheck source policies, verify attribution display/export, enforce quotas, test catalog withdrawal and account deletion.
+Re-estimate after the feasibility spike and onboarding walkthrough. The previous 20–35-day estimate included removed features and is superseded; fewer controls do not eliminate native/offline engineering.
 
-The initial repository is planning only. No GitHub remote, cloud resources, paid services, or Apple distribution credentials are required to review these documents.
+Server checks cover ownership, jobs, collection invalidation, traversal continuation, quota, and image safety. Web checks cover starter choice → pairing → automatic rotation and upload/save → connected folder. Native tests cover wake/displays, cache corruption, interruption, and quiet recovery. Operations still require a restore drill.
+
+Discovery adds rights/moderation checks. Learning needs usefulness/privacy evidence; prompt curation needs authorization, grounding, review, and undo. Do not build those dependencies speculatively.

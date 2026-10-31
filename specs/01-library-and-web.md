@@ -1,47 +1,49 @@
 # Library and web specification
 
-Status: proposed v0.1. Covers FR-01–07, FR-10, FR-16–19, FR-21–22.
+Proposed v0.2. Collection-first core experience, with discovery deferred.
 
-## Information architecture
+## Product surface
 
-Navigation: **Library**, **Collections**, **Playlists**, **Schedule**, **Devices**, **Discover**, **Settings**. Discovery is hidden until the approved catalog is enabled. The first-run view offers “Upload wallpapers,” followed by “Create playlist” and “Connect Mac.”
+Default screen: **Collections**, image grid, and Upload/Save. “All wallpapers” is a library view. **Wallpaper settings** is a small sheet. Account, connection, export, and troubleshooting live behind Settings. Add **Discover** only when the catalog phase ships.
 
-Library uses an image-first grid with cursor pagination, small thumbnails, selected count, and bulk add/remove controls. Filters include collection, tag, orientation, and minimum dimensions. Detail view includes original source, creator, license, resolution, size, saved collections, and download/export availability. A failed image has a retryable error, not an indefinitely spinning tile.
+No top-level Playlists, Schedules, Devices, or future-wallpaper timeline in MVP. Cache counts, manifest revisions, and queue state belong in diagnostics.
 
-Collections behave like category folders but allow overlapping membership. Playlist editor exposes ordering, shuffle, count, approximate cache size, and missing/ineligible entries. Provide move-up/down buttons as a keyboard alternative to dragging. A playlist made from a collection is an explicit snapshot; later collection edits do not silently change it.
+## Onboarding
 
-## Upload flow
+1. **Find your starting point:** choose optional interests or starter folders. Fixed tag mappings suggest a few collections; “Surprise me” uses a general set, “Use my own” opens upload.
+2. **Connect your Mac:** install/open the companion and approve pairing.
+3. **You're set:** show selected folders and defaults; start playback when the first plan is ready.
 
-1. Create an authenticated upload intent; validate quota, declared byte count, and accepted MIME. Reserve capacity transactionally so concurrent uploads cannot overrun the quota.
-2. MVP streams the file through a bounded API upload endpoint into a quarantine object. Enforce the byte cap during streaming; neither Content-Type nor Content-Length is trusted alone. Direct browser signed uploads can follow after equivalent post-upload enforcement exists.
-3. Complete upload with an idempotency key. The server queues processing and returns an asset ID with `processing` status.
-4. Worker sniffs file type, checks dimensions, performs a constrained decode, normalizes orientation, removes EXIF/GPS from served derivatives, creates thumbnail/desktop variants, computes hashes, and publishes `ready` atomically.
-5. Browser polls processing status with backoff; no WebSocket dependency. Rejected assets release reserved quota and quarantine files expire after 24 hours.
+No mandatory cadence, mode, timezone, or sync configuration. Starter templates contain reviewed permitted images with provenance. Applying them transactionally creates private collection memberships without copying binaries. An idempotency key prevents duplicate folders on retries. Future template edits do not alter user folders; withdrawals still propagate. If a template is unavailable, offer another or private upload. No scraper, embedding model, or LLM is needed.
 
-Originals remain private. They may preserve metadata for owner export, with a visible note; public originals must be sanitized or intentionally withheld. Only JPEG/PNG intake is required for MVP. HEIC/WebP conversion is a later explicit capability, not silently assumed.
+## Connected collections
 
-## Schedule editor
+A folder toggle says “Use for wallpapers.” Saves/uploads into enabled folders enter rotation after the next successful sync. Removing items excludes them at that refresh. A subtle “Updates automatically” message is enough; no plan publication step.
 
-User chooses a device, default playlist, rotation interval, and timezone. “Download new wallpapers daily at 22:00” appears separately from “Change wallpaper every 60 minutes.” Weekly windows can choose another playlist/interval. The editor shows a 24-hour timeline, estimated distinct downloads, and last device activation.
+Wallpaper settings contains selected folders, Shuffle/In order, and Every hour/Every three hours/Every day. Defaults: hourly shuffle. Optional Morning/Night background-download preference is secondary.
 
-Saving updates desired configuration, not necessarily the Mac immediately. Show “Waiting for next sync” with the next preferred time. The Mac's Sync now command requests fresh configuration immediately; a browser “sync requested” flag alone cannot wake or reach a sleeping device.
+“In order” traverses folders in persisted selection order and items in save order (oldest first, UUID tie breaker); initial selection follows visible starter/folder order. Duplicate assets appear once, at their first occurrence. No drag-to-build-playlist editor is required.
 
-Reject overlaps before saving and show the exact conflicting day/time. Empty playlists can be saved as drafts but cannot replace a valid active schedule without explicit warning; the compiler preserves the last valid device plan and reports the issue.
+If one folder empties, use the others. If all selected folders are empty/disconnected, retain the visible wallpaper, stop automatic changes after the next sync, and show “Add a few wallpapers to get going” on the next visit. Never silently select unrelated folders or repeatedly notify the user.
 
-## Device page and client controls
+## Browsing and upload
 
-Show last contact, last successful activation, next preferred sync, offline coverage end, cached bytes, client version, target displays, and recent error. Distinguish **synced**, **downloading**, **waiting for Mac**, **offline coverage low**, and **revoked**. A successful server response does not prove a plan was activated; use client acknowledgment.
+Use thumbnails, cursor pagination, simple filters, and keyboard-accessible controls. Reveal title, dimensions, source/creator, license, and download details on demand. Batch uploads target a collection, with inline folder creation.
 
-Pairing confirmation displays the requesting device's name/platform and the entered code. Revocation immediately denies further server access, but cannot instantly erase files on an offline Mac. Disconnecting locally offers cache deletion and restores the previous wallpaper where possible.
+Authenticated intent reserves quota → bounded stream into quarantine → idempotent completion queues processing → worker verifies format/pixels/decode, normalizes orientation, strips EXIF/GPS from derivatives, hashes and creates variants → ready image becomes eligible automatically.
 
-## Discovery and interests
+Show concise failure/retry status per file. Release reserved quota on rejection; expire abandoned quarantine files after 24 hours. Private originals may preserve metadata for owner export with an explanatory note. Public derivatives are sanitized. JPEG/PNG only initially; declared MIME and filenames are untrusted.
 
-Shared catalog content is the same approved pool for everyone. An anonymous visitor chooses temporary interest filters; signed-in interests persist privately. “For you” begins with tags and hides, not inferred sensitive attributes or behavioral surveillance. “Save” requires login, preserves provenance, and does not publish the user's preferences.
+## Quiet status
 
-Catalog cards show source/creator access and license details in the detail view. “Hide” is personal; “Report” enters moderation. A removed image cannot be newly saved or downloaded, even through an old public URL.
+Healthy: “Connected” or no badge. Pending: “Updates automatically.” Temporary offline/download failure: keep cached playback and retry quietly. Actionable: “Reconnect your Mac,” “Add wallpapers,” or “Storage is full” after automatic recovery fails. Technical details are expandable.
 
-## Conflict and deletion behavior
+Deleting a connected folder removes its association and uses the remaining folders. Removing the last selection stops changes after sync while retaining the visible image. Deleting an image removes collection memberships, with no hidden playlist copy.
 
-Mutable resources carry a revision/ETag. Updates require `If-Match`; stale edits return 412 with current revision metadata. Reordering a playlist is one atomic replacement of the order, not many independent position mutations. Deleting a playlist referenced by a schedule returns 409 until it is replaced. Removing a collection only removes the folder/memberships. Deleting a saved wallpaper explains its affected playlists before confirmation.
+Resource writes use ETags/If-Match; accepted edits regenerate plans internally. Sync now is a secondary local action; a browser request cannot wake a sleeping Mac.
 
-Export provides a metadata JSON bundle plus permitted files and attribution sidecars. Imported external links without an offline-copy permission are not included as files. Private exports expire, require authentication, and are removed after 24 hours.
+## Discovery later
+
+Pinterest-style visual browsing supports quick saves, remembering the last-used collection. A save into an enabled folder is sufficient for rotation. Explicit publication submissions allow user uploads into the common catalog only after review; personal uploads stay private by default.
+
+Learning and prompt curation remain deferred: [future intelligence](07-future-intelligence.md).

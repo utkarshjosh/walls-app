@@ -1,6 +1,10 @@
 # Discovery and ingestion specification
 
-Status: proposed beta specification. Covers FR-17–22. Implement provider interfaces early, enable adapters only after review.
+Status: deferred discovery specification. Covers FR-17–21 and FR-27. Do not build external adapters, public feed, or submissions to ship the core product; its starter folders use a small reviewed local seed set.
+
+## Pinterest-style discovery
+
+Later, provide an image-first browse-and-save feed. A saved image enters a chosen private collection; if that folder is connected, rotation picks it up automatically. Content may come from approved sources or users who explicitly submit an upload for public discovery. Private uploads never automatically enter the feed. Submission must record redistribution permission, provenance, and moderation approval.
 
 ## Shared catalog, private choices
 
@@ -26,7 +30,7 @@ SSRF protections apply at every redirect and DNS connection: allowlisted HTTPS h
 
 ## Ranking without a recommendation service
 
-Filter by publication state, compatible dimensions/orientation, source capabilities, and personal hides. Score explicit tag overlap first, then recent publication; cap consecutive entries from one source/creator. Use stable ID as tie breaker. Persist a query timestamp in the cursor so pagination is consistent. Show matched tags as the reason for recommendations. No identity graph, cross-site tracking, or scraped personal profiles.
+Filter by publication state, compatible dimensions/orientation, source capabilities, and personal hides. Score explicit tag overlap first, then recent publication; cap consecutive entries from one source/creator. Use stable ID as tie breaker. Persist a query timestamp in the cursor so pagination is consistent. Show matched tags as the reason for recommendations. No identity graph, cross-site tracking, or scraped personal profiles. Optional similarity/KNN/clustering learning and prompt-based curation are separate later tracks; see [future intelligence](07-future-intelligence.md).
 
 ## Attribution and moderation
 
