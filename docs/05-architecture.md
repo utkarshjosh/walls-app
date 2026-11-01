@@ -2,12 +2,13 @@
 
 ## Decision
 
-Build a **Go modular monolith**, a static React/TypeScript web app, a PostgreSQL database, a bounded image/discovery worker, and a **native Swift macOS companion**. Keep one repository and one server domain model. API and worker share code but run independently so slow decodes cannot block normal requests.
+Build a **Go modular monolith**, shared React/TypeScript collection UI, PostgreSQL, a bounded image/discovery worker, and a **Tauri 2 Mac app with a Rust native core**. Bundle the collection UI in desktop from MVP; keep it reusable in a browser. A separate React admin entry serves operations. API and worker share code but run independently so slow decodes cannot block normal requests. The [desktop decision](11-desktop-and-distribution.md) supersedes the SwiftUI-only companion proposal.
 
 ```mermaid
 flowchart LR
-  Browser[Web browser] -->|HTTPS session| Edge[Caddy + static web]
-  Mac[Swift menu bar client] -->|HTTPS device auth| Edge
+  Browser[Browser collection UI or admin] -->|HTTPS user session| Edge[Caddy + static web]
+  UI[Bundled React collection UI] -->|Scoped IPC| Mac[Tauri Rust core and tray]
+  Mac -->|HTTPS user or device credential| Edge
   Edge --> API[Go API]
   API --> DB[(PostgreSQL)]
   Worker[Go worker] --> DB
@@ -29,8 +30,8 @@ Daily synchronization is a client-initiated pull; the server cannot push through
 | Go server | Explicit concurrency, straightforward HTTP services, cross-compilation, deployable binaries | Recommended for a compact API/worker service; favor standard library HTTP plus small well-supported packages |
 | Rust server | Strong ownership model, predictable resource control | Good alternative for a Rust-fluent maintainer; extra development cost is not justified by the initial traffic. Revisit only with measured need or a clear maintainer preference |
 | Express + TypeScript | Fast delivery for a TypeScript-focused maintainer and shared frontend types | Entirely viable. Image work must still leave the request event loop; Go is a preference for operations and concurrency, not a claim that Express cannot handle the load |
-| Swift client | Native access to AppKit, lifecycle, menu bar, Keychain, and login items | Recommended for macOS; the extra language buys direct platform integration |
-| Rust/Go client | Reusable networking/cache core across desktop platforms | Still needs native bridges and lifecycle UI. Defer a shared core until a second desktop platform exists |
+| Tauri + React client | Shared collection UI with native cache/timers/tray | Recommended for the unified desktop experience; prove AppKit/wake/login integration and measure the whole process family |
+| SwiftUI client / Swift webview shell | Direct Mac integration; webview shell can reuse React | SwiftUI duplicates the collection UI; keep Swift + WKWebView as a fallback if the Tauri spike fails |
 | PostgreSQL | Relational ownership, ordering, transactions, durable jobs | Selected over SQLite for multiple workers and later accounts; SQLite remains suitable for client-local state |
 | Object storage | Managed blob durability, direct downloads, separation from VM disks | OCI first; verify the exact S3 subset used. Do not operate a distributed object store on two small servers |
 
@@ -39,6 +40,8 @@ References: [Go documentation](https://go.dev/doc/), [PostgreSQL locking/SELECT]
 ## Server modules
 
 `identity` handles web sessions and device pairing; `library` owns saved items, live collections, starter templates, and provenance; `rotation` applies simple preferences and compiles internal plans; `devices` serves manifests and records activation; `media` validates/normalizes assets and grants authorized downloads; `discovery` runs source adapters and ranking; `operations` handles quotas, reporting, backup metadata, and moderation.
+
+Identity also issues separate desktop user sessions through a browser/PKCE handoff. User sessions authorize collection CRUD; sync tokens stay device-scoped. Admin requires its own browser session and server role check. The desktop native broker exposes fixed typed operations, never arbitrary URL fetch, filesystem paths, or shell execution. Remote content has no native privileges.
 
 HTTP handlers validate input and authorization, call use cases, and serialize results. Domain modules do not depend on HTTP or OCI SDK types. Avoid a generic repository framework: explicit SQL queries and transaction boundaries are easier to review.
 
@@ -53,8 +56,11 @@ Asset state: `pending_upload → quarantined → processing → ready`, with ter
 ## Planned repository layout
 
 ```text
-apps/web/                 # React application, created in implementation
-apps/macos/               # Swift app and native tests
+apps/desktop/             # Tauri host, Rust core, AppKit adapter
+apps/web/                 # shared collection UI host, login/pairing pages
+apps/admin/               # browser-only operations entry
+packages/collection-ui/   # shared React pages and components
+packages/api-client/      # shared contracts, transport abstraction
 server/cmd/api/            # HTTP process
 server/cmd/worker/         # background process
 server/internal/          # domain modules and adapters

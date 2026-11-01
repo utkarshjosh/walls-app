@@ -1,12 +1,12 @@
 # Product brief
 
-Date: 2026-10-31. Working name: Wallpaper Server. Owner: Utkarsh Joshi. Revised for the collection-first, carefree product direction.
+Date: 2026-11-01. Working name: Wallpaper Server. Owner: Utkarsh Joshi. Revised for the collection-first, carefree product direction.
 
 ## Idea
 
 Collect wallpapers you like and let your desktop take care of itself. Browse images, save them into folders, and connect one or more folders to your Mac. Rotation is generated automatically and quietly follows changes to those folders.
 
-The web app is a place to enjoy and organize images. Routine use requires no timetable, queue inspection, playlist maintenance, or operational monitoring. Reliable prefetching and scheduling happen behind the experience.
+The desktop app is a place to enjoy and organize images, using a collection interface shared with the optional browser app. The owner has a separate admin web surface. Routine use requires no timetable, queue inspection, playlist maintenance, or operational monitoring. Reliable prefetching and scheduling happen behind the experience.
 
 ## Principles
 
@@ -21,9 +21,13 @@ The web app is a place to enjoy and organize images. Routine use requires no tim
 
 ## First use
 
+After installing/opening the Mac app and signing in:
+
 1. Pick a few interests or starter collections. Alternatively use a general starter set or upload personal images.
-2. Connect the Mac companion.
+2. Connect this Mac in the same app.
 3. Wallpapers start automatically from those folders, shuffled hourly.
+
+Browser-first setup remains supported, but routine management never requires a second website.
 
 Interest tags map to a small, manually curated set of permitted starter images. This is deterministic onboarding, not AI or a live discovery service. Starter selections create private collection memberships referencing approved assets; later template edits do not silently change personal folders. Rights withdrawals still propagate.
 
@@ -31,7 +35,7 @@ No required cadence, sync time, timezone, or future-image choices. Defaults and 
 
 ## Everyday use
 
-Browse collections, upload images, and save/remove favorites. A short summary reads “Aviation + Landscapes · Shuffle · Every hour.”
+Browse collections, upload images, and save/remove favorites. A short summary reads “Aviation and Landscapes, shuffled every hour.”
 
 Regular configuration is limited to **which folders**, **Shuffle or In order**, and **how often** (every hour, every three hours, every day). “In order” means sequential traversal, not real-time synchronization between devices. Saving into a connected collection requires no second “add to playlist” action.
 
@@ -39,7 +43,7 @@ The Mac menu offers Next, Pause/Resume, and Open collection. Connection help and
 
 ## Vocabulary
 
-**Collection/folder:** saved wallpapers grouped by category; an image may belong to several. **Connected collections:** the folders currently feeding rotation. **Rotation preferences:** selected folders, order mode, and frequency. **Schedule/manifest:** internal generated playback data, not a user-authored calendar. **Companion:** the local Mac application. **Starter collection:** reviewed sample content for onboarding.
+**Collection/folder:** saved wallpapers grouped by category; an image may belong to several. **Connected collections:** the folders currently feeding rotation. **Rotation preferences:** selected folders, order mode, and frequency. **Schedule/manifest:** internal generated playback data, not a user-authored calendar. **Companion:** the local Mac application, now including the full collection interface. **Starter collection:** reviewed sample content for onboarding.
 
 Playlist remains a useful analogy and a possible future curation output. MVP has no separate playlist entity/editor.
 

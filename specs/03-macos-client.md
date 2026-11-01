@@ -1,10 +1,10 @@
-# macOS companion specification
+# macOS desktop application specification
 
-Status: proposed v0.2. This is a native user-session application, not a kernel extension or browser plugin. Covers FR-10–15 and the macOS portion of FR-24.
+Status: proposed v0.3. A Tauri 2 user-session app with bundled React collections and a Rust background core, not a kernel extension or browser plugin. Covers FR-10–15, FR-30/32, and the macOS portion of FR-24. See the [desktop/distribution decision](../docs/11-desktop-and-distribution.md).
 
 ## Native integration
 
-SwiftUI menu bar UI with a small AppKit bridge. Use `NSWorkspace.setDesktopImageURL(_:for:options:)` on the main thread for each current `NSScreen`; downloads and checksum work stay off the UI thread. Use local file URLs and set an explicit fit policy. Default `fill` may crop; reserve fit adjustments for secondary image settings if needed, not onboarding. [Apple API](https://developer.apple.com/documentation/appkit/nsworkspace/setdesktopimageurl(_:for:options:))
+Tauri hosts the locally bundled React collection window and tray. The Rust core calls a narrow AppKit adapter, using reviewed Objective-C bindings or a tiny Swift bridge chosen during the spike. Use `NSWorkspace.setDesktopImageURL(_:for:options:)` on the main thread for each current `NSScreen`; downloads and checksum work stay off the UI thread. Use local file URLs and set an explicit fit policy. Default `fill` may crop; reserve fit adjustments for secondary image settings if needed, not onboarding. [Apple API](https://developer.apple.com/documentation/appkit/nsworkspace/setdesktopimageurl(_:for:options:))
 
 Start-at-login uses the public `SMAppService` lifecycle and system approval/status UX. No root daemon, private wallpaper database mutation, or Accessibility permission should be required for the chosen public API path; verify that assumption during the spike. [Apple service registration](https://developer.apple.com/documentation/servicemanagement/smappservice/register())
 
@@ -14,13 +14,17 @@ Proposed minimum macOS 14; validate against the owner's actual OS and target rel
 
 `APIClient` owns HTTPS/device auth; `SyncCoordinator` owns the state/manifest/grant sequence; `CacheStore` owns staging, checksums, safe paths, and eviction; `PlanStore` persists active and pending manifests; `RotationController` evaluates due entries; `DesktopAdapter` applies native changes; `MenuModel` exposes state.
 
-Use URLSession, Keychain for the high-entropy device credential, and SQLite or atomic local metadata files for state. Keep artifacts in an app-owned Application Support directory with user-only permissions. Persist active manifest, last applied entry, skipped-entry override, pause state, sync date, blocked variants, and pending event batches. Never execute shell commands or use server-supplied paths; local filenames are derived from validated hashes.
+Use a bounded Rust HTTPS client, Keychain for separate user-session and high-entropy device credentials, and SQLite or atomic local metadata files for state. Keep artifacts in an app-owned Application Support directory with user-only permissions. Persist active manifest, last applied entry, skipped-entry override, pause state, sync date, blocked variants, and pending event batches. Never execute shell commands or use server-supplied paths; local filenames are derived from validated hashes.
+
+The webview only presents the interface. Native commands are typed, scoped operations; never expose generic authenticated URL fetching, arbitrary paths, or shell execution. Explicitly restrict custom commands as well as plugin capabilities. Remote pages cannot access IPC. Reject cross-origin credential forwarding and validate asset download destinations, sizes, and hashes.
+
+Closing the collection window keeps the tray/native core running; quitting stops it. Start-at-login is explicit. Prefer releasing the webview while closed if the spike proves safe, then restore view state on reopening. Wallpaper timing must not depend on JavaScript timers.
 
 ## Pairing and authentication
 
-Onboarding already selected starter/private folders and generated default rotation preferences. After browser approval, fetch the first plan and begin automatically. Capture the system timezone and report it on subsequent syncs; do not ask the user to configure clocks or a cache.
+Desktop onboarding starts with browser-assisted sign-in returning to the app, followed by starter/private folder selection and Connect this Mac. The interactive user session authorizes collection CRUD and one-time device registration; registration issues the separate sync credential. Fetch the first plan and begin automatically. Complete the handoff/registration payload schemas before building this flow. Capture the system timezone and report it on subsequent syncs; do not ask the user to configure clocks or a cache.
 
-Client asks server for a 10-minute pairing challenge, opens the HTTPS verification URL, and displays the short user code. Server approval occurs only in the signed-in browser; code expiry, rate limits, device name, and one-time consumption are mandatory. Poll no faster than five seconds, with server slowdown guidance. A custom protocol URL is optional and must not carry secrets.
+For browser-first setup or recovery, the client can instead ask for a 10-minute pairing challenge, open the HTTPS verification URL, and display the short user code. Server approval occurs only in the signed-in browser; code expiry, rate limits, device name, and one-time consumption are mandatory. Poll no faster than five seconds, with server slowdown guidance. A custom protocol URL is optional and must not carry secrets.
 
 Successful pairing yields a random 256-bit opaque device token, stored only in Keychain. Server stores a keyed hash and scopes it to this device. Proposed lifetime is 90 days; rotate through an authenticated endpoint during daily sync after 30 days, with a bounded 5-minute previous-token grace for an in-flight request. Reuse after grace is rejected. An expired token requires pairing again; cached playback is independent until the client learns access was revoked/expired.
 
@@ -30,7 +34,7 @@ Successful pairing yields a random 256-bit opaque device token, stored only in K
 
 - **Pause:** stop applying automatic changes until resumed. Downloads may continue. Persist across launches.
 - **Next:** choose the next eligible manifest entry's image immediately, holding it until the next scheduled boundary; does not shift future UTC timestamps. Repeated Next moves forward in entries and wraps within the valid plan. Disable if there is no other eligible image.
-- **Open collection:** open the web collection view; primary control alongside Next and Pause/Resume.
+- **Open collection:** open/focus the bundled collection window in this app; primary control alongside Next and Pause/Resume.
 - **Sync now (secondary):** run state fetch and staging immediately; manual pause still takes precedence over applying a newly activated plan.
 - **Resume:** clear pause/skip and apply the currently due eligible entry.
 
@@ -44,9 +48,9 @@ A failed native API call preserves the previous screen image and retries quietly
 
 ## Distribution and removal
 
-Development: local signed development build and explicit manual launch. Shared beta: Developer ID signing, hardened runtime, notarization, versioned installer/DMG, and documented update verification. Investigate signing membership/cost before distribution; do not tell users to globally disable Gatekeeper. Automatic updates are deferred until a signed update channel is validated.
+Development and early open-source alpha assume no paid membership: source builds and labelled ad-hoc-signed packages, with documented per-app Gatekeeper friction. Recommended wider public release: Developer ID signing, hardened runtime, notarization/stapling, versioned DMG, and documented verification. No Mac App Store submission is planned. Do not tell users to globally disable Gatekeeper. Automatic updates wait for a verified signed update channel. See the [distribution plan](../docs/11-desktop-and-distribution.md).
 
-On disconnect, revoke the credential when online, remove it locally, unregister login launch, cancel downloads, and optionally erase cache. Save the pre-app desktop URL/options at first use and restore them if still accessible, otherwise let the user choose an image. Removing the app must not leave a privileged service running.
+On device disconnect, revoke the device credential when online, remove it locally, unregister login launch, cancel background downloads, and optionally erase cache. Interactive account sign-out separately revokes the user session and clearly offers to disconnect playback too. Full removal clears both credential classes and local state. Save the pre-app desktop URL/options at first use and restore them if still accessible, otherwise let the user choose an image. Removing the app must not leave a privileged service running.
 
 ## Mobile boundary
 

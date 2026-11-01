@@ -9,7 +9,7 @@ These are proposed test targets, not current measurements or an SLA. Measure aft
 | NFR-03 | Offline | Demonstrate 72 hours with networking disabled; target seven days when selected assets fit the cache. At horizon expiry hold the current verified image and surface stale status |
 | NFR-04 | API latency | At 10 simultaneous active users and 10,000 catalog items, warm metadata reads p95 <300 ms server time; writes p95 <500 ms excluding image processing and external OIDC calls |
 | NFR-05 | Web | First usable library view <2 s on a 20 Mbps/50 ms link with 100 thumbnails; lazy-load images, cursor pagination, avoid original-image grid downloads |
-| NFR-06 | Mac resources | On target Apple Silicon hardware: <1% average idle CPU over ten minutes, <100 MiB idle RSS, no periodic tight polling; downloads/decodes measured separately |
+| NFR-06 | Mac resources | On target Apple Silicon hardware: <1% average idle CPU over ten minutes; provisional whole-process-family RSS targets <150 MiB with collection window closed and <350 MiB with a warmed thumbnail grid open. Measure Rust plus webview helpers; no tight polling. Downloads/decodes measured separately; re-evaluate after the Tauri spike |
 | NFR-07 | Timing | While app is running and Mac awake, apply due change within 10 s p95; after wake within 30 s. Sleep, shutdown, logout, and OS scheduling prevent a strict wall-clock guarantee |
 | NFR-08 | Durability | Daily encrypted DB backup plus permitted-image backup; initial RPO 24 h, RTO 4 h from documented manual restore. Prove restore quarterly and before shared beta |
 | NFR-09 | Security | TLS externally; private DB; least-privilege bucket credentials; OIDC state/nonce/PKCE validation; Keychain credentials; request authorization on every asset, collection, device, and plan |
@@ -20,9 +20,11 @@ These are proposed test targets, not current measurements or an SLA. Measure aft
 | NFR-14 | Accessibility | Target WCAG 2.2 AA for key web flows; keyboard navigation, visible focus, labelled controls, non-drag reorder alternative, reduced motion, status not conveyed by color alone |
 | NFR-15 | Portability | API/web/worker build for Linux arm64 and amd64; object-store contract avoids OCI-specific details outside its adapter; deployment uses Compose or systemd, not Kubernetes |
 | NFR-16 | Maintainability | Module boundaries, SQL migrations, OpenAPI/schema checks, representative end-to-end tests, supported dependency versions pinned during implementation; no invented test coverage percentage gate |
-| NFR-17 | Cost | Personal default: 5 GiB per-account managed library quota, 512 MiB Mac cache, no automatic paid capacity expansion. Installation caps must reflect live OCI tenancy allowances |
+| NFR-17 | Cost | Existing private walls-assets; proposed 7 GB normal intake / 8 GB hard ceiling, under owner-required 10 GB total constraint. Default new-account allowance 1 GB logical bytes subject to aggregate availability; 512 MiB Mac cache. Reconcile all object/reserved bytes and effective quota scope; no automatic paid expansion |
 | NFR-18 | Retention | Operational logs 14 days; device event details 30 days; revoked tokens unusable immediately online; deleted user data purged from live storage within 7 days, backups age out within 30 days |
 | NFR-19 | Simplicity | Complete preference selection in under two minutes and at most three onboarding steps, excluding auth/install/transfers. No schedule editor required; healthy operation generates no routine notifications. Verify with first-use trials |
+| NFR-20 | Desktop trust boundary | Bundle UI locally; deny remote native IPC; narrow custom commands and path scopes; separate user/device/admin credentials; Keychain tokens never exposed to webview/localStorage |
+| NFR-21 | Release transparency | Source tag, documented builds, checksums, dependency notices, explicit signing/notarization status, and privacy/uninstall guidance before public alpha; do not claim reproducible builds until verified |
 
 Performance budgets exclude arbitrary originals; 25 MiB and 60 MP are hard intake ceilings, not typical files. Limit worker concurrency to one initially, with a 1 GiB memory ceiling and timeout. Benchmark that ceiling using worst-case allowed images before opening uploads beyond the owner.
 

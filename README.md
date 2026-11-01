@@ -2,7 +2,7 @@
 
 A carefree wallpaper library: choose a few folders, connect your Mac, and let wallpapers change automatically. Browse and collect images while the app handles rotation, daily downloads, and offline playback. No ads or paid placement. Shared discovery and AI curation come later.
 
-**Status:** planning repository, 31 October 2026. No application, server, client, or infrastructure has been implemented or deployed. Specifications below are proposed implementation decisions, not claims about working software.
+**Status:** planning repository, 1 November 2026. No application, server, or client has been implemented or deployed. The owner has created the private OCI bucket; its integration is untested. Specifications below are proposed implementation decisions, not claims about working software.
 
 ## Start here
 
@@ -11,6 +11,7 @@ A carefree wallpaper library: choose a few folders, connect your Mac, and let wa
 3. [Functional requirements](docs/03-functional-requirements.md) and [non-functional requirements](docs/04-non-functional-requirements.md).
 4. [Architecture](docs/05-architecture.md), [data model](docs/06-data-model.md), and [Oracle deployment and storage](docs/07-deployment-and-cost.md).
 5. [Implementation roadmap](docs/08-roadmap.md) and [decisions and open questions](docs/09-decisions-and-questions.md).
+6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md) and [calm, light Collections design brief](docs/12-design-brief.md).
 
 ## Product default
 
@@ -21,14 +22,16 @@ Pick interests or starter folders → connect the Mac → hourly shuffle begins.
 | Part | Proposal |
 | --- | --- |
 | Server | Go modular monolith; separate API and worker processes from one codebase |
-| Web | React + TypeScript + Vite, static assets served alongside the API |
+| Interface | Shared React + TypeScript + Vite collection UI, bundled in desktop and reusable in browser; separate admin web entry |
 | Data | PostgreSQL for collections, rotation preferences, and durable jobs |
-| Images | Private OCI Object Storage through a narrow S3-compatible adapter |
-| Mac companion | SwiftUI menu bar app, AppKit wallpaper API, Keychain, local disk cache |
+| Images | Existing private OCI `walls-assets`; proposed 7 GB intake / 8 GB hard ceiling, within owner's <10 GB constraint |
+| Mac app | Tauri 2 shell with bundled collection UI, Rust background core, AppKit adapter, Keychain, local cache |
 | Hosting | Two existing Oracle ARM servers; proposed `walls.utkarshjoshi.com` |
 | Scheduling | Server compiles a seven-day plan; Mac syncs daily and rotates locally |
 
 The supplied capacity is **2 ARM cores / 12 GB RAM**. Whether this is per server or total, plus OS, disk, region, and tenancy allowances, still needs confirmation. The design does not require two full-size machines to serve one person.
+
+Users manage collections in the desktop app; a second management website is optional. Admin remains on the web. Direct Mac distribution avoids the App Store; a no-membership alpha has Gatekeeper friction, while Developer ID signing/notarization is the recommended later public release path. No paid membership is assumed for development.
 
 ## Implementation contracts
 
@@ -42,6 +45,8 @@ The supplied capacity is **2 ARM cores / 12 GB RAM**. Whether this is per server
 - [Manifest JSON Schema](specs/schemas/manifest.schema.json)
 - [Example schedule](specs/examples/schedule.json) and [example manifest](specs/examples/manifest.json)
 - [Acceptance scenarios](specs/06-acceptance-scenarios.md)
+- [Admin web](specs/08-admin-web.md)
+- [Storage budget and deferred integration checks](specs/09-storage-budget-and-integration.md)
 
 The OpenAPI file intentionally covers the critical device-sync slice. The endpoint inventory specifies the rest for subsequent contract work. Example domains, IDs, hashes, and images are synthetic; examples do not download actual wallpapers.
 

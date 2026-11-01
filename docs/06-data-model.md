@@ -5,7 +5,9 @@ Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `
 | Entity | Important fields and relationships |
 | --- | --- |
 | users | `id`, OIDC issuer + subject unique pair, display name, role, quota, created/deleted timestamps |
-| sessions | hashed opaque ID, user, expiry, CSRF secret; no OIDC access token in the browser |
+| sessions | hashed opaque ID, user, client kind (browser/desktop/admin), scopes, expiry/revocation; CSRF secret for browser sessions; no OIDC token in the webview/browser |
+| desktop_auth_handoffs | hashed single-use code, PKCE challenge, initiating app/redirect binding, expiry, approved user, consumed timestamp |
+| storage_ledger / upload_reservations | aggregate/account committed and reserved bytes, bounded input/output allowance, expiry, cleanup state, reconciliation timestamp; transactional write admission |
 | assets | `id`, owning user or catalog scope, original blob reference, normalized hash, dimensions, status, provenance, rights decision, created/removed timestamps |
 | asset_variants | asset, kind (`thumbnail`, `desktop`), width, height, MIME, byte size, SHA-256, private object key, processing version; unique asset/kind/processing-version |
 | source_records | adapter + external ID unique pair, canonical URL, creator, license URL/name, attribution text, checked_at, policy version, permitted operations, rights evidence |
@@ -29,7 +31,7 @@ Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `
 
 ## Ownership and access
 
-Library and collection requests always filter by the authenticated user. Use composite foreign keys or equivalent transactional constraints to enforce same-owner collection members and live schedule-to-collection references. A device token may only act on its own device and read assets explicitly referenced by that device's currently authorized manifests. Do not accept a caller-supplied user ID as authority.
+Library and collection requests always filter by the authenticated user. Use composite foreign keys or equivalent transactional constraints to enforce same-owner collection members and live schedule-to-collection references. A device token may only act on its own device and read assets explicitly referenced by that device's currently authorized manifests. Desktop user sessions can manage owned collections but cannot invoke admin endpoints. Admin requires a browser admin session and role. Do not accept a caller-supplied user ID as authority.
 
 Public catalog metadata is read-only to anonymous users; full-file download grants require an account/device and a permitted asset. Private thumbnails also require authorization. Public thumbnail access is possible only after a separate catalog approval check.
 

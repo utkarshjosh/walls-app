@@ -1,6 +1,6 @@
-# Library and web specification
+# Shared collection interface specification
 
-Proposed v0.2. Collection-first core experience, with discovery deferred.
+Proposed v0.3. The same React collection interface runs bundled inside the desktop app and optionally in a browser. Discovery is deferred. See the [design brief](../docs/12-design-brief.md).
 
 ## Product surface
 
@@ -11,10 +11,10 @@ No top-level Playlists, Schedules, Devices, or future-wallpaper timeline in MVP.
 ## Onboarding
 
 1. **Find your starting point:** choose optional interests or starter folders. Fixed tag mappings suggest a few collections; “Surprise me” uses a general set, “Use my own” opens upload.
-2. **Connect your Mac:** install/open the companion and approve pairing.
+2. **Connect your Mac:** inside the signed-in desktop app, approve this Mac. Browser-first users can install/open it and complete short-code pairing.
 3. **You're set:** show selected folders and defaults; start playback when the first plan is ready.
 
-No mandatory cadence, mode, timezone, or sync configuration. Starter templates contain reviewed permitted images with provenance. Applying them transactionally creates private collection memberships without copying binaries. An idempotency key prevents duplicate folders on retries. Future template edits do not alter user folders; withdrawals still propagate. If a template is unavailable, offer another or private upload. No scraper, embedding model, or LLM is needed.
+Desktop users start after install/sign-in; collection setup stays in the app. No mandatory cadence, mode, timezone, or sync configuration. Starter templates contain reviewed permitted images with provenance. Applying them transactionally creates private collection memberships without copying binaries. An idempotency key prevents duplicate folders on retries. Future template edits do not alter user folders; withdrawals still propagate. If a template is unavailable, offer another or private upload. No scraper, embedding model, or LLM is needed.
 
 ## Connected collections
 
@@ -41,6 +41,10 @@ Healthy: “Connected” or no badge. Pending: “Updates automatically.” Temp
 Deleting a connected folder removes its association and uses the remaining folders. Removing the last selection stops changes after sync while retaining the visible image. Deleting an image removes collection memberships, with no hidden playlist copy.
 
 Resource writes use ETags/If-Match; accepted edits regenerate plans internally. Sync now is a secondary local action; a browser request cannot wake a sleeping Mac.
+
+## Desktop and browser parity
+
+Shared components use an injected transport/platform interface. Desktop reads/writes go through a scoped native broker and user session; browser uses same-origin cookies. Device tokens cannot manage the library. Desktop offline mode permits cached browsing/playback and disables server writes with an explanation. No offline edit queue in MVP. Admin uses a separate browser entry, not consumer navigation.
 
 ## Discovery later
 

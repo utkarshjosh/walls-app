@@ -34,5 +34,11 @@ Planned tests, not tests that have passed. Use the IDs for release evidence. Bas
 | AC-28 | FR-28 | Deferred: opt-in learning respects reset/disable, uses explicit feedback appropriately, and does not treat Pause/Next as dislike or expose private content |
 | AC-29 | FR-29 | Deferred: prompt proposes a grounded permitted collection, clearly describes connected-folder changes, and supports Apply/Undo without a timeline editor |
 | AC-30 | FR-06/09/15 | A large library advances the cache window across syncs; it never permanently favors the first N files. Refresh/replayed acknowledgment does not reset traversal or consume progress twice |
+| AC-31 | FR-30, NFR-20 | Install/open desktop, sign in, choose starter folders, connect, upload and edit rotation in the same app. Browser transport shares ownership semantics; offline edits are clearly unavailable |
+| AC-32 | FR-31, NFR-20 | Browser non-admin, desktop user token, and device token cannot call admin endpoints. Admin mutation requires role/session/CSRF checks and audit record |
+| AC-33 | FR-32, NFR-21 | Install alpha on a clean test Mac and document actual Gatekeeper behavior; public release artifacts match source tag/checksum and stated signature status; uninstall removes login/cache/credentials |
+| AC-34 | FR-22, NFR-17 | Lower a test quota, race uploads and derivative generation, fail cleanup, and include other scoped usage; reservations never admit over-budget writes, provider rejection pauses intake, playback survives |
+| AC-35 | FR-30, NFR-20 | Remote web content cannot invoke native commands; forged paths/URLs and cross-origin auth redirects are rejected; access tokens never enter the webview, logs, or localStorage |
+| AC-36 | FR-12/30, NFR-06 | Close/reopen collection window while native rotation continues; quit stops rotation; login preference works; measure Rust and all webview helpers, awake and after wake |
 
-Core MVP gate: AC-01–15, AC-19–26 and AC-30 as applicable to implemented endpoints. Later discovery adds AC-16–18 and AC-27. Intelligence tracks separately require AC-28/29. Run native platform scenarios on real hardware; mocked AppKit calls cannot establish actual multi-display/Spaces behavior.
+Core MVP gate: AC-01–15, AC-19–26 and AC-30–36 as applicable to implemented endpoints. Later discovery adds AC-16–18 and AC-27. Intelligence tracks separately require AC-28/29. Run native platform scenarios on real hardware; mocked AppKit calls cannot establish actual multi-display/Spaces behavior.

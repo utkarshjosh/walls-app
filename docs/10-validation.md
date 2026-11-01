@@ -24,6 +24,8 @@ The optional dependencies are pinned in [requirements-specs.txt](../requirements
 - Negative fixtures for unsupported frequency, duplicate selected folder, removed rule-builder fields, invalid checksum, duplicate timestamp, and missing variant.
 - Existence of local Markdown link targets and Git whitespace checks.
 
-The collection-first revision passed on **2026-10-31** using Python 3.12, jsonschema 4.26.0, openapi-spec-validator 0.9.0, and PyYAML 6.0.3. Result: two schemas, OpenAPI 3.1, four examples, selected domain invariants, six negative fixtures, and 34 local Markdown links passed. Git whitespace checks also passed. Validators were installed into a temporary tooling directory, not into the application workspace.
+The desktop/storage planning revision passed on **2026-11-01** using Python 3.12, jsonschema 4.26.0, openapi-spec-validator 0.9.0, and PyYAML 6.0.3. Result: two schemas, OpenAPI 3.1, four examples, selected domain invariants, six negative fixtures, and 45 local Markdown links passed. Git whitespace checks also passed. Validators were installed into a temporary tooling directory, not into the application workspace.
 
 This checker is not the future schedule compiler and does not prove its DST behavior, authorization, source compliance, offline reliability, performance, or operating-system compatibility. Those require the implementation and [acceptance scenarios](../specs/06-acceptance-scenarios.md).
+
+The new desktop sign-in/admin endpoint inventory is prose only and is not validated by the device-sync OpenAPI check. Three independent Collections mockups were generated and visually inspected; they are design concepts, not rendered application screenshots or evidence of working interactions. Network/firewall, bucket quota enforcement, native lifecycle, signing, and resource budgets remain untested.
