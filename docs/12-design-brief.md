@@ -16,7 +16,7 @@ A short sentence describes the current setup, such as “Aviation and Landscapes
 
 Light neutral surfaces, near-black text, generous spacing, and one restrained accent for actions/selection. Wallpaper photography supplies most color. Use a familiar sans/system family, 14–16 px body copy, clear modest headings, and no decorative all-caps labels. Actual implementation must verify contrast, focus visibility, reduced motion, and keyboard use.
 
-Prefer a compact top navigation over a permanent global sidebar for two destinations. A collection list within a collection-detail view is content navigation and can be useful; it should not grow into a feature menu. Group through spacing and alignment, then dividers. Avoid nested cards, decorative shadows, fake OS chrome, and a landing-page hero inside the working app.
+Prefer a compact top navigation over a permanent global sidebar for two destinations. Keep collection names, controls, and images together; avoid the wide navigation rail and oversized feature image of the rejected third concept. Group through spacing and alignment, then dividers. Avoid nested cards, decorative shadows, fake OS chrome, and a landing-page hero inside the working app.
 
 Use sample wallpaper subjects such as aviation, landscapes, ocean, and abstract forms, labelled **Sample collection imagery** in visual concepts. Generated concept imagery is illustrative; it is not a licensed launch catalog or actual user content. No fabricated user counts, customer claims, testimonials, source attribution, or deployment status.
 
@@ -27,6 +27,12 @@ The user supplied [Hallmark](https://github.com/nutlope/hallmark) as design guid
 Explore three independent image concepts before selecting an implementation target. Vary layout and hierarchy within the chosen tone: a collection-cover gallery, horizontal collection shelves, and a collection-focused album. These are alternative presentations of the same minimal scope. Resolve numeric choices against the order images are actually displayed in the chat. Carry the chosen reference into implementation; do not combine unchosen directions silently.
 
 The Product Design workflow is being used for image ideation. No Hallmark code lint, browser accessibility check, or interactive test can pass until a frontend exists. A future landing page can use Hallmark's marketing branch after product behavior and authentic screenshots exist.
+
+## Feedback and refined direction
+
+The owner likes the second and first displayed concepts; the third feels too spread out. Retain the second's collection shelves and the first's compact header/actions and restrained green accent. The [refined mockup](design/collections-refinement.png) places each collection's name and inclusion control immediately above its three image previews, removing the left label column and keeping a consistent content width. There is no global sidebar or large featured-image area.
+
+This is one combined proposal shown for visual feedback, not yet a selected implementation target. It was generated with the built-in Image Generation tool using both liked concept images as references. Its [generation prompt](design/collections-refinement.prompt.md) records the direction. Sample imagery remains illustrative. No frontend code was changed or tested.
 
 ## Required implementation states
 
