@@ -4,9 +4,9 @@ Logical design, not an executable migration. IDs are UUIDs, timestamps are UTC `
 
 | Entity | Important fields and relationships |
 | --- | --- |
-| users | `id`, OIDC issuer + subject unique pair, display name, role, quota, created/deleted timestamps |
-| sessions | hashed opaque ID, user, client kind (browser/desktop/admin), scopes, expiry/revocation; CSRF secret for browser sessions; no OIDC token in the webview/browser |
-| desktop_auth_handoffs | hashed single-use code, PKCE challenge, initiating app/redirect binding, expiry, approved user, consumed timestamp |
+| users | `id`, managed-auth issuer/project + provider user ID unique pair, display name, role, quota, created/deleted timestamps; Google is the initial login method |
+| sessions | application session metadata only where required by the selected managed-auth adapter; user, client kind, scopes, expiry/revocation, CSRF for cookie sessions; do not duplicate provider refresh storage |
+| desktop_auth_handoffs | provisional only if required by the managed provider integration; do not build a custom handoff table before selecting the supported native flow |
 | storage_ledger / upload_reservations | aggregate/account committed and reserved bytes, bounded input/output allowance, expiry, cleanup state, reconciliation timestamp; transactional write admission |
 | assets | `id`, owning user or catalog scope, original blob reference, normalized hash, dimensions, status, provenance, rights decision, created/removed timestamps |
 | asset_variants | asset, kind (`thumbnail`, `desktop`), width, height, MIME, byte size, SHA-256, private object key, processing version; unique asset/kind/processing-version |

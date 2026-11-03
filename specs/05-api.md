@@ -1,12 +1,16 @@
 # API specification and endpoint inventory
 
-Status: proposed v0.3. Base path `/api/v1` at the proposed same-origin `https://walls.utkarshjoshi.com`. [OpenAPI](openapi.yaml) defines the device-sync slice; the rest of this inventory requires concrete payload schemas during its implementation stage. Do not generate an entire server from the partial file and mistake it for full product coverage.
+Status: proposed v0.4, updated 2026-11-03. Base path `/api/v1` at the proposed same-origin `https://walls.utkarshjoshi.com`. [OpenAPI](openapi.yaml) defines the device-sync slice; the rest of this inventory requires concrete payload schemas during its implementation stage. Do not generate an entire server from the partial file and mistake it for full product coverage.
+
+## Authentication decision
+
+Google is the selected login method. Firebase Auth or Supabase Auth will be chosen when authentication integration starts. Use a supported provider flow and server verification SDK rather than building a custom identity service. The auth-specific routes below are provisional sketches of required outcomes; map or replace them with the selected provider's endpoints/session adapter. They are not part of the validated sync OpenAPI and must not force a parallel custom OAuth/refresh system. UI prototyping uses local sample state.
 
 ## Conventions
 
 JSON UTF-8; UUID identifiers; UTC RFC 3339 timestamps; integer bytes. `application/problem+json` errors contain `type`, `title`, `status`, `code`, `detail`, and `request_id`. Use 400 malformed input, 401 absent/invalid credential, 403 forbidden operation, 404 inaccessible/missing private resource, 409 conflicting state, 412 stale revision, 413 oversize, 422 invalid domain input, 429 throttling, and 503 dependency unavailable.
 
-Web uses secure HttpOnly SameSite=Lax cookies, authenticated OIDC server flow, origin checking, and CSRF tokens for mutations. OIDC callback validates state, issuer/audience, nonce, PKCE, signature, and redirect URI. Desktop user endpoints accept a separate opaque user bearer session through the native broker. Device endpoints require a device-scoped opaque token; they do not accept browser cookies or desktop user tokens. Never put reusable credentials in URLs or localStorage.
+Target browser transport uses secure HttpOnly SameSite=Lax cookies, origin checks, and CSRF protection for mutations. The selected managed-auth integration must validate identity and callback binding using its supported flow/SDK; avoid handwritten token verification. Desktop user endpoints accept a user bearer credential through the native broker, validated by the managed-auth adapter. Finalize session exchange and logout behavior when the provider is chosen. Device endpoints require a device-scoped opaque token; they do not accept browser cookies or desktop user tokens. Never put reusable credentials in URLs or localStorage.
 
 In the table, **User** means an authorized browser session or desktop user session. CSRF applies to cookie-authenticated writes; desktop bearer requests use fixed native operations and the same ownership/idempotency checks. Endpoints reject mixed credential classes. Device tokens never authorize library CRUD. Admin endpoints require a separate browser admin session and server role check; desktop user tokens cannot use them.
 
@@ -67,15 +71,15 @@ Default personal limits: three paired devices, 1 GB logical managed library allo
 
 Pairing codes expire in ten minutes and are single-use; retry/poll abuse is rate-limited. Device credential is random 256-bit data, hashed server-side, 90-day lifetime, normally rotated after 30 days during a sync. A token cannot enumerate other devices or access arbitrary owner images. An authenticated credential-rotation request is idempotent to recover a lost response; store its replay response encrypted for only the five-minute recovery window, then delete it. Replay after that window returns 409 and the client re-pairs if it has lost the new credential.
 
-## Desktop user session contract to finalize
+## Managed desktop authentication: integration gate
 
-Use external browser authorization with PKCE S256, server-validated OIDC, and a short-lived single-use handoff. A loopback callback must bind the initiating app, state, and verifier; accept only an explicitly validated loopback return address/port, never arbitrary redirects. Reusable access/refresh tokens are returned only by native redemption and stored in Keychain. No client secret ships in the app.
+Choose one provider and prove Google sign-in through the system browser, return to the initiating app, server-side identity validation, session renewal/logout, and secure native storage. Bind callbacks to the initiating login attempt and validate redirect destinations; use PKCE/state/nonce as required by the supported flow. No provider client secret ships in the app. Desktop reusable credentials remain in Keychain/native memory.
 
-Proposed lifetimes: handoff 60 seconds, opaque user access token 15 minutes, refresh family 30 days. Hash tokens server-side; rotate refresh tokens with bounded encrypted replay recovery, and revoke the family on proven reuse. These are independent of device-token rotation. Native logout revokes its user-session family; device disconnect revokes playback separately. Expired interactive login must not silently broaden a device token to keep collection writes working.
+Access/refresh lifetimes and rotation follow the chosen managed provider; the previous custom 15-minute/30-day session-family proposal is superseded. Keep stable internal account IDs so a provider change does not rewrite collection ownership. Firebase/Supabase selection here is for auth, not an implicit migration of PostgreSQL or OCI storage.
 
-Device registration must not retain a plaintext credential in the generic 24-hour idempotency response store: use a bounded encrypted recovery response, as for credential rotation, and require explicit recovery after expiry.
+The device credential remains separately scoped, so interactive login expiry cannot turn it into a collection-edit or admin token. Device registration must not retain a plaintext credential in the generic 24-hour idempotency store: use bounded encrypted recovery, as for credential rotation, and explicit recovery after expiry.
 
-Formal request/response/error schemas for this handoff, registration, refresh races, and admin endpoints are required before implementation. The existing OpenAPI still specifies only device sync.
+Before production, document the selected provider configuration and concrete browser/native integration contracts, replace superseded auth route sketches, and test account isolation and revocation. UI prototypes need no live OAuth project; development sample state must not become a production bypass. Admin endpoint schemas also remain future work. The existing OpenAPI specifies only device sync.
 
 ## Versioning
 

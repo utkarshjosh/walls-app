@@ -2,7 +2,7 @@
 
 A carefree wallpaper library: choose a few folders, connect your Mac, and let wallpapers change automatically. Browse and collect images while the app handles rotation, daily downloads, and offline playback. No ads or paid placement. Shared discovery and AI curation come later.
 
-**Status:** planning repository, 1 November 2026. No application, server, or client has been implemented or deployed. The owner has created the private OCI bucket; its integration is untested. Specifications below are proposed implementation decisions, not claims about working software.
+**Status:** planning repository, 3 November 2026. No application, server, or client has been implemented or deployed. The owner has created the private OCI bucket; its integration is untested. Specifications below are proposed implementation decisions, not claims about working software.
 
 ## Start here
 
@@ -11,7 +11,7 @@ A carefree wallpaper library: choose a few folders, connect your Mac, and let wa
 3. [Functional requirements](docs/03-functional-requirements.md) and [non-functional requirements](docs/04-non-functional-requirements.md).
 4. [Architecture](docs/05-architecture.md), [data model](docs/06-data-model.md), and [Oracle deployment and storage](docs/07-deployment-and-cost.md).
 5. [Implementation roadmap](docs/08-roadmap.md) and [decisions and open questions](docs/09-decisions-and-questions.md).
-6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md) and [calm, light Collections design brief](docs/12-design-brief.md).
+6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md), [Collections design brief](docs/12-design-brief.md), and [motion/iteration guide](docs/13-motion-and-ui-iteration.md).
 
 ## Product default
 
@@ -26,10 +26,12 @@ Pick interests or starter folders → connect the Mac → hourly shuffle begins.
 | Data | PostgreSQL for collections, rotation preferences, and durable jobs |
 | Images | Existing private OCI `walls-assets`; proposed 7 GB intake / 8 GB hard ceiling, within owner's <10 GB constraint |
 | Mac app | Tauri 2 shell with bundled collection UI, Rust background core, AppKit adapter, Keychain, local cache |
-| Hosting | Two existing Oracle ARM servers; proposed `walls.utkarshjoshi.com` |
+| Hosting | Prefer `agent-server-oci` for all initial services; `oracle` hosts existing apps; proposed `walls.utkarshjoshi.com` |
 | Scheduling | Server compiles a seven-day plan; Mac syncs daily and rotates locally |
 
-The supplied capacity is **2 ARM cores / 12 GB RAM**. Whether this is per server or total, plus OS, disk, region, and tenancy allowances, still needs confirmation. The design does not require two full-size machines to serve one person.
+The supplied **2 ARM cores / 12 GB RAM** describes one server. Two hosts are available: `oracle` has active applications; `agent-server-oci` is mostly empty and is the preferred initial deployment target for all core services. Exact inventory for each host remains to be checked.
+
+Google sign-in is selected; Firebase Auth versus Supabase Auth will be chosen during authentication integration. Start UI iteration with local sample state, not a custom identity system. Keep the combined compact Collections reference, with subtle Motion for React transitions and shared UI tokens.
 
 Users manage collections in the desktop app; a second management website is optional. Admin remains on the web. Direct Mac distribution avoids the App Store; a no-membership alpha has Gatekeeper friction, while Developer ID signing/notarization is the recommended later public release path. No paid membership is assumed for development.
 

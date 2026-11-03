@@ -20,16 +20,19 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-014 | Shared UI bundled in desktop; separate admin web | Browser reuse without requiring two consumer management surfaces; remote content gets no native capability |
 | ADR-015 | Private walls-assets, 7 GB intake / 8 GB hard cap | Owner reports root-compartment bucket and 8 GB rule, requires <10 GB; verify effective scope later |
 | ADR-016 | Direct distribution, no Mac App Store | No-membership alpha first; signed/notarized public release if membership is funded; no Gatekeeper bypass |
-| ADR-017 | Calm, light, image-first Collections | User-selected visual tone; sample imagery in concepts; no dashboard or future queue |
+| ADR-017 | Compact combined Collections reference with subtle motion | User prefers first/second concepts, rejects the spread-out third, and requests ongoing clean UI iteration |
+| ADR-018 | Google sign-in; managed auth choice deferred | Firebase Auth or Supabase Auth at integration; avoid building a custom identity service |
+| ADR-019 | Start on `agent-server-oci` | Mostly empty host is preferred for API, DB, worker and web; `oracle` already runs applications |
+| ADR-020 | Motion for React with shared tokens | Restrained transitions, reduced-motion support, reusable components and documentation for human/LLM edits |
 
 ## Confirm before deployment
 
 | Question | Current assumption | Work it blocks |
 | --- | --- | --- |
-| Is 2-core ARM / 12 GB RAM per VM or total? What OS, disks, and existing workloads? | Fit core services inside combined capacity; bounded worker | Exact service placement and resource limits |
-| Same tenancy/region/VCN? Always Free or PAYG? Available storage/request limits? | Private connection possible; allowances unconfirmed | Network configuration, quotas, cost commitment |
+| What are the exact resources, OS, and disk capacity of each SSH host? | 2-core ARM / 12 GB describes one server; `agent-server-oci` mostly empty, `oracle` has active apps | Verify planned single-host placement and resource limits |
+| Same tenancy/region/VCN? Always Free or PAYG? Available storage/request limits? | Single host initially; tenancy/network details and effective quotas unconfirmed | Network configuration, quotas, cost commitment |
 | Owner's macOS version and display/Spaces usage? | Proposed macOS 14+, same image on attached screens | Supported matrix and native acceptance tests |
-| OIDC provider and allowed owner identity? | One provider; allowlist; no password system | Production sign-in configuration |
+| Firebase Auth or Supabase Auth project, and allowed owner identity? | Google sign-in confirmed; managed service choice/configuration deferred | Production sign-in integration, not UI prototyping |
 | Confirm `walls.utkarshjoshi.com` and DNS management location | Proposed subdomain only | DNS/TLS deployment |
 | When, if ever, fund Developer ID membership? | No membership now; direct ad-hoc alpha and source builds, signed/notarized wider release recommended | Frictionless public installation, not local development |
 | Backup destination and recovery-key owner? | Separate permissions plus independent copy before beta | Recovery readiness |
@@ -40,6 +43,6 @@ Brand/name; explicit code license (MIT recommended for open-source reuse, not ye
 
 A small reviewed starter set is required before MVP onboarding ships; a broad catalog is not. Do not block the feasibility spike on branding or later-phase choices. No mandatory Unsplash/Pexels dependency, public sign-up, CDN, paid database, or automatic cloud upgrade is assumed.
 
-The v0.3 desktop/storage plan adds interactive native user sessions and separate admin web. Detailed auth/admin payload schemas remain future contract work; the sync OpenAPI is still partial.
+The 2026-11-03 update keeps Google as the login choice and defers Firebase/Supabase selection. The earlier custom login/refresh endpoint sketch is no longer an implementation mandate: use a supported managed-auth flow when integration starts. Device sync authorization and separate admin access remain necessary. The sync OpenAPI is still partial.
 
 The v0.2 document/API draft revises previously unreleased contracts: collection references replace playlist references, and rotation preferences replace rule windows. No deployed client or database migration is claimed.

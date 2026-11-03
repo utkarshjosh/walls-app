@@ -21,6 +21,8 @@ flowchart LR
   Cache --> AppKit[AppKit wallpaper API]
 ```
 
+Initial hosting places API, database, worker, and web on the mostly empty `agent-server-oci` host. Keep `oracle` available for its existing applications; no cross-server dependency is required for MVP.
+
 Daily synchronization is a client-initiated pull; the server cannot push through NAT or wake a sleeping Mac. The server owns plan compilation and publishes future changes. The client owns local downloading, timing, and desktop application. An image rotation never requires an HTTP request.
 
 ## Why these technologies
@@ -39,9 +41,9 @@ References: [Go documentation](https://go.dev/doc/), [PostgreSQL locking/SELECT]
 
 ## Server modules
 
-`identity` handles web sessions and device pairing; `library` owns saved items, live collections, starter templates, and provenance; `rotation` applies simple preferences and compiles internal plans; `devices` serves manifests and records activation; `media` validates/normalizes assets and grants authorized downloads; `discovery` runs source adapters and ranking; `operations` handles quotas, reporting, backup metadata, and moderation.
+`identity` adapts managed Google sign-in (Firebase Auth or Supabase Auth, chosen later), application authorization, and device pairing; `library` owns saved items, live collections, starter templates, and provenance; `rotation` applies simple preferences and compiles internal plans; `devices` serves manifests and records activation; `media` validates/normalizes assets and grants authorized downloads; `discovery` runs source adapters and ranking; `operations` handles quotas, reporting, backup metadata, and moderation.
 
-Identity also issues separate desktop user sessions through a browser/PKCE handoff. User sessions authorize collection CRUD; sync tokens stay device-scoped. Admin requires its own browser session and server role check. The desktop native broker exposes fixed typed operations, never arbitrary URL fetch, filesystem paths, or shell execution. Remote content has no native privileges.
+Use the chosen managed-auth service's supported browser/desktop session flow and SDK verification. The earlier custom login/refresh service is not an MVP requirement; finalize the native callback/session adapter during integration. User sessions authorize collection CRUD; sync tokens stay device-scoped. Admin requires its own browser session and server role check. The desktop native broker exposes fixed typed operations, never arbitrary URL fetch, filesystem paths, or shell execution. Remote content has no native privileges.
 
 HTTP handlers validate input and authorization, call use cases, and serialize results. Domain modules do not depend on HTTP or OCI SDK types. Avoid a generic repository framework: explicit SQL queries and transaction boundaries are easier to review.
 

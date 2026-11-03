@@ -5,7 +5,7 @@ The core revision removes playlist editing, weekly rules, queue previews, and pi
 | Stage | Deliverable | Exit evidence |
 | --- | --- | --- |
 | 0. Feasibility | Tauri bundled UI/AppKit/login/wake/token separation spike; server inventory; OCI integration when resumed | Real Mac application and object grants work; capacity assumptions checked |
-| 1. Foundation | API/worker, PostgreSQL, shared React UI, owner access, uploads, collection model; minimal admin web | Private safe uploads, durable jobs, basic ARM deployment |
+| 1. Foundation | API/worker, PostgreSQL, shared React UI with subtle motion, managed Google sign-in integration, uploads, collection model; minimal admin web | Private safe uploads, durable jobs, basic ARM deployment |
 | 2. Effortless setup | Reviewed starter templates, tag mapping, idempotent onboarding, default rotation, pairing | User accepts folders and connects Mac without schedule configuration |
 | 3. Live folder rotation | One/many folders, deduped shuffle/sequential, frequency presets, generated plans | Save/remove in connected folders changes rotation without a second action |
 | 4. Reliable companion | Prefetch/cache, atomic activation, offline playback, Next/Pause, wake recovery | 72-hour offline trial; failed downloads preserve desktop; no routine maintenance |
@@ -16,6 +16,8 @@ The core revision removes playlist editing, weekly rules, queue previews, and pi
 | 8. Platform expansion | Android; separate iOS feasibility | Real platform proof before feature promises |
 
 No embeddings, vector database, model hosting, agent runtime, public scraper, or elaborate control screen is needed for stages 0–5. Intelligence tracks 7a and 7b are independent.
+
+UI iteration can start with the combined Collections reference, sample state, and shared Motion tokens. Google is the login method; choose Firebase Auth or Supabase Auth only when wiring authentication. Preferred initial hosting is `agent-server-oci`, with the worker on the same host. Inventory/firewall/cloud work remains deferred.
 
 ## First slice
 

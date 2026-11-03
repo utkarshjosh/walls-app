@@ -2,24 +2,24 @@
 
 ## Known inputs and assumptions
 
-Two existing Oracle servers and `utkarshjoshi.com` are available. Supplied sizing: **ARM processor, 2 cores, 12 GB RAM**. It is not yet confirmed whether this is per machine or the combined allocation. OS, disk capacity, free space, region, network layout, Always Free/PAYG status, and other workloads are unknown. No server was accessed and no DNS changes were made during planning.
+Two usable Oracle servers and `utkarshjoshi.com` are available. On 2026-11-03 the owner clarified that **ARM processor, 2 cores, 12 GB RAM** describes one server rather than a combined allocation. The SSH aliases are **`oracle`**, which hosts active applications, and **`agent-server-oci`**, which is mostly empty. Do not infer that both machines have identical sizing; verify each host's CPU/RAM, OS, disk space, region, and tenancy status during integration. No server was accessed and no DNS changes were made during this planning update.
 
 Update 2026-11-01: the owner created **`walls-assets`**, **private**, in the **root compartment**, and reports a rule intended to cap usage at **8 GB**, with a requirement to stay below **10 GB**. Preserve this stricter budget regardless of generic provider allowances. The rule, bucket tier, credentials, and network are not independently verified. Firewall and integration tests are explicitly deferred; see the [budget/integration specification](../specs/09-storage-budget-and-integration.md).
 
-Use the stronger/less-loaded machine as A. Target a combined steady-state footprint below 4 GiB RAM for API, DB, reverse proxy, and one bounded worker before scaling. Build containers/binaries in CI or on a development machine, not on a production VM during normal operation.
+Prefer **`agent-server-oci`** for the first deployment. Target a steady-state footprint below 4 GiB RAM for API, DB, reverse proxy, and one bounded worker on this host, subject to inventory and measurement. Build containers/binaries in CI or on a development machine, not on a production VM during normal operation.
 
 ## Proposed placement
 
 | Location | Responsibilities |
 | --- | --- |
-| VM A | Caddy, static web assets, Go API, PostgreSQL primary, scheduled backup coordinator |
-| VM B | Go worker, image normalization, approved source ingestion, restore rehearsal tools; temporary processing files only |
+| `agent-server-oci` | Preferred primary: Caddy, static consumer/admin web assets, Go API, PostgreSQL, one bounded worker, scheduled backup coordinator |
+| `oracle` | Existing applications; no wallpaper workload assigned initially. Consider a specific maintenance/backup role later only after inventory |
 | OCI Object Storage | Existing private `walls-assets` originals and variants; backup location independently budgeted |
 | Mac | Bundled collection UI, Keychain user/device credentials, local state, verified cache, native scheduling |
 
-VM B reaches PostgreSQL over a private VCN route (or authenticated private tunnel if servers are in different networks). If that connection is unreliable, co-locate the worker on A and use B for restore/maintenance until fixed. Do not expose PostgreSQL on public interfaces. Two servers do not make this topology highly available: A and the database remain a single point of failure.
+Keep API, database, and worker together initially to avoid a cross-server database dependency. Bind PostgreSQL to a private local/container network. The worker remains a separately bounded process, even on the same machine. Split it onto another host only if measured load warrants it and private connectivity is verified. This is a single-primary deployment; merely having another server does not make it highly available.
 
-Proposed DNS: `walls.utkarshjoshi.com` → A. Serve web and `/api/v1` from one origin. Object transfers use provider URLs returned by the backend; `media.utkarshjoshi.com` and a CDN are optional later. Keep other services on the root domain untouched. TLS terminates at Caddy; inbound rules allow HTTPS and tightly restricted administration access.
+Proposed DNS: `walls.utkarshjoshi.com` → `agent-server-oci`. Serve web and `/api/v1` from one origin. Object transfers use provider URLs returned by the backend; `media.utkarshjoshi.com` and a CDN are optional later. Keep other services on the root domain untouched. TLS terminates at Caddy; inbound rules allow HTTPS and tightly restricted administration access.
 
 ## Blob-store decision
 
@@ -57,7 +57,7 @@ Daily: encrypted PostgreSQL dump, manifest/source/deletion records, object inven
 
 An object bucket is primary storage, not by itself a complete backup. Do not create a second bucket assuming another free allowance. Prefer an encrypted owner-controlled offline or independent-account copy of irreplaceable personal files and metadata, with its capacity explicitly budgeted. A same-tenancy backup does not protect against loss of the account. Record recovery-key custody outside the servers.
 
-Restore drill: provision clean services; restore DB and blobs; replay deletion/withdrawal records; verify sampled checksums and object inventory; pair a test client; confirm offline playback; then switch traffic. Target RPO 24 hours and RTO four hours. Do not auto-promote VM B as a DB primary without an explicit replication/failover design.
+Restore drill: provision clean services; restore DB and blobs; replay deletion/withdrawal records; verify sampled checksums and object inventory; pair a test client; confirm offline playback; then switch traffic. Target RPO 24 hours and RTO four hours. Do not auto-promote `oracle` as a DB primary without an explicit replication/failover design and assessment of its existing applications.
 
 Operator limits, telemetry, and recovery procedures below are implementation responsibilities, not screens for everyday wallpaper users. Starter collections require only a small reviewed seed set; no model inference infrastructure is budgeted for MVP.
 

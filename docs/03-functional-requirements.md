@@ -1,10 +1,10 @@
 # Functional requirements
 
-Revised 2026-11-01. **M** = core MVP, **D** = later discovery, **I** = later intelligence, **L** = extension. Retained IDs have revised meanings; this supersedes earlier playlist/time-window requirements.
+Revised 2026-11-03. **M** = core MVP, **D** = later discovery, **I** = later intelligence, **L** = extension. Retained IDs have revised meanings; this supersedes earlier playlist/time-window requirements.
 
 | ID | Phase | Requirement and acceptance condition |
 | --- | --- | --- |
-| FR-01 | M | OIDC sign-in, initially invite-only; secure browser cookies/CSRF; separate native desktop user session through browser/PKCE handoff |
+| FR-01 | M | Google sign-in, initially invite-only; managed auth (Firebase Auth or Supabase Auth) chosen later. Use its supported flow with secure browser/native session handling; no custom password or OAuth system |
 | FR-02 | M | Batch JPEG/PNG upload into a private collection with per-file outcomes; enforce 25 MiB / 60 MP limits |
 | FR-03 | M | Image-first library with simple collection/text/tag filters; metadata and provenance on demand |
 | FR-04 | M | Create/rename/delete flat folders; overlapping membership allowed; deleting a folder preserves library files |
