@@ -14,6 +14,7 @@ import {
   DownloadIcon,
 } from "@radix-ui/react-icons";
 import { openDB } from "idb";
+import { RotationControls } from "./RotationControls.jsx";
 import "@fontsource-variable/inter";
 const seed = [
   {
@@ -76,7 +77,16 @@ function Modal({ open, onClose, title, description, children, wide }) {
                 exit={{ opacity: 0 }}
               />
             </Dialog.Overlay>
-            <Dialog.Content asChild onOpenAutoFocus={() => { returnFocus.current = document.activeElement; }} onCloseAutoFocus={(event) => { event.preventDefault(); returnFocus.current?.focus(); }}>
+            <Dialog.Content
+              asChild
+              onOpenAutoFocus={() => {
+                returnFocus.current = document.activeElement;
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                returnFocus.current?.focus();
+              }}
+            >
               <motion.section
                 className={`dialog ${wide ? "wide" : ""}`}
                 initial={{ opacity: 0, y: reduce ? 0 : 6 }}
@@ -104,6 +114,8 @@ export function App() {
       collections: seed,
       mode: "shuffle",
       frequency: "hour",
+      dailyTime: "07:00",
+      rotationAnchor: Date.now(),
       paused: false,
     }),
     [loaded, setLoaded] = useState(false),
@@ -119,13 +131,21 @@ export function App() {
     [results, setResults] = useState([]),
     [busy, setBusy] = useState(false),
     [query, setQuery] = useState("");
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (modal !== "settings" && modal !== "rotation") return;
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, [modal]);
   useEffect(() => {
     let alive = true;
     database()
       .then((db) => db.get("state", "library"))
       .then((saved) => {
         if (alive) {
-          if (saved?.collections) setState(saved);
+          if (saved?.collections)
+            setState((current) => ({ ...current, ...saved }));
           setLoaded(true);
         }
       })
@@ -156,7 +176,7 @@ export function App() {
     const t = setTimeout(() => setNotice(""), 3500);
     return () => clearTimeout(t);
   }, [notice]);
-  const update = (patch) => setState((s) => ({ ...s, ...patch }));
+  const update = (patch) => { setNow(new Date()); setState((s) => ({ ...s, ...patch })); };
   const toggle = (id) =>
     setState((s) => ({
       ...s,
@@ -174,7 +194,7 @@ export function App() {
   const cadence = {
     hour: "every hour",
     three: "every three hours",
-    day: "every day",
+    day: `every day at ${state.dailyTime || "07:00"}`,
   }[state.frequency];
   const summary = selected.length
     ? `${names}, ${state.mode === "shuffle" ? "shuffled" : "in order"} ${cadence}.`
@@ -518,47 +538,12 @@ export function App() {
         title="Your wallpaper rhythm"
         description="Choose your folders. We’ll take it from here."
       >
-        <fieldset>
-          <legend>Collections</legend>
-          {state.collections.map((c) => (
-            <label className="check option" key={c.id}>
-              <input
-                name="rotation-collection"
-                type="checkbox"
-                checked={c.enabled}
-                onChange={() => toggle(c.id)}
-              />
-              {c.name}
-            </label>
-          ))}
-        </fieldset>
-        <label className="field">
-          Order
-          <select
-            name="wallpaper-preference"
-            value={state.mode}
-            onChange={(e) => update({ mode: e.target.value })}
-          >
-            <option value="shuffle">Shuffle</option>
-            <option value="order">In order</option>
-          </select>
-        </label>
-        <label className="field">
-          Change wallpaper
-          <select
-            name="wallpaper-preference"
-            value={state.frequency}
-            onChange={(e) => update({ frequency: e.target.value })}
-          >
-            <option value="hour">Every hour</option>
-            <option value="three">Every three hours</option>
-            <option value="day">Every day</option>
-          </select>
-        </label>
-        <p className="hint">
-          Preferences are saved locally. A future Mac app connection will apply
-          them to your desktop.
-        </p>
+        <RotationControls
+          state={state}
+          update={update}
+          toggle={toggle}
+          now={now}
+        />
         <div className="dialog-actions">
           <button className="primary" onClick={() => setModal(null)}>
             Done
@@ -639,8 +624,14 @@ export function App() {
         open={modal === "settings"}
         onClose={() => setModal(null)}
         title="Settings"
-        description="A quiet corner for the essentials."
+        description="Your collections, on your time."
       >
+        <RotationControls
+          state={state}
+          update={update}
+          toggle={toggle}
+          now={now}
+        />
         <div className="setting-row">
           <div>
             <h3>Pause rotation</h3>
@@ -652,14 +643,6 @@ export function App() {
             checked={state.paused}
             onChange={(e) => update({ paused: e.target.checked })}
           />
-        </div>
-        <div className="setting-block">
-          <h3>Your local preview</h3>
-          <p>
-            Collections, uploads, and preferences are saved in this browser.
-            Google sign-in, cloud sync, and automatic Mac wallpapers are coming
-            next.
-          </p>
         </div>
         <button
           className="secondary"

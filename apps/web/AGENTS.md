@@ -11,3 +11,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 ## Wallpaper product direction
 
 Use the combined compact collection-shelf reference in ../../docs/design/collections-refinement.png. Keep a light neutral shell and restrained green accent. Motion stays subtle, respects Reduced Motion, and never animates gallery layout. Everyday rotation controls are folders, Shuffle/In order, and hourly/three-hourly/daily cadence. No timeline, AI/discovery navigation, metrics dashboard, or admin UI in this consumer slice. Google authentication and OCI/native integration are deferred; never present local preferences as working desktop integration. Keep shared tokens and components easy to evolve.
+
+Settings now includes frequency/order/collection controls, a daily-at time, and next-change timing preview. This user-requested daily time supersedes the earlier no-time-picker default. Keep one next-change summary, not a future queue. Distinguish local timing preview from actual native wallpaper application.
