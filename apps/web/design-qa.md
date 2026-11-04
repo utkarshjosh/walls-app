@@ -39,3 +39,5 @@ P3: independently generated image crops and the navigation underline position di
 ## Settings timing refinement
 
 User requested fuller Settings plus next scheduling/time controls. Settings now uses the same RotationControls component as Edit, with one next-change preview, countdown, local timezone, daily-at input, collection selection, and pause. Checked daily 18:30 updates next time to 6:30 PM; pause replaces countdown; reload restores daily time. At 390 × 844 dialog width is 358 px with no horizontal overflow and internal scrolling. Screenshots: qa/settings-desktop.png and qa/settings-mobile.png. No new browser console errors. Five schedule tests and four packaging tests pass; production build passes. Local timing does not apply wallpapers on macOS.
+
+Modal collection scope: removed expanding collection checklists from Settings and Edit. Verified compact count plus Manage collections closes the dialog and returns to Your collections. Desktop evidence refreshed in qa/settings-desktop.png; prior mobile Settings capture documents the earlier list layout and is superseded for collection selection. Build passes.

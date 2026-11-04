@@ -1,7 +1,8 @@
 import { nextChange } from "./schedule.js";
 
-export function RotationControls({ state, update, toggle, now }) {
+export function RotationControls({ state, update, onManageCollections, now }) {
   const next = nextChange(state, now);
+  const selectedCount = state.collections.filter(c => c.enabled).length;
   const day = next?.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
@@ -33,7 +34,7 @@ export function RotationControls({ state, update, toggle, now }) {
             ? "Resume to see your next change."
             : next
               ? `${day} · in ${until}`
-              : "Choose at least one collection with images below."}
+              : "Choose a collection with images on the Collections screen."}
         </p>
         <small>{zone.replaceAll("_", " ")} · your local time</small>
       </section>
@@ -77,21 +78,10 @@ export function RotationControls({ state, update, toggle, now }) {
           </select>
         </label>
       </div>
-      <fieldset className="rotation-collections">
-        <legend>Use these collections</legend>
-        {state.collections.map((c) => (
-          <label className="check option" key={c.id}>
-            <input
-              name="rotation-collection"
-              type="checkbox"
-              checked={c.enabled}
-              onChange={() => toggle(c.id)}
-            />
-            {c.name}
-            <span className="collection-count">{c.images.length} images</span>
-          </label>
-        ))}
-      </fieldset>
+      <div className="rotation-source-summary">
+        <span>{selectedCount === 0 ? "No collections selected" : `${selectedCount} collection${selectedCount === 1 ? "" : "s"} in rotation`}</span>
+        <button className="text-button" onClick={onManageCollections}>Manage collections</button>
+      </div>
       <p className="hint">
         Saved automatically in this browser. This previews your timing; desktop
         changes begin when the Mac app is connected.

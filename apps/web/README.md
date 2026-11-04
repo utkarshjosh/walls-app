@@ -13,3 +13,5 @@ The nine JPG wallpapers in `public/wallpapers` are generated illustrative conten
 QA evidence and visual comparison are in `qa/` and `design-qa.md`. Keep the local preview open during iteration. Publishing and infrastructure work are separate delivery steps.
 
 Settings now shares rotation controls with Edit and shows the next-change timing preview, countdown, timezone, collection inclusion, pause, and a daily-at time. Interval previews align to the next local whole hour or three-hour clock boundary; daily previews follow browser-local wall time. The persisted dailyTime field are frontend-only until the server/native contract is extended. Run `npm test` for six timing tests, including DST and month boundaries.
+
+Collection membership is managed on the main Collections screen. Settings/Edit show only a bounded count and Manage collections link, so dialog height does not grow with library size.

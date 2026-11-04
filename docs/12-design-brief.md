@@ -53,3 +53,5 @@ Use Motion for React for restrained interaction transitions, with shared tokens 
 The first implemented UI slice is a responsive React prototype based on the combined reference, with sample data and working navigation, upload affordance, folder selection, rotation sheet, and subtle motion. Clearly distinguish simulated local interactions from real server/native integration. Verify the chosen screen plus empty/error/loading states in a browser before connecting the backend.
 
 Settings refinement: the owner requested next scheduling and timing controls. The prototype now includes a single next-change preview/countdown and a daily-at time, alongside shared folder/order/frequency controls. This daily time choice updates the earlier default-only plan; there is still no future queue or calendar editor. Server/native timing contracts remain future integration work.
+
+Modal scope correction: Settings and Edit show a compact selected-collection count plus Manage collections navigation. Folder membership is managed on the main Collections screen through its existing wallpaper toggles; no ever-expanding collection list belongs inside a modal.

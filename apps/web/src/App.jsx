@@ -535,12 +535,17 @@ export function App() {
         open={modal === "rotation"}
         onClose={() => setModal(null)}
         title="Your wallpaper rhythm"
-        description="Choose your folders. We’ll take it from here."
+        description="Set a rhythm that suits your day."
       >
         <RotationControls
           state={state}
           update={update}
-          toggle={toggle}
+          onManageCollections={() => {
+            setModal(null);
+            setTab("collections");
+            setCollection(null);
+            setQuery("");
+          }}
           now={now}
         />
         <div className="dialog-actions">
@@ -628,7 +633,12 @@ export function App() {
         <RotationControls
           state={state}
           update={update}
-          toggle={toggle}
+          onManageCollections={() => {
+            setModal(null);
+            setTab("collections");
+            setCollection(null);
+            setQuery("");
+          }}
           now={now}
         />
         <div className="setting-row">

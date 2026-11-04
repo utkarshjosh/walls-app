@@ -15,3 +15,5 @@ Use the combined compact collection-shelf reference in ../../docs/design/collect
 Settings now includes frequency/order/collection controls, a daily-at time, and next-change timing preview. This user-requested daily time supersedes the earlier no-time-picker default. Keep one next-change summary, not a future queue. Distinguish local timing preview from actual native wallpaper application.
 
 Hourly preview changes happen on whole local hours; three-hour previews use 00:00/03:00/06:00/etc. Do not offset them by the time the app was opened or configured. Daily changes use the user-selected time.
+
+Collection management belongs on the main Collections screen. Settings/Edit dialogs show only a fixed-size selected-count summary and Manage collections link; never render an expanding collection checklist inside a modal. This supersedes the earlier inline collection controls in Settings.
