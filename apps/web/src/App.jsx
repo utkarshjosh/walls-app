@@ -115,7 +115,6 @@ export function App() {
       mode: "shuffle",
       frequency: "hour",
       dailyTime: "07:00",
-      rotationAnchor: Date.now(),
       paused: false,
     }),
     [loaded, setLoaded] = useState(false),

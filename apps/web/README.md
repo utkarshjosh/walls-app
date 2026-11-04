@@ -12,4 +12,4 @@ The nine JPG wallpapers in `public/wallpapers` are generated illustrative conten
 
 QA evidence and visual comparison are in `qa/` and `design-qa.md`. Keep the local preview open during iteration. Publishing and infrastructure work are separate delivery steps.
 
-Settings now shares rotation controls with Edit and shows the next-change timing preview, countdown, timezone, collection inclusion, pause, and a daily-at time. Interval previews are anchored when frequency changes; daily previews follow browser-local wall time. The persisted dailyTime and rotationAnchor fields are frontend-only until the server/native contract is extended. Run `npm test` for five timing tests, including DST and month boundaries.
+Settings now shares rotation controls with Edit and shows the next-change timing preview, countdown, timezone, collection inclusion, pause, and a daily-at time. Interval previews align to the next local whole hour or three-hour clock boundary; daily previews follow browser-local wall time. The persisted dailyTime field are frontend-only until the server/native contract is extended. Run `npm test` for six timing tests, including DST and month boundaries.

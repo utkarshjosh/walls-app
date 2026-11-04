@@ -1,6 +1,6 @@
 // Local timing preview. The future device manifest remains authoritative on Mac.
 export function nextChange(
-  { frequency, dailyTime = "07:00", rotationAnchor, paused, collections },
+  { frequency, dailyTime = "07:00", paused, collections },
   now = new Date(),
 ) {
   if (paused || !collections.some((c) => c.enabled && c.images.length))
@@ -16,11 +16,9 @@ export function nextChange(
     }
     return next;
   }
-  const interval = { hour: 3600000, three: 10800000 }[frequency];
-  if (!interval || !Number.isFinite(rotationAnchor)) return null;
-  const steps = Math.max(
-    1,
-    Math.floor((now.getTime() - rotationAnchor) / interval) + 1,
-  );
-  return new Date(rotationAnchor + steps * interval);
+  const hours = { hour: 1, three: 3 }[frequency];
+  if (!hours) return null;
+  const next = new Date(now);
+  next.setHours(now.getHours() + hours - (now.getHours() % hours), 0, 0, 0);
+  return next;
 }

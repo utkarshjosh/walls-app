@@ -44,7 +44,7 @@ export function RotationControls({ state, update, toggle, now }) {
             name="rotation-frequency"
             value={state.frequency}
             onChange={(e) =>
-              update({ frequency: e.target.value, rotationAnchor: Date.now() })
+              update({ frequency: e.target.value })
             }
           >
             <option value="hour">Every hour</option>
