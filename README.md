@@ -2,7 +2,7 @@
 
 A carefree wallpaper library: choose a few folders, connect your Mac, and let wallpapers change automatically. Browse and collect images while the app handles rotation, daily downloads, and offline playback. No ads or paid placement. Shared discovery and AI curation come later.
 
-**Status:** planning repository, 3 November 2026. No application, server, or client has been implemented or deployed. The owner has created the private OCI bucket; its integration is untested. Specifications below are proposed implementation decisions, not claims about working software.
+**Status:** the first local React prototype is implemented in [apps/web](apps/web/README.md). It supports collections, uploads, local persistence, previews, and rotation preferences. The Go server, Google sign-in, OCI integration, and native Mac client remain planned. The owner-created private bucket is untested.
 
 ## Start here
 

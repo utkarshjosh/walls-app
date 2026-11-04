@@ -1,6 +1,6 @@
 # First desktop Collections design
 
-Brief established 2026-11-01; direction updated 2026-11-03. User-selected tone: **calm, light, image-first**, with simple clean layouts and subtle motion. No frontend or native app exists yet. Working product label: Wallpaper Server, with “Walls” used only as a short mockup label until branding is chosen.
+Brief established 2026-11-01; direction updated 2026-11-03. User-selected tone: **calm, light, image-first**, with simple clean layouts and subtle motion. The first local React prototype is implemented in apps/web; the native Mac app remains planned. Working product label: Wallpaper Server, with “Walls” used only as a short mockup label until branding is chosen.
 
 ## Experience
 
@@ -32,7 +32,7 @@ The Product Design workflow is being used for image ideation. No Hallmark code l
 
 The owner likes the second and first displayed concepts; the third feels too spread out. Retain the second's collection shelves and the first's compact header/actions and restrained green accent. The [refined mockup](design/collections-refinement.png) places each collection's name and inclusion control immediately above its three image previews, removing the left label column and keeping a consistent content width. There is no global sidebar or large featured-image area.
 
-On 2026-11-03 the owner emphasized simplicity, cleanliness, slight animation, and ongoing iteration. Carry this combined mockup forward as the working implementation reference; it is not a frozen pixel-level design. It was generated with the built-in Image Generation tool using both liked concept images as references. Its [generation prompt](design/collections-refinement.prompt.md) records the direction. Sample imagery remains illustrative. No frontend code was changed or tested.
+On 2026-11-03 the owner emphasized simplicity, cleanliness, slight animation, and ongoing iteration. Carry this combined mockup forward as the working implementation reference; it is not a frozen pixel-level design. It was generated with the built-in Image Generation tool using both liked concept images as references. Its [generation prompt](design/collections-refinement.prompt.md) records the direction. Sample imagery remains illustrative. The image is a visual reference; implementation verification is recorded separately in apps/web/design-qa.md.
 
 Use Motion for React for restrained interaction transitions, with shared tokens and reusable components so human and LLM-assisted edits remain consistent. Follow the [motion and iteration guide](13-motion-and-ui-iteration.md). This development workflow does not bring the deferred AI product features into MVP.
 
@@ -50,4 +50,4 @@ Use Motion for React for restrained interaction transitions, with shared tokens 
 | Capacity reached | Explain that uploads are paused; preserve browsing and playback; deletion/settings provide recovery |
 | Persistent connection failure | One actionable reconnect prompt; diagnostic details on request |
 
-The next UI step is a responsive React prototype based on the combined reference, with sample data and working navigation, upload affordance, folder selection, rotation sheet, and subtle motion. Clearly distinguish simulated local interactions from real server/native integration. Verify the chosen screen plus empty/error/loading states in a browser before connecting the backend.
+The first implemented UI slice is a responsive React prototype based on the combined reference, with sample data and working navigation, upload affordance, folder selection, rotation sheet, and subtle motion. Clearly distinguish simulated local interactions from real server/native integration. Verify the chosen screen plus empty/error/loading states in a browser before connecting the backend.

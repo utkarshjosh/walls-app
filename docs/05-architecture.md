@@ -72,4 +72,4 @@ docs/                     # rationale, requirements, operations plan
 specs/                    # contracts, examples, acceptance scenarios
 ```
 
-Only documentation and contracts exist today. No separate playlist tables or weekly-rule engine are planned. Starter folders use curated assets and fixed tag mappings. Later discovery, taste learning, and prompt curation are optional modules; the core path has no model/vector-store dependency. Redis, Kafka, Elasticsearch, Kubernetes, WebSockets, ML recommendations, and microservices are intentionally deferred until a demonstrated requirement pays for their operational complexity.
+A local React prototype now exists in apps/web; server/native modules below remain planned. No separate playlist tables or weekly-rule engine are planned. Starter folders use curated assets and fixed tag mappings. Later discovery, taste learning, and prompt curation are optional modules; the core path has no model/vector-store dependency. Redis, Kafka, Elasticsearch, Kubernetes, WebSockets, ML recommendations, and microservices are intentionally deferred until a demonstrated requirement pays for their operational complexity.

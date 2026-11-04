@@ -1,6 +1,6 @@
 # Motion and ongoing UI iteration
 
-Decision, 2026-11-03: keep the collection experience simple and clean, with slight animation. Continue improving the UI through small, understandable changes. This document describes implementation intent; no animation code is installed yet.
+Decision, 2026-11-03: keep the collection experience simple and clean, with slight animation. Continue improving the UI through small, understandable changes. This document describes motion intent. The first local React prototype now uses Motion for dialogs and quiet status feedback.
 
 ## Library and scope
 

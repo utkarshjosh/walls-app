@@ -25,3 +25,7 @@ wallpapers/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+
+# Curated/generated prototype fixtures are versioned; personal caches stay ignored.
+!apps/web/public/wallpapers/
+!apps/web/public/wallpapers/*.jpg

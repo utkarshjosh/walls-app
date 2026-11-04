@@ -1,6 +1,6 @@
 # Planning artifact validation
 
-Validation scope: schemas, examples, OpenAPI structure, local document links, and selected cross-field invariants. This repository does not contain application code or deployed infrastructure.
+Validation scope: schemas, examples, OpenAPI structure, local document links, and selected cross-field invariants. The first frontend prototype now lives in apps/web, with its build/browser QA documented there; these specification checks do not validate that application. No infrastructure is deployed.
 
 ## Reproduce
 
