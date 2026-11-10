@@ -7,8 +7,8 @@ export const HERO_SCENE = "low-orbit";
 /** Live scenes offered in the "running right now" section, first one shown. */
 export const LIVE_SCENES = ["silk", "low-orbit", "threads", "soft-glass", "daylight", "dune-wind", "arc-clock"];
 
-/** The "one on each" state of the hero: laptop, then monitor. */
-export const EACH_DISPLAY: [string, string] = ["/media/stills/black-satin.jpg", "/media/stills/alpenglow.jpg"];
+/** The "one on each" state of the hero, as still names: laptop, then monitor. */
+export const EACH_DISPLAY: [string, string] = ["black-satin", "alpenglow"];
 
 /** Stills in the catalog strip, in order. Empty means every still that exists. */
 export const STILLS: string[] = [];

@@ -8,7 +8,8 @@
         "minimal"
       ],
       "color": "#1f1e1e",
-      "layout": "per-display"
+      "layout": "per-display",
+      "v": "4154e81534"
     },
     {
       "slug": "currents",
@@ -19,7 +20,8 @@
         "cool"
       ],
       "color": "#112b35",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "f41ca77190"
     },
     {
       "slug": "daylight",
@@ -30,7 +32,8 @@
         "daylight"
       ],
       "color": "#51627f",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "65ea29ca3c"
     },
     {
       "slug": "dune-wind",
@@ -41,7 +44,8 @@
         "light"
       ],
       "color": "#d2ae90",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "22c2380a16"
     },
     {
       "slug": "first-light",
@@ -52,7 +56,8 @@
         "calm"
       ],
       "color": "#66597a",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "cdf848af6d"
     },
     {
       "slug": "ink-wash",
@@ -63,7 +68,8 @@
         "light"
       ],
       "color": "#c9c5bb",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "a0cb075c62"
     },
     {
       "slug": "lava",
@@ -74,7 +80,8 @@
         "dark"
       ],
       "color": "#84402b",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "642b73bcac"
     },
     {
       "slug": "low-orbit",
@@ -85,7 +92,8 @@
         "dark"
       ],
       "color": "#0a1524",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "c990b96a7e"
     },
     {
       "slug": "quiet-clock",
@@ -95,7 +103,8 @@
         "minimal"
       ],
       "color": "#6d95c4",
-      "layout": "per-display"
+      "layout": "per-display",
+      "v": "53bc23b5eb"
     },
     {
       "slug": "silk",
@@ -106,7 +115,8 @@
         "dark"
       ],
       "color": "#1b1f4a",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "809c83af16"
     },
     {
       "slug": "slow-aurora",
@@ -117,7 +127,8 @@
         "cool"
       ],
       "color": "#14463f",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "05ae289d72"
     },
     {
       "slug": "soft-glass",
@@ -128,7 +139,8 @@
         "dark"
       ],
       "color": "#0c0d24",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "b21d42f7a1"
     },
     {
       "slug": "starfield",
@@ -139,7 +151,8 @@
         "cool"
       ],
       "color": "#161a35",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "c2f043eabe"
     },
     {
       "slug": "threads",
@@ -150,7 +163,8 @@
         "dark"
       ],
       "color": "#0b0d1c",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "da375d6593"
     },
     {
       "slug": "tidal",
@@ -161,7 +175,8 @@
         "warm"
       ],
       "color": "#a8676a",
-      "layout": "canvas"
+      "layout": "canvas",
+      "v": "c953a8f236"
     }
   ],
   "stills": [
@@ -170,91 +185,104 @@
       "title": "Orbital Dawn",
       "color": "#14182e",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "4772fa6e15"
     },
     {
       "slug": "ink-silk",
       "title": "Ink Silk",
       "color": "#271f55",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "fcf40ca997"
     },
     {
       "slug": "alpenglow",
       "title": "Alpenglow",
       "color": "#5a3f49",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "b316c36e1c"
     },
     {
       "slug": "night-glass",
       "title": "Night Glass",
       "color": "#221b43",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "1649ef895c"
     },
     {
       "slug": "light-trails",
       "title": "Light Trails",
       "color": "#26222c",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "98e43e5a7a"
     },
     {
       "slug": "black-satin",
       "title": "Black Satin",
       "color": "#171819",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "f7d5984cf4"
     },
     {
       "slug": "long-limb",
       "title": "Long Limb",
       "color": "#0e1226",
       "width": 7680,
-      "height": 2400
+      "height": 2400,
+      "v": "b1db5dca51"
     },
     {
       "slug": "paper-glass",
       "title": "Paper Glass",
       "color": "#ddd9cd",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "2dea8a2211"
     },
     {
       "slug": "garnet-drape",
       "title": "Garnet Drape",
       "color": "#531818",
       "width": 7680,
-      "height": 2400
+      "height": 2400,
+      "v": "317d5172c3"
     },
     {
       "slug": "black-glass",
       "title": "Black Glass",
       "color": "#141416",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "e803217752"
     },
     {
       "slug": "red-limb",
       "title": "Red Limb",
       "color": "#2f1614",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "68d2b14275"
     },
     {
       "slug": "pearl-silk",
       "title": "Pearl Silk",
       "color": "#b8a49d",
       "width": 5120,
-      "height": 3200
+      "height": 3200,
+      "v": "5a4f17f170"
     },
     {
       "slug": "glass-ribbon",
       "title": "Glass Ribbon",
       "color": "#1c1636",
       "width": 7680,
-      "height": 2400
+      "height": 2400,
+      "v": "bcb0e7f5be"
     }
   ]
 }

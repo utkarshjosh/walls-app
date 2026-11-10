@@ -7,6 +7,7 @@
 // Needs `sips` (part of macOS) to resize pictures. The output is committed, so
 // the site builds on any machine without running this.
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,14 @@ const out = join(here, "..", "public", "media");
 function resize(from, to, longSide, quality) {
   execFileSync("sips", ["-Z", String(longSide), "-s", "format", "jpeg", "-s", "formatOptions", String(quality), from, "--out", to], { stdio: "ignore" });
 }
+
+// A short fingerprint of a file. The page adds it to the file's address, so a
+// browser that kept an older copy fetches the new one as soon as it changes.
+const stamp = (...files) => {
+  const hash = createHash("sha256");
+  for (const file of files) hash.update(readFileSync(file));
+  return hash.digest("hex").slice(0, 10);
+};
 
 function pixelSize(file) {
   const text = execFileSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file], { encoding: "utf8" });
@@ -37,7 +46,7 @@ for (const slug of readdirSync(scenesDir).sort()) {
   const meta = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"));
   cpSync(join(dir, "scene.html"), join(out, "scenes", `${slug}.html`));
   resize(join(dir, "poster.jpg"), join(out, "posters", `${slug}.jpg`), 1600, 80);
-  scenes.push({ slug, title: meta.title, tags: meta.tags ?? [], color: meta.color, layout: meta.layout });
+  scenes.push({ slug, title: meta.title, tags: meta.tags ?? [], color: meta.color, layout: meta.layout, v: stamp(join(dir, "scene.html"), join(dir, "poster.jpg")) });
 }
 
 // Stills: the pictures listed in seed/stills/stills.json, in that order.
@@ -49,7 +58,7 @@ if (existsSync(join(stillsDir, "stills.json"))) {
     const file = join(stillsDir, still.file);
     const { width, height } = pixelSize(file);
     resize(file, join(out, "stills", still.file), 1800, 80);
-    stills.push({ slug, title: still.title, color: still.color ?? null, width, height });
+    stills.push({ slug, title: still.title, color: still.color ?? null, width, height, v: stamp(file) });
   }
 }
 

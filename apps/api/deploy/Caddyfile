@@ -34,12 +34,14 @@
 		@scene path /media/scenes/*
 		header @scene Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
 
-		# Built files have their content in their name and never change;
-		# pictures and scenes may be replaced by a later upload.
+		# Built files have their content in their name and never change.
+		# Pictures and scenes keep their names when they are replaced, so the
+		# page asks for them with a fingerprint of their content (?v=...),
+		# and anything asked for without one is kept for an hour at most.
 		@built path /assets/*
 		header @built Cache-Control "public, max-age=31536000, immutable"
 		@media path /media/*
-		header @media Cache-Control "public, max-age=86400"
+		header @media Cache-Control "public, max-age=3600"
 
 		file_server
 	}

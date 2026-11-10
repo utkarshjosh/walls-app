@@ -84,7 +84,7 @@ Promise.all([import("./hero"), shaders[sourceOf(HERO_SCENE, "shader.glsl")](), s
       canvas: $<HTMLCanvasElement>(".hero__canvas"),
       stage: $<HTMLElement>(".hero__stage"),
       scene: { source, loop: cfg.loop ?? 900, still: cfg.poster ?? 20, glow: glowOf(cfg.color) },
-      each: EACH_DISPLAY,
+      each: EACH_DISPLAY.map((slug) => `/media/stills/${slug}.jpg?v=${media.stills.find((s) => s.slug === slug)?.v ?? ""}`) as [string, string],
       reducedMotion,
     });
     hero.progress(heroProgress());
@@ -121,7 +121,7 @@ const liveTitle = $<HTMLElement>(".live__title");
 const livePause = $<HTMLButtonElement>(".live__pause");
 const livePicker = $<HTMLElement>(".live__picker");
 
-const live = { slug: "", visible: false, paused: reducedMotion, loaded: "" };
+const live = { slug: "", v: "", visible: false, paused: reducedMotion, loaded: "" };
 
 // A scene takes its state from the part of its address after "#". Changing only
 // that part does not reload it, so pausing is instant.
@@ -142,13 +142,14 @@ function applyLive() {
     );
     live.loaded = live.slug;
   }
-  liveScene.src = `/media/scenes/${live.slug}.html#paused=${stopped ? 1 : 0}`;
+  liveScene.src = `/media/scenes/${live.slug}.html?v=${live.v}#paused=${stopped ? 1 : 0}`;
   livePause.textContent = live.paused ? "Play" : "Pause";
   livePause.setAttribute("aria-pressed", String(live.paused));
 }
 
 function chooseLive(scene: Scene) {
   live.slug = scene.slug;
+  live.v = scene.v;
   liveFrame.style.backgroundColor = scene.color ?? "";
   liveTitle.textContent = scene.title;
   for (const b of livePicker.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.slug === scene.slug));
@@ -160,7 +161,7 @@ for (const scene of scenes) {
   button.type = "button";
   button.dataset.slug = scene.slug;
   const img = document.createElement("img");
-  img.src = `/media/posters/${scene.slug}.jpg`;
+  img.src = `/media/posters/${scene.slug}.jpg?v=${scene.v}`;
   img.alt = "";
   img.loading = "lazy";
   const label = document.createElement("span");
@@ -187,14 +188,14 @@ if (scenes[0]) chooseLive(scenes[0]);
 
 const strip = $<HTMLElement>(".walls__strip");
 type Tile = { src: string; title: string; note: string; ratio: number };
-type Still = { slug: string; title: string; color: string | null; width: number; height: number };
+type Still = { slug: string; title: string; color: string | null; width: number; height: number; v: string };
 const allStills = media.stills as Still[];
 const chosen = STILLS.length ? STILLS.map((slug) => allStills.find((s) => s.slug === slug)).filter((s): s is Still => !!s) : allStills;
 const tiles: Tile[] = chosen.length
-  ? chosen.map((s) => ({ src: `/media/stills/${s.slug}.jpg`, title: s.title, note: `${s.width} × ${s.height}`, ratio: s.width / s.height }))
+  ? chosen.map((s) => ({ src: `/media/stills/${s.slug}.jpg?v=${s.v}`, title: s.title, note: `${s.width} × ${s.height}`, ratio: s.width / s.height }))
   : media.scenes
       .filter((s) => !s.tags.includes("clock"))
-      .map((s) => ({ src: `/media/posters/${s.slug}.jpg`, title: s.title, note: "Live", ratio: 1.6 }));
+      .map((s) => ({ src: `/media/posters/${s.slug}.jpg?v=${s.v}`, title: s.title, note: "Live", ratio: 1.6 }));
 
 for (const tile of tiles) {
   const figure = document.createElement("figure");
