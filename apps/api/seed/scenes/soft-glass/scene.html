@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Soft Glass</title>
+<!--
+  Soft Glass - a live wallpaper scene (canvas scene, live scene standard 1).
+  By Still Originals. Licence: Still Original.
+  One self-contained file made by scenekit: it can load nothing and send nothing.
+
+  Geometry comes from the URL fragment (all values in points):
+    #cw=<canvas width>&ch=<canvas height>&vx=<window x in canvas>&vy=<window y in canvas>&paused=0|1
+  Defaults: cw and ch are the window's own size, vx=0, vy=0, paused=0.
+  Every window draws its own part of one shared picture, and animation time is taken
+  from the wall clock, so several windows line up in space and stay in step in time.
+
+  Optional, for capturing stills only: &t=<seconds> freezes the scene at that moment
+  of its 480 second loop and draws a single frame. Absent, it changes nothing.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#05060e}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
+body.still{background:linear-gradient(180deg,#02030a 0%,#0a0b20 45%,#1a1440 62%,#0a0b20 80%,#04050c 100%) no-repeat}
+body.still canvas{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script id="fs" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec4 uC;   // shared canvas: width, height, this window's x, y (CSS points, y down)
+uniform vec4 uW;   // this window: width, height (CSS points), buffer width, height (pixels)
+uniform float uT;  // phase of the loop, 0..1, from the wall clock
+const float TAU = 6.2831853;
+
+float h21(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+vec2 h22(vec2 p){ vec3 q = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
+
+// Gradient noise, roughly -0.6..0.6, smooth second derivative.
+float gn(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f * f * f * (f * (f * 6. - 15.) + 10.);
+  float a = dot(h22(i) * 2. - 1., f);
+  float b = dot(h22(i + vec2(1., 0.)) * 2. - 1., f - vec2(1., 0.));
+  float c = dot(h22(i + vec2(0., 1.)) * 2. - 1., f - vec2(0., 1.));
+  float d = dot(h22(i + vec2(1., 1.)) * 2. - 1., f - vec2(1., 1.));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// A point going round a unit circle k times per loop: moving noise lookups along it
+// makes motion that repeats exactly when the wall clock wraps.
+vec2 orbit(float k, float ph){ float a = TAU * k * uT + ph; return vec2(cos(a), sin(a)); }
+
+
+#define DITHER 1.0
+
+// Colourways. The live scene is dichroic glass in a dark room; PAPER is the same glass in
+// daylight against a pale wall, for stills.
+#if defined(VARIANT_PAPER)
+const vec3 W_TOP = vec3(.930, .915, .900), W_LOW = vec3(.985, .972, .955), W_POOL = vec3(1., .985, .965);
+const float LAMPS = .55, FILM = 1.0, BODY = .35, BOKEH = 0.;
+#elif defined(VARIANT_NOIR)
+const vec3 W_TOP = vec3(.004, .004, .005), W_LOW = vec3(.010, .010, .012), W_POOL = vec3(.030, .030, .036);
+const float LAMPS = 1., FILM = 1., BODY = .25, BOKEH = 0.;
+#else
+const vec3 W_TOP = vec3(.006, .007, .016), W_LOW = vec3(.020, .018, .050), W_POOL = vec3(.090, .060, .200);
+const float LAMPS = 1., FILM = 1., BODY = 1., BOKEH = 1.;
+#endif
+
+// A still can afford to walk the ray in smaller steps than a live scene.
+#ifdef SK_STILL
+const int STEPS = 160;
+const float STRIDE = .34, SKIM = 1.;
+#else
+const int STEPS = 52;
+const float STRIDE = .62, SKIM = .45;
+#endif
+
+vec4 warp;                                          // the slow motion of the two ribbons, set once per pixel
+
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+
+// A ribbon of glass along x: a flat band with rounded edges that turns about its own
+// axis as it goes. Returns the distance, and in `across` where q is across and through the band.
+float band(vec3 q, float turn, float ph, float wide, float thin, out vec2 across){
+  across = rot(q.x * turn + ph) * q.yz;
+  vec2 d = abs(across) - vec2(wide, thin);
+  return (length(max(d, 0.)) + min(max(d.x, d.y), 0.) - .020) * STRIDE;
+}
+
+float map(vec3 q, out vec2 across, out float which){
+  vec2 a2;
+  vec3 a = q;
+  a.xy = rot(.26) * a.xy;
+  a.y -= .10 * sin(a.x * .85 + warp.x) - .10;
+  a.z -= .16 * cos(a.x * .60 + warp.y);
+  float d1 = band(a, 1.55, warp.z, .36, .026, across);
+  vec3 b = q - vec3(0., -.08, -1.1);
+  b.xy = rot(-.34) * b.xy;
+  b.y -= .14 * sin(b.x * .7 + 1.7 - warp.y);
+  float d2 = band(b, -1.9, 2.2 + warp.w, .22, .020, a2);
+  which = d1 < d2 ? 0. : 1.;
+  if (d2 < d1) across = a2;
+  return min(d1, d2);
+}
+
+float dist(vec3 q){ vec2 a; float w; return map(q, a, w); }
+
+// The room as the glass reflects it: broad soft light from above and from the left, a
+// long narrow lamp overhead and another low on the right for the sharp streaks.
+vec3 lamps(vec3 d){
+  vec3 c = vec3(.020, .026, .060);
+  c += vec3(.62, .70, 1.) * .85 * smoothstep(-.2, .9, d.y);
+  c += vec3(1., .80, .64) * .85 * smoothstep(.2, -.9, d.x) * smoothstep(-.7, .3, d.y);
+  c += vec3(1., .98, .95) * 2.6 * smoothstep(.56, .62, d.y) * smoothstep(.74, .68, d.y) * smoothstep(.95, .5, abs(d.x));
+  c += vec3(.70, .85, 1.) * 1.8 * smoothstep(.60, .65, d.x) * smoothstep(.76, .71, d.x) * smoothstep(.5, .0, abs(d.y + .15));
+  return c * LAMPS;
+}
+
+// The wall far behind: near black with a pool of deep colour, and a few points of light
+// far out of focus.
+vec3 wall(vec2 x){
+  vec3 c = mix(W_LOW, W_TOP, smoothstep(-.5, .5, x.y));
+  vec2 k = (x - vec2(.14, -.10)) * vec2(.55, 1.);
+  c = mix(c, W_POOL, exp(-dot(k, k) * 3.2));
+  if (BOKEH > 0.) {
+    for (int i = 0; i < 6; i++) {
+      float fi = float(i);
+      vec2 o = vec2(fract(fi * .618 + .13) * 4.4 - 2.2, .26 * sin(fi * 2.4 + .7) - .12);
+      float r = .050 + .045 * fract(fi * .37);
+      float disc = smoothstep(r, r * .45, length(x - o));
+      c += mix(vec3(.42, .20, .70), vec3(.12, .36, .70), fract(fi * .5)) * disc * (.16 + .12 * fract(fi * .77));
+    }
+  }
+  return c;
+}
+
+// The colour the coating gives back: teal seen straight on, through blue, violet and
+// rose to amber at a glancing angle.
+vec3 film(float x){
+#if defined(VARIANT_NOIR)
+  return mix(vec3(.30, .31, .34), vec3(1., .42, .10), smoothstep(.62, 1., x));    // black glass: grey, with one amber edge
+#endif
+  vec3 c = mix(vec3(.04, .58, .72), vec3(.14, .30, 1.), smoothstep(.0, .30, x));
+  c = mix(c, vec3(.70, .22, .96), smoothstep(.24, .54, x));
+  c = mix(c, vec3(1., .34, .46), smoothstep(.48, .78, x));
+  return mix(c, vec3(1., .74, .32), smoothstep(.72, 1., x));
+}
+
+vec3 scene(vec2 p, vec2 uv, float asp, float px){
+  warp = vec4(.5 * orbit(1., 0.).x, .5 * orbit(1., 1.9).y, .40 * orbit(1., .8).x + 1.25, .5 * orbit(1., 3.0).y);
+
+  vec3 ro = vec3(0., 0., 3.4), rd = normalize(vec3(p, -2.3));
+  vec3 acc = vec3(0.), tr = vec3(1.), n1 = vec3(0.);
+  float t = 1.9, hits = 0., skim = 1., within = -1.;            // within: which ribbon the ray is passing through, if any
+  bool outside = true;
+  vec2 across; float which;
+  for (int i = 0; i < STEPS; i++) {
+    vec3 q = ro + rd * t;
+    float d = map(q, across, which);
+    if (d >= .0024 * STRIDE) {
+      outside = true; within = -1.; skim = d;
+      t += d;
+      if (t > 6.2) break;
+    } else if (outside || which != within) {
+      const vec2 e = vec2(.0025, -.0025);
+      vec3 n = normalize(e.xyy * dist(q + e.xyy) + e.yyx * dist(q + e.yyx) + e.yxy * dist(q + e.yxy) + e.xxx * dist(q + e.xxx));
+      if (hits < .5) n1 = n;
+      float c = clamp(-dot(n, rd), 0., 1.);
+      float fres = .05 + .95 * pow(1. - c, 5.);
+      float g = pow(1. - c, .85) + .12 * sin(q.x * 1.3 + which * 2.) + .08 + .012 * sin(across.x * 64.);
+      vec3 fc = film(g);
+      // The coating sends back the lamps in its own colour; the bare edge of the glass sends them back white.
+      acc += tr * lamps(reflect(rd, n)) * mix(fc, vec3(1.), fres * .6) * (.34 + .66 * fres) * FILM;
+      acc += tr * LAMPS * (mix(fc, vec3(1.), .75) * 1.1 * pow(1. - c, 7.) + fc * .045);
+      // The way through: longer at a glancing angle, where the glass keeps more and its body glows.
+      float len = min(.075 / max(c, .05), .8);
+      tr *= mix(vec3(1.), 1.04 - .80 * fc, .60) * (1. - .55 * fres);
+      vec3 bc = film(.34 + .30 * which);
+      tr *= exp(-len * (1.1 - bc) * 2.2 * BODY);
+      acc += tr * bc * BODY * .9 * (1. - exp(-max(len - .09, 0.) * 3.5));
+      hits += 1.;
+      if (hits > 2.5) break;
+      outside = false; within = which;
+      t += min(len, .05) + .01;
+    } else {
+      t += max(-d / STRIDE, .03);
+    }
+  }
+  // A ray that ran out of steps skimming along a surface is looking at the very edge of
+  // the glass, which is where it shines: without this the edge would be ragged.
+  if (outside && t < 6.2) {
+    float w = smoothstep(.010, .002, skim / STRIDE) * SKIM;
+    acc += tr * LAMPS * mix(film(.95), vec3(1.), .75) * 1.1 * w;
+    tr *= 1. - .5 * w;
+  }
+  // What is behind shows through, each colour bent a little differently by the first surface.
+  vec2 bend = n1.xy * (hits > .5 ? 1. : 0.);
+  vec3 back = vec3(wall(p - bend * .085).r, wall(p - bend * .105).g, wall(p - bend * .128).b);
+#if defined(VARIANT_PAPER)
+  // On the pale wall the glass also casts a soft shadow, tinted by what it lets through.
+  vec3 w = ro + rd * ((ro.z + 2.1) / -rd.z), sun = normalize(vec3(-.30, .50, 1.));
+  float lit = 1., s = .25;
+  for (int i = 0; i < 64; i++) {
+    float d = dist(w + sun * s) / STRIDE;
+    lit = min(lit, .5 + .5 * d / (s * .10));
+    s += clamp(d * .5, .012, .07);
+  }
+  lit = smoothstep(0., 1., clamp(lit, 0., 1.));
+  back *= mix(vec3(.80, .78, .86), vec3(1.), lit);
+#endif
+  return acc + tr * back;
+}
+
+void main(){
+  vec2 s = uW.xy / uW.zw;                                              // CSS points per buffer pixel
+  vec2 pt = vec2(gl_FragCoord.x, uW.w - gl_FragCoord.y) * s + uC.zw;   // position in the shared canvas, y down
+  vec2 uv = pt / uC.xy;                                                // 0..1 across the whole canvas
+  float asp = uC.x / uC.y;
+  vec2 p = vec2((uv.x - .5) * asp, .5 - uv.y);                         // centred, y up, canvas height = 1
+  vec3 col = scene(p, uv, asp, s.y / uC.y);
+  // Triangular dither of about one 8-bit step, so slow gradients never band.
+  float n = h21(gl_FragCoord.xy) + h21(gl_FragCoord.xy + 31.7) - 1.;
+  gl_FragColor = vec4(col + n * DITHER / 255., 1.);
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  var LOOP_MS = 480 * 1000;    // the scene's time runs round this period, taken from the wall clock
+  var FADE_MS = 0 * 1000;    // 0, or how long a shader that does not loop by itself dissolves across the join
+  var MAX_SIDE = 1600;          // longest side of the render buffer, in pixels (upscaled by CSS)
+  var FRAME_MS = 1000 / 30;       // 30 fps cap
+  var NEWER = false;             // true: the shader is tried as GLSL ES 3.00 first (needs WebGL 2), then as 1.00
+
+  var root = document.documentElement;
+  var canvas = document.getElementById('c');
+  var gl = null, uC = null, uW = null, uT = null, uK = null, uD = null;
+  var raf = 0, last = 0, lost = false;
+  var g = { cw: 1, ch: 1, vx: 0, vy: 0, paused: false, t: null };
+
+  function winW() { return Math.max(1, window.innerWidth || 1); }
+  function winH() { return Math.max(1, window.innerHeight || 1); }
+
+  function readHash() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = parseFloat(kv[i].slice(j + 1));
+    }
+    g.cw = o.cw > 0 ? o.cw : winW();
+    g.ch = o.ch > 0 ? o.ch : winH();
+    g.vx = isFinite(o.vx) ? o.vx : 0;
+    g.vy = isFinite(o.vy) ? o.vy : 0;
+    g.paused = o.paused === 1;
+    g.t = isFinite(o.t) ? o.t : null;
+  }
+
+  function compile(type, src, why) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s;
+    why.push(String(gl.getShaderInfoLog(s) || 'did not compile'));
+    return null;
+  }
+
+  // Build the program. `first` is put in front of both shaders: empty for GLSL ES 1.00.
+  function link(first, why) {
+    var vert = first ? 'in vec2 a;' : 'attribute vec2 a;';
+    var vs = compile(gl.VERTEX_SHADER, first + vert + 'void main(){gl_Position=vec4(a,0.,1.);}', why);
+    // Two lines go in front either way, so a compiler message names the same line in both versions.
+    var fs = compile(gl.FRAGMENT_SHADER, (first || '\n\n') + document.getElementById('fs').textContent.replace(/^\s+/, ''), why);
+    if (!vs || !fs) return null;
+    var p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (gl.getProgramParameter(p, gl.LINK_STATUS)) return p;
+    why.push(String(gl.getProgramInfoLog(p) || 'did not link'));
+    return null;
+  }
+
+  function setup() {
+    var opts = { alpha: false, antialias: false, depth: false, stencil: false,
+                 premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+    var two = false, why = [], p = null;
+    gl = null;
+    try {
+      if (NEWER) { gl = canvas.getContext('webgl2', opts); two = !!gl; }
+      if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    } catch (e) { gl = null; }
+    if (!gl) { root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', 'WebGL is not available'); return false; }
+    if (two) p = link('#version 300 es\n#define SK_ES3 1\n', why);
+    if (!p) { two = false; p = link('', why); }
+    if (!p) { gl = null; root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', why.join('\n').slice(0, 4000)); return false; }
+    root.setAttribute('data-scene', two ? 'webgl2' : 'webgl');
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    uC = gl.getUniformLocation(p, 'uC');
+    uW = gl.getUniformLocation(p, 'uW');
+    uT = gl.getUniformLocation(p, 'uT');
+    uK = gl.getUniformLocation(p, 'uK');
+    uD = gl.getUniformLocation(p, 'uD');
+    return true;
+  }
+
+  // No WebGL: show a still gradient in the scene's colours, placed by the same geometry.
+  function still() {
+    var b = document.body;
+    b.className = 'still';
+    b.style.backgroundSize = g.cw + 'px ' + g.ch + 'px';
+    b.style.backgroundPosition = (-g.vx) + 'px ' + (-g.vy) + 'px';
+  }
+
+  function fit() {
+    var w = winW(), h = winH(), dpr = window.devicePixelRatio || 1;
+    var s = Math.min(dpr, MAX_SIDE / Math.max(w, h));
+    var bw = Math.max(1, Math.round(w * s)), bh = Math.max(1, Math.round(h * s));
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    if (gl) gl.viewport(0, 0, bw, bh);
+  }
+
+  function draw() {
+    if (!gl || lost) return;
+    var ms = g.t !== null ? g.t * 1000 : Date.now();
+    var into = ((ms % LOOP_MS) + LOOP_MS) % LOOP_MS;        // milliseconds into the loop
+    gl.uniform4f(uC, g.cw, g.ch, g.vx, g.vy);
+    gl.uniform4f(uW, winW(), winH(), canvas.width, canvas.height);
+    gl.uniform1f(uT, into / LOOP_MS);
+    if (uK) {
+      // Time in seconds for shaders that count seconds. In the last FADE_MS of the loop the
+      // picture is blended with the one a whole loop earlier, so the join is never a jump.
+      var now = (FADE_MS + into) / 1000, k = FADE_MS > 0 ? Math.max(0, (into - (LOOP_MS - FADE_MS)) / FADE_MS) : 0;
+      gl.uniform4f(uK, now, now - LOOP_MS / 1000, k * k * (3 - 2 * k), Math.floor(now * 30));
+    }
+    if (uD) {
+      var d = new Date();
+      gl.uniform4f(uD, d.getFullYear(), d.getMonth(), d.getDate(),
+        g.t !== null ? g.t : d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (now - last < FRAME_MS - 2) return;
+    last = now;
+    draw();
+  }
+
+  // Run the loop only while visible and not paused; otherwise leave exactly one still frame.
+  function sync() {
+    if (!gl) { still(); return; }
+    var run = !g.paused && g.t === null && !document.hidden && !lost;
+    if (run) {
+      if (!raf) raf = requestAnimationFrame(tick);
+    } else {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (!document.hidden) draw();
+    }
+  }
+
+  window.addEventListener('hashchange', function () { readHash(); sync(); });
+  window.addEventListener('resize', function () { readHash(); fit(); if (raf) draw(); sync(); });
+  document.addEventListener('visibilitychange', sync);
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault(); lost = true;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  });
+  canvas.addEventListener('webglcontextrestored', function () {
+    lost = false;
+    if (setup()) fit();
+    sync();
+  });
+
+  readHash();
+  if (setup()) fit();
+  sync();
+})();
+</script>
+</body>
+</html>

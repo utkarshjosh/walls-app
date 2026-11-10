@@ -1,0 +1,25 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Silk",
+  "tags": [
+    "abstract",
+    "fabric",
+    "dark"
+  ],
+  "color": "#1b1f4a",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 480,
+  "maxSide": 1600,
+  "background": "#0a0c22",
+  "fallback": "linear-gradient(160deg,#0a0c22 0%,#1b2360 34%,#3a2468 58%,#141a48 80%,#0a0c22 100%)",
+  "poster": 340.0,
+  "variants": [
+    "ember",
+    "jade",
+    "noir",
+    "pearl"
+  ]
+}

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Still: wallpapers for every display on your Mac</title>
+    <meta
+      name="description"
+      content="Still is a wallpaper app for the Mac. It changes your desktop on a schedule, runs one picture across all your displays, and plays live scenes behind your icons."
+    />
+    <meta name="theme-color" content="#151514" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta property="og:title" content="Still: wallpapers for every display on your Mac" />
+    <meta
+      property="og:description"
+      content="One picture across all your displays, live scenes behind your icons, and a catalog drawn for Retina. Coming to the Mac App Store."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/media/og.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <a class="skip" href="#live">Skip to content</a>
+
+    <header class="nav">
+      <a class="wordmark" href="#top" aria-label="Still, back to top">Still</a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="#displays">Displays</a>
+        <a href="#live">Live scenes</a>
+        <a href="#wallpapers">Wallpapers</a>
+        <a href="#app">The app</a>
+      </nav>
+      <a class="nav__store" href="#get">Coming to the Mac App Store</a>
+    </header>
+
+    <main id="top">
+      <section class="hero" id="displays" aria-label="Still on a laptop and a monitor">
+        <div class="hero__pin">
+          <img class="hero__fallback" src="/media/hero.jpg" alt="" />
+          <canvas class="hero__canvas" aria-hidden="true"></canvas>
+          <div class="hero__stage" aria-hidden="true"></div>
+
+          <div class="hero__copy">
+            <div class="beat is-on" data-beat="0">
+              <h1>Wallpapers for the whole desk.</h1>
+              <div class="beat__row">
+                <p>
+                  Still is a wallpaper app for the Mac. It changes your desktop on a schedule, runs one picture across
+                  every display you own, and plays live scenes behind your icons.
+                </p>
+                <div class="hero__actions">
+                  <a class="store" href="#get">
+                    Coming to the Mac App Store
+                  </a>
+                  <a class="quiet" href="#live">See the live scenes</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="beat" data-beat="1">
+              <h2>One picture, across all of them.</h2>
+              <div class="beat__row">
+                <p>
+                  Connect a second display and Still offers to run one wallpaper across both, following the arrangement
+                  you set in System Settings. With one display, the option is not there at all.
+                </p>
+              </div>
+            </div>
+
+            <div class="beat" data-beat="2">
+              <h2>Or a different one on each.</h2>
+              <div class="beat__row">
+                <p>
+                  Pick a wallpaper for each display yourself, or let every display work through your collections on its
+                  own.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <ol class="hero__steps" aria-label="Display modes">
+            <li><button type="button" data-step="0" aria-current="true">Overview</button></li>
+            <li><button type="button" data-step="1">One across all</button></li>
+            <li><button type="button" data-step="2">One on each</button></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="facts" aria-label="How it behaves">
+        <div class="fact">
+          <h3>Never blurry</h3>
+          <p>
+            Every wallpaper is checked against the displays connected right now. A picture too small for a Retina
+            display is skipped, not stretched.
+          </p>
+        </div>
+        <div class="fact">
+          <h3>On the hour</h3>
+          <p>
+            Change every hour, every three hours, or at a time of day. Changes land on the clock, not whenever you
+            happened to open the app.
+          </p>
+        </div>
+        <div class="fact">
+          <h3>Paused until you say</h3>
+          <p>A fresh install changes nothing. Your desktop stays as it is until you press Start.</p>
+        </div>
+        <div class="fact">
+          <h3>In the menu bar</h3>
+          <p>Next, Previous and Pause are one click away, without opening a window.</p>
+        </div>
+      </section>
+
+      <section class="live" id="live">
+        <div class="section__head">
+          <h2>Live scenes, running right now.</h2>
+          <p>
+            This is not a video. It is the same file Still draws behind your desktop icons, running in your browser.
+            Each scene is one small file that can draw and nothing else: it cannot reach the internet or your files.
+          </p>
+        </div>
+
+        <div class="live__frame">
+          <img class="live__poster" src="/media/posters/silk.jpg" alt="" />
+          <iframe class="live__scene" title="Live scene preview" sandbox="allow-scripts" loading="lazy" tabindex="-1"></iframe>
+          <div class="live__bar">
+            <span class="live__title"></span>
+            <button class="live__pause" type="button" aria-pressed="false">Pause</button>
+          </div>
+        </div>
+
+        <div class="live__picker" role="group" aria-label="Choose a scene"></div>
+      </section>
+
+      <section class="walls" id="wallpapers">
+        <div class="section__head">
+          <h2>A catalog we draw ourselves.</h2>
+          <p>
+            Every wallpaper in Discover is made or picked by us, sized for Retina displays, and grouped into collections
+            you can save in one click. No uploads and no ads.
+          </p>
+        </div>
+        <div class="walls__strip" tabindex="0" aria-label="Wallpapers from the catalog"></div>
+      </section>
+
+      <section class="app" id="app">
+        <div class="section__head">
+          <h2>Three tabs. That is the whole app.</h2>
+          <p>Nothing to sign in to and nothing to configure before it is useful.</p>
+        </div>
+
+        <div class="app__tabs" role="tablist" aria-label="App screens">
+          <button role="tab" type="button" id="tab-library" aria-controls="app-shot" aria-selected="true" data-shot="library">
+            <strong>Library</strong>
+            <span>Your collections, your own pictures and videos, and everything you saved.</span>
+          </button>
+          <button role="tab" type="button" id="tab-discover" aria-controls="app-shot" aria-selected="false" data-shot="discover" tabindex="-1">
+            <strong>Discover</strong>
+            <span>The catalog: stills, live scenes, and panoramas when you have the displays for them.</span>
+          </button>
+          <button role="tab" type="button" id="tab-rotation" aria-controls="app-shot" aria-selected="false" data-shot="rotation" tabindex="-1">
+            <strong>Rotation</strong>
+            <span>What changes, when, and what each display shows.</span>
+          </button>
+        </div>
+
+        <div class="app__window" id="app-shot" role="tabpanel" aria-labelledby="tab-library">
+          <img src="/media/app/library.jpg" width="2560" height="1600" alt="The Library tab of Still, showing collections of wallpapers" loading="lazy" />
+        </div>
+      </section>
+
+      <section class="get" id="get">
+        <p class="get__mark" aria-hidden="true">Still</p>
+        <div class="get__body">
+          <h2>Coming to the Mac App Store.</h2>
+          <p>Pay once. No account, no subscription, and your library stays on your Mac. For macOS 12 or later.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>© 2026 Still</span>
+      <a href="#top">Back to top</a>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

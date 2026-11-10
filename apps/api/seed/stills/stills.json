@@ -1,0 +1,267 @@
+{
+  "author": "Still Originals",
+  "license": "Still Original",
+  "categories": {
+    "silk": "Silk",
+    "glass": "Glass",
+    "orbit": "Orbit",
+    "lakes": "Lakes",
+    "threads": "Threads"
+  },
+  "stills": [
+    {
+      "file": "orbital-dawn.jpg",
+      "title": "Orbital Dawn",
+      "category": "orbit",
+      "tags": [
+        "space",
+        "planet",
+        "blue"
+      ],
+      "color": "#14182e",
+      "dark": true,
+      "pack": "far-places",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "low-orbit",
+        "t": 200
+      }
+    },
+    {
+      "file": "ink-silk.jpg",
+      "title": "Ink Silk",
+      "category": "silk",
+      "tags": [
+        "satin",
+        "violet",
+        "dark"
+      ],
+      "color": "#271f55",
+      "dark": true,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "silk",
+        "t": 340
+      }
+    },
+    {
+      "file": "alpenglow.jpg",
+      "title": "Alpenglow",
+      "category": "lakes",
+      "tags": [
+        "mountains",
+        "lake",
+        "dusk"
+      ],
+      "color": "#5a3f49",
+      "dark": false,
+      "pack": "far-places",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "daylight",
+        "t": 64200
+      }
+    },
+    {
+      "file": "night-glass.jpg",
+      "title": "Night Glass",
+      "category": "glass",
+      "tags": [
+        "glass",
+        "violet",
+        "dark"
+      ],
+      "color": "#211b44",
+      "dark": true,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "soft-glass",
+        "t": 200
+      }
+    },
+    {
+      "file": "light-trails.jpg",
+      "title": "Light Trails",
+      "category": "threads",
+      "tags": [
+        "lines",
+        "amber",
+        "blue"
+      ],
+      "color": "#26222c",
+      "dark": true,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "threads",
+        "t": 340,
+        "quality": 88
+      }
+    },
+    {
+      "file": "black-satin.jpg",
+      "title": "Black Satin",
+      "category": "silk",
+      "tags": [
+        "satin",
+        "black",
+        "minimal"
+      ],
+      "color": "#171819",
+      "dark": true,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "silk",
+        "t": 200,
+        "variant": "noir"
+      }
+    },
+    {
+      "file": "long-limb.jpg",
+      "title": "Long Limb",
+      "category": "orbit",
+      "tags": [
+        "space",
+        "planet",
+        "wide"
+      ],
+      "color": "#0e1226",
+      "dark": true,
+      "pack": "far-places",
+      "width": 7680,
+      "height": 2400,
+      "render": {
+        "scene": "low-orbit",
+        "t": 150
+      }
+    },
+    {
+      "file": "paper-glass.jpg",
+      "title": "Paper Glass",
+      "category": "glass",
+      "tags": [
+        "glass",
+        "light",
+        "iridescent"
+      ],
+      "color": "#dad6c9",
+      "dark": false,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "soft-glass",
+        "t": 60,
+        "variant": "paper"
+      }
+    },
+    {
+      "file": "garnet-drape.jpg",
+      "title": "Garnet Drape",
+      "category": "silk",
+      "tags": [
+        "satin",
+        "red",
+        "wide"
+      ],
+      "color": "#531818",
+      "dark": true,
+      "pack": "still-life",
+      "width": 7680,
+      "height": 2400,
+      "render": {
+        "scene": "silk",
+        "t": 340,
+        "variant": "ember"
+      }
+    },
+    {
+      "file": "black-glass.jpg",
+      "title": "Black Glass",
+      "category": "glass",
+      "tags": [
+        "glass",
+        "black",
+        "minimal"
+      ],
+      "color": "#151416",
+      "dark": true,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "soft-glass",
+        "t": 340,
+        "variant": "noir"
+      }
+    },
+    {
+      "file": "red-limb.jpg",
+      "title": "Red Limb",
+      "category": "orbit",
+      "tags": [
+        "space",
+        "planet",
+        "red"
+      ],
+      "color": "#2f1614",
+      "dark": true,
+      "pack": "far-places",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "low-orbit",
+        "t": 480,
+        "variant": "ember"
+      }
+    },
+    {
+      "file": "pearl-silk.jpg",
+      "title": "Pearl Silk",
+      "category": "silk",
+      "tags": [
+        "satin",
+        "light",
+        "warm"
+      ],
+      "color": "#b8a49d",
+      "dark": false,
+      "pack": "still-life",
+      "width": 5120,
+      "height": 3200,
+      "render": {
+        "scene": "silk",
+        "t": 60,
+        "variant": "pearl"
+      }
+    },
+    {
+      "file": "glass-ribbon.jpg",
+      "title": "Glass Ribbon",
+      "category": "glass",
+      "tags": [
+        "glass",
+        "violet",
+        "wide"
+      ],
+      "color": "#1d1638",
+      "dark": true,
+      "pack": "still-life",
+      "width": 7680,
+      "height": 2400,
+      "render": {
+        "scene": "soft-glass",
+        "t": 200
+      }
+    }
+  ]
+}

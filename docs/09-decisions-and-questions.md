@@ -36,6 +36,9 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-030 | No sharing and no community features; Discover is published and curated by us | Owner decision 2026-11-10: no user base yet, quality is maintained by curation |
 | ADR-031 | The catalog is served at `walls.utkarshjoshi.com`, not under the product name | The address is built into every shipped copy of the app and the product name is undecided; a later product domain can point at the same server while this one keeps working |
 | ADR-032 | First deployment serves files from the server's disk, with Cloudflare in front | The whole catalog is 36 MB; the bucket adds nothing yet and its credentials are not on the server. Revisit when the catalog grows or a backup is wanted |
+| ADR-033 | The landing page is a static page in `apps/site`, served by the same server as the catalog | One address and one deploy script before launch; a product domain can point at the same server later. No framework: the page is mostly text, and three.js loads after it |
+| ADR-034 | three.js is used on the landing page, never inside live scenes | A scene is one self-contained file of at most 512 KB that may load nothing, and three.js alone is larger. Scenes stay shaders made with the kit; the page's 3D hero compiles those same shader sources, so what it shows is the real catalog |
+| ADR-035 | Catalog wallpapers must be striking, not only clean | Owner feedback 2026-11-10: the first catalog was "clean but very very basic, won't excite people". New scenes and stills are judged against what is popular on Pinterest (dichroic glass, black-on-black forms, luminous arcs, light trails, large soft 3D forms, painterly landscapes) |
 
 ## Confirm before deployment
 

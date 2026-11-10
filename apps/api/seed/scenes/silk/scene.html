@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Silk</title>
+<!--
+  Silk - a live wallpaper scene (canvas scene, live scene standard 1).
+  By Still Originals. Licence: Still Original.
+  One self-contained file made by scenekit: it can load nothing and send nothing.
+
+  Geometry comes from the URL fragment (all values in points):
+    #cw=<canvas width>&ch=<canvas height>&vx=<window x in canvas>&vy=<window y in canvas>&paused=0|1
+  Defaults: cw and ch are the window's own size, vx=0, vy=0, paused=0.
+  Every window draws its own part of one shared picture, and animation time is taken
+  from the wall clock, so several windows line up in space and stay in step in time.
+
+  Optional, for capturing stills only: &t=<seconds> freezes the scene at that moment
+  of its 480 second loop and draws a single frame. Absent, it changes nothing.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0a0c22}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
+body.still{background:linear-gradient(160deg,#0a0c22 0%,#1b2360 34%,#3a2468 58%,#141a48 80%,#0a0c22 100%) no-repeat}
+body.still canvas{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script id="fs" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec4 uC;   // shared canvas: width, height, this window's x, y (CSS points, y down)
+uniform vec4 uW;   // this window: width, height (CSS points), buffer width, height (pixels)
+uniform float uT;  // phase of the loop, 0..1, from the wall clock
+const float TAU = 6.2831853;
+
+float h21(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+vec2 h22(vec2 p){ vec3 q = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
+
+// Gradient noise, roughly -0.6..0.6, smooth second derivative.
+float gn(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f * f * f * (f * (f * 6. - 15.) + 10.);
+  float a = dot(h22(i) * 2. - 1., f);
+  float b = dot(h22(i + vec2(1., 0.)) * 2. - 1., f - vec2(1., 0.));
+  float c = dot(h22(i + vec2(0., 1.)) * 2. - 1., f - vec2(0., 1.));
+  float d = dot(h22(i + vec2(1., 1.)) * 2. - 1., f - vec2(1., 1.));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// A point going round a unit circle k times per loop: moving noise lookups along it
+// makes motion that repeats exactly when the wall clock wraps.
+vec2 orbit(float k, float ph){ float a = TAU * k * uT + ph; return vec2(cos(a), sin(a)); }
+
+
+#define DITHER 1.0
+
+// Colourways. The first is the live scene: ink blue turning to plum. The others are for
+// stills (scenekit.py still silk --variant NAME). Each is one colour family from its deepest
+// shadow (C_INK) to its highlight (C_PALE), with a second, warmer set the cloth drifts into.
+#if defined(VARIANT_EMBER)
+const vec3 C_INK = vec3(.050, .010, .014), C_DEEP = vec3(.250, .030, .040), C_MID = vec3(.560, .110, .070);
+const vec3 C_LITE = vec3(.930, .480, .300), C_PALE = vec3(1., .900, .800);
+const vec3 W_INK = vec3(.045, .012, .030), W_DEEP = vec3(.230, .028, .090), W_MID = vec3(.520, .080, .150);
+const vec3 C_SIDE = vec3(.420, .060, .130), C_FOLD = vec3(.110, .010, .040);
+#elif defined(VARIANT_JADE)
+const vec3 C_INK = vec3(.006, .034, .036), C_DEEP = vec3(.016, .150, .140), C_MID = vec3(.050, .340, .300);
+const vec3 C_LITE = vec3(.420, .780, .700), C_PALE = vec3(.880, 1., .960);
+const vec3 W_INK = vec3(.006, .030, .048), W_DEEP = vec3(.014, .120, .180), W_MID = vec3(.040, .270, .380);
+const vec3 C_SIDE = vec3(.040, .250, .330), C_FOLD = vec3(.004, .050, .070);
+#elif defined(VARIANT_NOIR)
+const vec3 C_INK = vec3(.004, .004, .005), C_DEEP = vec3(.016, .016, .019), C_MID = vec3(.050, .051, .058);
+const vec3 C_LITE = vec3(.400, .410, .440), C_PALE = vec3(1., .985, .96);
+const vec3 W_INK = vec3(.005, .004, .004), W_DEEP = vec3(.019, .016, .015), W_MID = vec3(.058, .050, .046);
+const vec3 C_SIDE = vec3(.020, .200, .340), C_FOLD = vec3(.002, .020, .040);
+#elif defined(VARIANT_PEARL)
+const vec3 C_INK = vec3(.420, .350, .320), C_DEEP = vec3(.660, .590, .550), C_MID = vec3(.830, .780, .740);
+const vec3 C_LITE = vec3(.945, .915, .880), C_PALE = vec3(1., .990, .970);
+const vec3 W_INK = vec3(.430, .330, .330), W_DEEP = vec3(.690, .580, .570), W_MID = vec3(.860, .770, .750);
+const vec3 C_SIDE = vec3(.800, .690, .660), C_FOLD = vec3(.520, .420, .400);
+#else
+const vec3 C_INK = vec3(.010, .016, .058), C_DEEP = vec3(.036, .068, .275), C_MID = vec3(.105, .155, .530);
+const vec3 C_LITE = vec3(.540, .460, .900), C_PALE = vec3(1., .860, .930);
+const vec3 W_INK = vec3(.030, .010, .050), W_DEEP = vec3(.105, .050, .270), W_MID = vec3(.300, .150, .520);
+const vec3 C_SIDE = vec3(.420, .100, .420), C_FOLD = vec3(.130, .026, .150);
+#endif
+
+vec2 weft;                                          // where the last point asked about lies in the weave: across and along the folds
+
+// Height of the cloth at p. Folds are round arches lying side by side that meet in narrow
+// valleys, as satin does when it is gathered. They fan out from a point far off the upper
+// right corner, in three sizes, and each swells and dies away along its length.
+float cloth(vec2 p, vec2 o){
+  vec2 w = vec2(gn(p * .34 + vec2(1.7, 9.2) + .20 * o), gn(p * .34 + vec2(8.3, 2.8) - .20 * o.yx));
+  vec2 c = p + 1.05 * w - vec2(4.6, 3.9);
+  float r = length(c), th = atan(c.y, c.x);
+  float e1 = .62 + .8 * gn(vec2(th * 13., r * .42) + .18 * o);
+  float e2 = smoothstep(-.22, .62, gn(vec2(th * 22. + 4., r * .60) - .18 * o.yx));
+  float a = sin(th * 44. + .9 * sin(r * 1.0 + .6 * o.x) + 1.2 * w.x);
+  float b = sin(th * 77. + r * 1.3 + 2.1 + .5 * o.y);
+  float d = sin(th * 139. - r * 2.2 + 3. * w.y);
+  weft = vec2(th, r);
+  return e1 * sqrt(a * a + .03) + .36 * e2 * sqrt(b * b + .05) + .10 * e1 * e2 * d + .5 * w.y;
+}
+
+vec3 scene(vec2 p, vec2 uv, float asp, float px){
+  vec2 o = orbit(1., .6);
+  vec2 q = p * 1.1 + vec2(.3, -.1);
+  const float e = .006;
+  const float S = .16;                              // how tall the folds are
+  float hx = cloth(q + vec2(e, 0.), o), hy = cloth(q + vec2(0., e), o);
+  float h0 = cloth(q, o);
+  vec2 wf = weft;
+  hx = (hx - h0) / e; hy = (hy - h0) / e;
+  vec3 n = normalize(vec3(-hx * S, -hy * S, 1.));
+
+  vec3 L = normalize(vec3(-.55, .52, .65));
+  vec3 H = normalize(L + vec3(0., 0., 1.));
+
+  // Shadow: walk toward the light and see whether the cloth rises above the ray.
+  float sh = 1.;
+  for (int i = 1; i <= 5; i++) {
+    float t = .016 * float(i * i) + .012;
+    float rise = (cloth(q + L.xy * t, o) - h0) * S - L.z * t * .55;
+    sh = min(sh, 1. - clamp(rise * 26., 0., 1.));
+  }
+  sh = mix(.25, 1., sh);
+
+  float dif = max(dot(n, L), 0.);
+  float nh = max(dot(n, H), 0.);
+  float broad = pow(nh, 9.);
+  float tight = pow(nh, 70.);
+  float graze = 1. - n.z;                            // 0 on flat cloth, toward 1 on a steep side
+
+  // The light is a soft pool right of centre; the upper edge of the picture stays quiet.
+  vec2 pc = (uv - vec2(.60, .62)) * vec2(1., .85);
+  float pool = exp(-dot(pc, pc) * 2.6) * smoothstep(-.05, .30, uv.y);
+
+  // The weave: threads far finer than a live scene can show, there for a still seen close.
+  float fine = smoothstep(.00042, .00016, px);
+  float thread = sin(wf.x * 31400.) * sin(wf.y * 5700. + wf.x * 9000.);
+  broad *= 1. + .16 * thread * fine;
+  tight *= 1. + .55 * thread * fine;
+
+  float I = (.07 + .50 * dif + .50 * broad) * sh;
+  I *= .40 + .60 * smoothstep(.0, .9, h0);          // the valleys keep less light
+  I *= .30 + .78 * pool;
+
+  // The cooler colours where the light is thin, the warmer ones on steep sides and lower right.
+  float warm = smoothstep(-.35, .45, gn(q * .33 + vec2(5.1, 2.2) + .12 * o) + .55 * (uv.x - .5) + .45 * (uv.y - .5));
+  vec3 ink = mix(C_INK, W_INK, warm * .6), deep = mix(C_DEEP, W_DEEP, warm * .8), mid = mix(C_MID, W_MID, warm * .8);
+  vec3 col = mix(ink, deep, smoothstep(.0, .26, I));
+  col = mix(col, mid, smoothstep(.20, .58, I));
+  col = mix(col, C_LITE, smoothstep(.52, 1.0, I));
+  col = mix(col, mix(C_FOLD, C_SIDE, smoothstep(.05, .5, I)), smoothstep(.10, .55, graze) * (.25 + .45 * warm));
+  col += C_PALE * tight * sh * (.10 + .30 * pool);
+  return col;
+}
+
+void main(){
+  vec2 s = uW.xy / uW.zw;                                              // CSS points per buffer pixel
+  vec2 pt = vec2(gl_FragCoord.x, uW.w - gl_FragCoord.y) * s + uC.zw;   // position in the shared canvas, y down
+  vec2 uv = pt / uC.xy;                                                // 0..1 across the whole canvas
+  float asp = uC.x / uC.y;
+  vec2 p = vec2((uv.x - .5) * asp, .5 - uv.y);                         // centred, y up, canvas height = 1
+  vec3 col = scene(p, uv, asp, s.y / uC.y);
+  // Triangular dither of about one 8-bit step, so slow gradients never band.
+  float n = h21(gl_FragCoord.xy) + h21(gl_FragCoord.xy + 31.7) - 1.;
+  gl_FragColor = vec4(col + n * DITHER / 255., 1.);
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  var LOOP_MS = 480 * 1000;    // the scene's time runs round this period, taken from the wall clock
+  var FADE_MS = 0 * 1000;    // 0, or how long a shader that does not loop by itself dissolves across the join
+  var MAX_SIDE = 1600;          // longest side of the render buffer, in pixels (upscaled by CSS)
+  var FRAME_MS = 1000 / 30;       // 30 fps cap
+  var NEWER = false;             // true: the shader is tried as GLSL ES 3.00 first (needs WebGL 2), then as 1.00
+
+  var root = document.documentElement;
+  var canvas = document.getElementById('c');
+  var gl = null, uC = null, uW = null, uT = null, uK = null, uD = null;
+  var raf = 0, last = 0, lost = false;
+  var g = { cw: 1, ch: 1, vx: 0, vy: 0, paused: false, t: null };
+
+  function winW() { return Math.max(1, window.innerWidth || 1); }
+  function winH() { return Math.max(1, window.innerHeight || 1); }
+
+  function readHash() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = parseFloat(kv[i].slice(j + 1));
+    }
+    g.cw = o.cw > 0 ? o.cw : winW();
+    g.ch = o.ch > 0 ? o.ch : winH();
+    g.vx = isFinite(o.vx) ? o.vx : 0;
+    g.vy = isFinite(o.vy) ? o.vy : 0;
+    g.paused = o.paused === 1;
+    g.t = isFinite(o.t) ? o.t : null;
+  }
+
+  function compile(type, src, why) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s;
+    why.push(String(gl.getShaderInfoLog(s) || 'did not compile'));
+    return null;
+  }
+
+  // Build the program. `first` is put in front of both shaders: empty for GLSL ES 1.00.
+  function link(first, why) {
+    var vert = first ? 'in vec2 a;' : 'attribute vec2 a;';
+    var vs = compile(gl.VERTEX_SHADER, first + vert + 'void main(){gl_Position=vec4(a,0.,1.);}', why);
+    // Two lines go in front either way, so a compiler message names the same line in both versions.
+    var fs = compile(gl.FRAGMENT_SHADER, (first || '\n\n') + document.getElementById('fs').textContent.replace(/^\s+/, ''), why);
+    if (!vs || !fs) return null;
+    var p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (gl.getProgramParameter(p, gl.LINK_STATUS)) return p;
+    why.push(String(gl.getProgramInfoLog(p) || 'did not link'));
+    return null;
+  }
+
+  function setup() {
+    var opts = { alpha: false, antialias: false, depth: false, stencil: false,
+                 premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+    var two = false, why = [], p = null;
+    gl = null;
+    try {
+      if (NEWER) { gl = canvas.getContext('webgl2', opts); two = !!gl; }
+      if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    } catch (e) { gl = null; }
+    if (!gl) { root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', 'WebGL is not available'); return false; }
+    if (two) p = link('#version 300 es\n#define SK_ES3 1\n', why);
+    if (!p) { two = false; p = link('', why); }
+    if (!p) { gl = null; root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', why.join('\n').slice(0, 4000)); return false; }
+    root.setAttribute('data-scene', two ? 'webgl2' : 'webgl');
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    uC = gl.getUniformLocation(p, 'uC');
+    uW = gl.getUniformLocation(p, 'uW');
+    uT = gl.getUniformLocation(p, 'uT');
+    uK = gl.getUniformLocation(p, 'uK');
+    uD = gl.getUniformLocation(p, 'uD');
+    return true;
+  }
+
+  // No WebGL: show a still gradient in the scene's colours, placed by the same geometry.
+  function still() {
+    var b = document.body;
+    b.className = 'still';
+    b.style.backgroundSize = g.cw + 'px ' + g.ch + 'px';
+    b.style.backgroundPosition = (-g.vx) + 'px ' + (-g.vy) + 'px';
+  }
+
+  function fit() {
+    var w = winW(), h = winH(), dpr = window.devicePixelRatio || 1;
+    var s = Math.min(dpr, MAX_SIDE / Math.max(w, h));
+    var bw = Math.max(1, Math.round(w * s)), bh = Math.max(1, Math.round(h * s));
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    if (gl) gl.viewport(0, 0, bw, bh);
+  }
+
+  function draw() {
+    if (!gl || lost) return;
+    var ms = g.t !== null ? g.t * 1000 : Date.now();
+    var into = ((ms % LOOP_MS) + LOOP_MS) % LOOP_MS;        // milliseconds into the loop
+    gl.uniform4f(uC, g.cw, g.ch, g.vx, g.vy);
+    gl.uniform4f(uW, winW(), winH(), canvas.width, canvas.height);
+    gl.uniform1f(uT, into / LOOP_MS);
+    if (uK) {
+      // Time in seconds for shaders that count seconds. In the last FADE_MS of the loop the
+      // picture is blended with the one a whole loop earlier, so the join is never a jump.
+      var now = (FADE_MS + into) / 1000, k = FADE_MS > 0 ? Math.max(0, (into - (LOOP_MS - FADE_MS)) / FADE_MS) : 0;
+      gl.uniform4f(uK, now, now - LOOP_MS / 1000, k * k * (3 - 2 * k), Math.floor(now * 30));
+    }
+    if (uD) {
+      var d = new Date();
+      gl.uniform4f(uD, d.getFullYear(), d.getMonth(), d.getDate(),
+        g.t !== null ? g.t : d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (now - last < FRAME_MS - 2) return;
+    last = now;
+    draw();
+  }
+
+  // Run the loop only while visible and not paused; otherwise leave exactly one still frame.
+  function sync() {
+    if (!gl) { still(); return; }
+    var run = !g.paused && g.t === null && !document.hidden && !lost;
+    if (run) {
+      if (!raf) raf = requestAnimationFrame(tick);
+    } else {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (!document.hidden) draw();
+    }
+  }
+
+  window.addEventListener('hashchange', function () { readHash(); sync(); });
+  window.addEventListener('resize', function () { readHash(); fit(); if (raf) draw(); sync(); });
+  document.addEventListener('visibilitychange', sync);
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault(); lost = true;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  });
+  canvas.addEventListener('webglcontextrestored', function () {
+    lost = false;
+    if (setup()) fit();
+    sync();
+  });
+
+  readHash();
+  if (setup()) fit();
+  sync();
+})();
+</script>
+</body>
+</html>

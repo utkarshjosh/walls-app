@@ -1,0 +1,23 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Soft Glass",
+  "tags": [
+    "abstract",
+    "glass",
+    "dark"
+  ],
+  "color": "#0c0d24",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 480,
+  "maxSide": 1600,
+  "background": "#05060e",
+  "fallback": "linear-gradient(180deg,#02030a 0%,#0a0b20 45%,#1a1440 62%,#0a0b20 80%,#04050c 100%)",
+  "poster": 200.0,
+  "variants": [
+    "paper",
+    "noir"
+  ]
+}

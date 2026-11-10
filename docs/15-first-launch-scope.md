@@ -88,7 +88,7 @@ Short, and mostly not code.
 | Full click-through of the Mac app | The native commands were tested on a real two-display setup and the interface in the browser. Inside the app window only starting rotation, spanning and Next have been used; adding files, saving from Discover and live wallpapers still need a pass there. |
 | ~~Deploy the catalog server~~ | Done 2026-11-10: https://walls.utkarshjoshi.com on `agent-server-oci`, behind Cloudflare, serving from the server's disk. Still open: a Cloudflare cache rule for `/v1/files/`, and deciding whether the bucket is needed at all. |
 | Energy check for live wallpapers | Measure battery cost on a laptop before promising it. |
-| Privacy policy and support pages | Required by the App Store listing. |
+| Privacy policy and support pages | Required by the App Store listing. The landing page exists (`apps/site`) but has neither page yet: both need a contact address and the owner's review of the wording. |
 | Choose the accent colour | Champagne is the working default; sage and clay are one line away. |
 
 ## Decisions this changes

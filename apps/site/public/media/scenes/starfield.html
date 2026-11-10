@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Starfield</title>
+<!--
+  Starfield - a live wallpaper scene (canvas scene, live scene standard 1).
+  By Still Originals. Licence: Still Original.
+  One self-contained file made by scenekit: it can load nothing and send nothing.
+
+  Geometry comes from the URL fragment (all values in points):
+    #cw=<canvas width>&ch=<canvas height>&vx=<window x in canvas>&vy=<window y in canvas>&paused=0|1
+  Defaults: cw and ch are the window's own size, vx=0, vy=0, paused=0.
+  Every window draws its own part of one shared picture, and animation time is taken
+  from the wall clock, so several windows line up in space and stay in step in time.
+
+  Optional, for capturing stills only: &t=<seconds> freezes the scene at that moment
+  of its 480 second loop and draws a single frame. Absent, it changes nothing.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#070911}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
+body.still{background:linear-gradient(180deg,#0b0c19,#0d0e1d,#0b0d1c,#0a0d19,#070911) no-repeat}
+body.still canvas{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script id="fs" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+precision highp int;
+#else
+precision mediump float;
+precision mediump int;
+#endif
+uniform vec4 uC;   // shared canvas: width, height, this window's x, y (points, y down)
+uniform vec4 uW;   // this window: width, height (points), buffer width, height (pixels)
+uniform vec4 uK;   // seconds now, seconds one loop earlier, blend between the two, frame number
+uniform vec4 uD;   // year, month, day, seconds since midnight
+#ifdef SK_ES3
+out vec4 skOut;
+#define SK_OUT skOut
+#else
+#define SK_OUT gl_FragColor
+#endif
+
+// What a shader written in the common web style expects to find. The picture it draws
+// is the whole shared canvas, measured in points; this window shows its own part.
+vec3 iResolution;
+float iTime;
+float iTimeDelta;
+float iFrameRate;
+int iFrame;
+vec4 iMouse;
+vec4 iDate;
+void mainImage(out vec4 fragColor, in vec2 fragCoord);
+
+float skHash(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+
+void main(){
+  vec2 s = uW.xy / uW.zw;                                              // points per buffer pixel
+  vec2 pt = vec2(gl_FragCoord.x, uW.w - gl_FragCoord.y) * s + uC.zw;   // position in the shared canvas, y down
+  vec2 fc = vec2(pt.x, uC.y - pt.y);                                   // the same place with y up, as the shader expects
+  iResolution = vec3(uC.xy, 1.);
+  iTimeDelta = 1. / 30.;
+  iFrameRate = 30.;
+  iFrame = int(uK.w);
+  iMouse = vec4(0.);
+  iDate = uD;
+  vec4 c = vec4(0.);
+  iTime = uK.x;
+  mainImage(c, fc);
+  if (uK.z > 0.) {                     // last seconds of the loop: dissolve into the picture the loop starts with
+    vec4 d = vec4(0.);
+    iTime = uK.y;
+    mainImage(d, fc);
+    c = mix(c, d, uK.z);
+  }
+  // Triangular dither of about one 8-bit step, so slow gradients never band.
+  float n = skHash(gl_FragCoord.xy) + skHash(gl_FragCoord.xy + 31.7) - 1.;
+  SK_OUT = vec4(clamp(c.rgb, 0., 1.) + n / 255., 1.);
+}
+// ---- the shader itself follows ----
+const float LOOP = 480.;
+const float TAU = 6.2831853;
+const int SHEETS = 7;
+
+float h1(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+vec2 h2(vec2 p){ vec3 q = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
+
+float gn(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f * f * f * (f * (f * 6. - 15.) + 10.);
+  float a = dot(h2(i) * 2. - 1., f);
+  float b = dot(h2(i + vec2(1., 0.)) * 2. - 1., f - vec2(1., 0.));
+  float c = dot(h2(i + vec2(0., 1.)) * 2. - 1., f - vec2(0., 1.));
+  float d = dot(h2(i + vec2(1., 1.)) * 2. - 1., f - vec2(1., 1.));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p){
+  float s = 0., a = .5;
+  for (int i = 0; i < 4; i++) { s += a * gn(p); p = mat2(.8, -.6, .6, .8) * p * 2.03 + vec2(3.1, 7.7); a *= .5; }
+  return s;
+}
+
+
+
+vec3 stars(vec2 p, float pt){
+  vec3 sum = vec3(0.);
+  for (int i = 0; i < SHEETS; i++) {
+    float fi = float(i);
+    float z = fract(fi / float(SHEETS) + iTime / LOOP);          
+    float s = .62 * exp(1.15 * z);                                
+    float a = smoothstep(0., .18, z) * smoothstep(1., .78, z);
+    float ca = cos(fi * 1.1), sa = sin(fi * 1.1);
+    vec2 q = mat2(ca, -sa, sa, ca) * p / s * 7. + fi * 17.31;     
+    vec2 id = floor(q), f = fract(q);
+    float keep = step(.74, h1(id + .5));                          
+    vec2 pos = .12 + .76 * h2(id);
+    float b = h1(id + 7.7); b *= b;
+    float d = length(f - pos) * s / 7.;                           
+    float r = pt * (1.25 + 1.3 * b) * mix(.85, 1.25, z);
+    float core = exp(-d * d / (r * r));
+    float halo = exp(-d / (r * 3.5)) * .22 * b;
+    vec3 tint = mix(vec3(.72, .82, 1.), vec3(1., .88, .72), h1(id + 3.3));
+    sum += tint * (core * (.18 + .82 * b) + halo) * a * keep * mix(.55, 1., z);
+  }
+  return sum;
+}
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord){
+  vec2 p = (fragCoord - .5 * iResolution.xy) / iResolution.y;    
+  float pt = 1. / iResolution.y;                                  
+  float ang = TAU * iTime / LOOP;
+  vec2 o = vec2(cos(ang), sin(ang));
+
+  
+  vec3 col = mix(vec3(.026, .034, .072), vec3(.010, .013, .030), smoothstep(0., .95, length(p)));
+
+  
+  
+  vec2 q = p * 1.15 + vec2(3.1, 1.7);
+  float n1 = fbm(q + .10 * o);
+  float n2 = fbm(q * 1.7 + vec2(5.2, 9.1) - .08 * o.yx + .6 * n1);
+  float across = dot(p, vec2(-.39, .92)) + .10 * n1;
+  float band = exp(-across * across / .085);
+  float cloud = smoothstep(-.10, .55, n1 + .5 * n2) * (.30 + .95 * band);
+  vec3 neb = mix(vec3(.15, .10, .34), vec3(.06, .22, .30), smoothstep(-.2, .3, n2));
+  neb = mix(neb, vec3(.38, .16, .24), smoothstep(.10, .46, n1) * .7);
+  col += neb * cloud + vec3(.020, .018, .034) * band;
+
+  col += stars(p, pt) * (1. - .30 * cloud);
+  fragColor = vec4(col, 1.);
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  var LOOP_MS = 480 * 1000;    // the scene's time runs round this period, taken from the wall clock
+  var FADE_MS = 0 * 1000;    // 0, or how long a shader that does not loop by itself dissolves across the join
+  var MAX_SIDE = 1600;          // longest side of the render buffer, in pixels (upscaled by CSS)
+  var FRAME_MS = 1000 / 30;       // 30 fps cap
+  var NEWER = true;             // true: the shader is tried as GLSL ES 3.00 first (needs WebGL 2), then as 1.00
+
+  var root = document.documentElement;
+  var canvas = document.getElementById('c');
+  var gl = null, uC = null, uW = null, uT = null, uK = null, uD = null;
+  var raf = 0, last = 0, lost = false;
+  var g = { cw: 1, ch: 1, vx: 0, vy: 0, paused: false, t: null };
+
+  function winW() { return Math.max(1, window.innerWidth || 1); }
+  function winH() { return Math.max(1, window.innerHeight || 1); }
+
+  function readHash() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = parseFloat(kv[i].slice(j + 1));
+    }
+    g.cw = o.cw > 0 ? o.cw : winW();
+    g.ch = o.ch > 0 ? o.ch : winH();
+    g.vx = isFinite(o.vx) ? o.vx : 0;
+    g.vy = isFinite(o.vy) ? o.vy : 0;
+    g.paused = o.paused === 1;
+    g.t = isFinite(o.t) ? o.t : null;
+  }
+
+  function compile(type, src, why) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s;
+    why.push(String(gl.getShaderInfoLog(s) || 'did not compile'));
+    return null;
+  }
+
+  // Build the program. `first` is put in front of both shaders: empty for GLSL ES 1.00.
+  function link(first, why) {
+    var vert = first ? 'in vec2 a;' : 'attribute vec2 a;';
+    var vs = compile(gl.VERTEX_SHADER, first + vert + 'void main(){gl_Position=vec4(a,0.,1.);}', why);
+    // Two lines go in front either way, so a compiler message names the same line in both versions.
+    var fs = compile(gl.FRAGMENT_SHADER, (first || '\n\n') + document.getElementById('fs').textContent.replace(/^\s+/, ''), why);
+    if (!vs || !fs) return null;
+    var p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (gl.getProgramParameter(p, gl.LINK_STATUS)) return p;
+    why.push(String(gl.getProgramInfoLog(p) || 'did not link'));
+    return null;
+  }
+
+  function setup() {
+    var opts = { alpha: false, antialias: false, depth: false, stencil: false,
+                 premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+    var two = false, why = [], p = null;
+    gl = null;
+    try {
+      if (NEWER) { gl = canvas.getContext('webgl2', opts); two = !!gl; }
+      if (!gl) gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    } catch (e) { gl = null; }
+    if (!gl) { root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', 'WebGL is not available'); return false; }
+    if (two) p = link('#version 300 es\n#define SK_ES3 1\n', why);
+    if (!p) { two = false; p = link('', why); }
+    if (!p) { gl = null; root.setAttribute('data-scene', 'still'); root.setAttribute('data-scene-error', why.join('\n').slice(0, 4000)); return false; }
+    root.setAttribute('data-scene', two ? 'webgl2' : 'webgl');
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    uC = gl.getUniformLocation(p, 'uC');
+    uW = gl.getUniformLocation(p, 'uW');
+    uT = gl.getUniformLocation(p, 'uT');
+    uK = gl.getUniformLocation(p, 'uK');
+    uD = gl.getUniformLocation(p, 'uD');
+    return true;
+  }
+
+  // No WebGL: show a still gradient in the scene's colours, placed by the same geometry.
+  function still() {
+    var b = document.body;
+    b.className = 'still';
+    b.style.backgroundSize = g.cw + 'px ' + g.ch + 'px';
+    b.style.backgroundPosition = (-g.vx) + 'px ' + (-g.vy) + 'px';
+  }
+
+  function fit() {
+    var w = winW(), h = winH(), dpr = window.devicePixelRatio || 1;
+    var s = Math.min(dpr, MAX_SIDE / Math.max(w, h));
+    var bw = Math.max(1, Math.round(w * s)), bh = Math.max(1, Math.round(h * s));
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    if (gl) gl.viewport(0, 0, bw, bh);
+  }
+
+  function draw() {
+    if (!gl || lost) return;
+    var ms = g.t !== null ? g.t * 1000 : Date.now();
+    var into = ((ms % LOOP_MS) + LOOP_MS) % LOOP_MS;        // milliseconds into the loop
+    gl.uniform4f(uC, g.cw, g.ch, g.vx, g.vy);
+    gl.uniform4f(uW, winW(), winH(), canvas.width, canvas.height);
+    gl.uniform1f(uT, into / LOOP_MS);
+    if (uK) {
+      // Time in seconds for shaders that count seconds. In the last FADE_MS of the loop the
+      // picture is blended with the one a whole loop earlier, so the join is never a jump.
+      var now = (FADE_MS + into) / 1000, k = FADE_MS > 0 ? Math.max(0, (into - (LOOP_MS - FADE_MS)) / FADE_MS) : 0;
+      gl.uniform4f(uK, now, now - LOOP_MS / 1000, k * k * (3 - 2 * k), Math.floor(now * 30));
+    }
+    if (uD) {
+      var d = new Date();
+      gl.uniform4f(uD, d.getFullYear(), d.getMonth(), d.getDate(),
+        g.t !== null ? g.t : d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (now - last < FRAME_MS - 2) return;
+    last = now;
+    draw();
+  }
+
+  // Run the loop only while visible and not paused; otherwise leave exactly one still frame.
+  function sync() {
+    if (!gl) { still(); return; }
+    var run = !g.paused && g.t === null && !document.hidden && !lost;
+    if (run) {
+      if (!raf) raf = requestAnimationFrame(tick);
+    } else {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (!document.hidden) draw();
+    }
+  }
+
+  window.addEventListener('hashchange', function () { readHash(); sync(); });
+  window.addEventListener('resize', function () { readHash(); fit(); if (raf) draw(); sync(); });
+  document.addEventListener('visibilitychange', sync);
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault(); lost = true;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  });
+  canvas.addEventListener('webglcontextrestored', function () {
+    lost = false;
+    if (setup()) fit();
+    sync();
+  });
+
+  readHash();
+  if (setup()) fit();
+  sync();
+})();
+</script>
+</body>
+</html>

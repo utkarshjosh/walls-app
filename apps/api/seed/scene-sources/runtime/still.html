@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+{{POLICY}}
+<title>{{TITLE}}</title>
+<!--
+  {{TITLE}} - a still of a scene, drawn at full size by scenekit ({{W}} x {{H}} pixels).
+  This page is a tool, not a scene: it is written to a temporary folder, opened once in a
+  headless browser and thrown away. The picture is drawn in tiles (so no single draw is
+  heavy), put together on a second canvas, and handed back as a PNG or JPEG in the attribute
+  data-still of the root element; data-still-error says why if it could not be drawn.
+-->
+</head>
+<body>
+<script id="fs" type="x-shader/x-fragment">
+{{FRAG}}
+</script>
+<script>
+(function () {
+  'use strict';
+  var W = {{W}}, H = {{H}}, TILE = {{TILE}};
+  var PHASE = {{PHASE}};            // where in the scene's loop the still is taken, 0..1
+  var root = document.documentElement;
+
+  function compile(gl, type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(String(gl.getShaderInfoLog(s) || 'did not compile'));
+    return s;
+  }
+
+  try {
+    var tile = document.createElement('canvas');
+    tile.width = Math.min(TILE, W); tile.height = Math.min(TILE, H);
+    var gl = tile.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false,
+                                        premultipliedAlpha: false, preserveDrawingBuffer: true });
+    if (!gl) throw new Error('WebGL is not available');
+    if (gl.drawingBufferWidth !== tile.width || gl.drawingBufferHeight !== tile.height) throw new Error('the browser would not give a ' + tile.width + ' x ' + tile.height + ' drawing buffer');
+    var p = gl.createProgram();
+    gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'));
+    // Two lines go in front, as in a scene, so a compiler message names the same line.
+    gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, '\n\n' + document.getElementById('fs').textContent.replace(/^\s+/, '')));
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(String(gl.getProgramInfoLog(p) || 'did not link'));
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    var uC = gl.getUniformLocation(p, 'uC'), uW = gl.getUniformLocation(p, 'uW'), uT = gl.getUniformLocation(p, 'uT');
+
+    var whole = document.createElement('canvas');
+    whole.width = W; whole.height = H;
+    var ctx = whole.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('no 2D canvas of ' + W + ' x ' + H + ' could be made');
+    ctx.imageSmoothingEnabled = false;
+    for (var y = 0; y < H; y += TILE) {
+      for (var x = 0; x < W; x += TILE) {
+        var tw = Math.min(TILE, W - x), th = Math.min(TILE, H - y);
+        gl.viewport(0, 0, tw, th);                     // the lower left corner of the tile canvas
+        gl.uniform4f(uC, W, H, x, y);
+        gl.uniform4f(uW, tw, th, tw, th);
+        gl.uniform1f(uT, PHASE);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        ctx.drawImage(tile, 0, tile.height - th, tw, th, x, y, tw, th);
+      }
+    }
+    if (gl.getError() !== gl.NO_ERROR || gl.isContextLost()) throw new Error('the graphics context failed while drawing');
+    root.setAttribute('data-still', whole.toDataURL('{{MIME}}', {{QUALITY}}));
+  } catch (e) {
+    root.setAttribute('data-still-error', String(e && e.message || e).slice(0, 4000));
+  }
+})();
+</script>
+</body>
+</html>

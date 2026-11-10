@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quiet Clock</title>
+<!--
+  Quiet Clock - a live wallpaper scene (per-display scene, live scene standard 1).
+  By Still Originals. Licence: Still Original.
+  One self-contained file made by scenekit: it can load nothing and send nothing.
+  Each display shows the whole scene. The URL fragment carries paused=0|1 and,
+  for stills, t=<seconds since local midnight>; the geometry values are ignored.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#05081a}
+body{-webkit-user-select:none;user-select:none;-webkit-font-smoothing:antialiased;
+  font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;color:#fbf7ef}
+
+/* The block sits a little above the middle, clear of the menu bar and of icons along the edges. */
+#clock{position:fixed;left:0;right:0;top:43%;transform:translateY(-50%);text-align:center;
+  text-shadow:0 0 .6em rgba(8,12,40,.16)}
+#time{position:relative;display:inline-block;font-weight:200;line-height:1;letter-spacing:-.018em;
+  font-variant-numeric:lining-nums proportional-nums;white-space:nowrap}
+#time .colon{position:relative;top:-.075em;margin:0 .012em;opacity:.9}
+/* AM or PM hangs outside the digits, so the digits themselves stay centred. */
+#time .half{position:absolute;bottom:.19em;font-size:.165em;font-weight:500;letter-spacing:.07em;opacity:.72}
+#before{right:100%;margin-right:.75em}
+#after{left:100%;margin-left:.75em}
+#date{font-weight:400;letter-spacing:.012em;opacity:.84;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="clock">
+  <div id="time"><span id="before" class="half"></span><span id="hour"></span><span id="between"></span><span id="minute"></span><span id="after" class="half"></span></div>
+  <div id="date"></div>
+</div>
+
+<script>
+/* ---- scenekit runtime for per-display scenes. Shared by every such scene: change it in the kit, not here. ----
+
+   Scene.start({ layout, minute, frame, fps })   begin; every part is optional
+     layout(width, height)   the window's size in points; called first and on every resize
+     minute(now)             called at once and then on each new minute, also while paused
+     frame(now)              continuous drawing, at most `fps` times a second (30 at most);
+                             stops while paused or hidden, after leaving one finished frame
+   Scene.now()               the time to show: the wall clock, or the frozen &t= moment
+   Scene.phase(seconds)      0..1, where the wall clock is inside a repeating period of that length
+   Scene.backdrop(spec)      a smooth full-window gradient that never shows bands:
+                             { colors: [upper, middle, lower], lights: [{ color, x, y, size, strength }] }
+                             colours are '#rrggbb'; up to two soft lights; x, y are 0..1 across and
+                             down the window; size is in window heights. Call it again to change it.
+
+   The URL fragment carries paused=0|1 and, for stills, t=<seconds since local midnight>.
+   The geometry values (cw, ch, vx, vy) are ignored on purpose: a per-display scene lays
+   itself out whole in its own window, so each display shows the complete scene.            */
+var Scene = (function () {
+  'use strict';
+  var hooks = {}, paused = false, frozen = null, started = false;
+  var raf = 0, last = 0, frameMs = 1000 / 30, minuteTimer = 0, paint = null, shown = null;
+
+  function read() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = parseFloat(kv[i].slice(j + 1));
+    }
+    paused = o.paused === 1;
+    frozen = isFinite(o.t) ? o.t : null;
+  }
+
+  function now() {
+    var d = new Date();
+    if (frozen === null) return d;
+    d.setHours(0, 0, 0, 0);
+    return new Date(d.getTime() + frozen * 1000);
+  }
+
+  function phase(seconds) {
+    var p = seconds * 1000, ms = frozen === null ? Date.now() : frozen * 1000;
+    return ((ms % p) + p) % p / p;
+  }
+
+  // One complete, up-to-date picture.
+  function refresh() {
+    var d = now();
+    if (hooks.minute) hooks.minute(d);
+    if (hooks.frame) hooks.frame(d);
+  }
+
+  function tick(t) {
+    raf = requestAnimationFrame(tick);
+    if (t - last < frameMs - 2) return;
+    last = t;
+    hooks.frame(now());
+  }
+
+  function onMinute() {
+    minuteTimer = 0;
+    refresh();
+    arm();
+  }
+
+  // Wake just after the next minute begins. Re-armed every time, so it never drifts.
+  function arm() {
+    clearTimeout(minuteTimer);
+    minuteTimer = setTimeout(onMinute, 60000 - (Date.now() % 60000) + 30);
+  }
+
+  function sync() {
+    if (!started) return;
+    var visible = !document.hidden, still = frozen !== null;
+    var run = visible && !paused && !still && !!hooks.frame;
+    if (run) { if (!raf) raf = requestAnimationFrame(tick); }
+    else if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    // The once-a-minute update keeps going while paused, but not while hidden or frozen.
+    if (visible && !still && (hooks.minute || hooks.frame)) arm(); else { clearTimeout(minuteTimer); minuteTimer = 0; }
+    if (visible) refresh();
+  }
+
+  function size() {
+    if (hooks.layout) hooks.layout(Math.max(1, window.innerWidth || 1), Math.max(1, window.innerHeight || 1));
+  }
+
+  function start(o) {
+    hooks = o || {};
+    frameMs = 1000 / Math.max(0.2, Math.min(30, hooks.fps || 30));
+    started = true;
+    read();
+    size();
+    sync();
+  }
+
+  // ---- backdrop: a dithered gradient drawn by a small shader, with a plain CSS gradient as the fallback ----
+  function rgb(hex) {
+    var n = parseInt(String(hex).replace('#', ''), 16) || 0;
+    return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+  }
+
+  function makeBackdrop() {
+    var c = document.createElement('canvas'), gl = null, u = {}, names = ['uW', 'uA', 'uM', 'uB', 'uG1', 'uH1', 'uG2', 'uH2'];
+    c.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;display:block';
+    var was = '', plain = function (spec) {
+      var css = 'linear-gradient(180deg,' + spec.colors.join(',') + ')';
+      if (css !== was) { was = css; document.body.style.background = css; }
+    };
+    try { gl = c.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power' }); }
+    catch (e) { gl = null; }
+    if (!gl) return plain;
+    var fs = [
+      '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', '#else', 'precision mediump float;', '#endif',
+      'uniform vec4 uW, uG1, uG2; uniform vec3 uA, uM, uB, uH1, uH2;',
+      'float h(vec2 p){ vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }',
+      'vec3 glow(vec3 c, vec2 q, float asp, vec4 g, vec3 k){ vec2 d = (q - vec2(g.x * asp, g.y)) / max(g.z, .001); return mix(c, k, g.w * exp(-dot(d, d))); }',
+      'void main(){',
+      '  vec2 uv = gl_FragCoord.xy / uW.zw; float y = 1. - uv.y, asp = uW.x / uW.y;',
+      '  vec3 m = 2. * uM - .5 * (uA + uB);',                       // a curve through all three colours, with no kink
+      '  vec3 c = clamp(mix(mix(uA, m, y), mix(m, uB, y), y), 0., 1.);',
+      '  vec2 q = vec2(uv.x * asp, y);',
+      '  c = glow(c, q, asp, uG1, uH1); c = glow(c, q, asp, uG2, uH2);',
+      '  float n = h(gl_FragCoord.xy) + h(gl_FragCoord.xy + 31.7) - 1.;',
+      '  gl_FragColor = vec4(c + n / 255., 1.);',
+      '}'].join('\n');
+    var make = function (type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    var p = gl.createProgram();
+    gl.attachShader(p, make(gl.VERTEX_SHADER, 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}'));
+    gl.attachShader(p, make(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) return plain;
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    names.forEach(function (n) { u[n] = gl.getUniformLocation(p, n); });
+    // The canvas sits behind the page; the body's own colour would cover it, so that is cleared.
+    document.body.insertBefore(c, document.body.firstChild);
+    document.body.style.background = 'none';
+    var gone = false;
+    c.addEventListener('webglcontextlost', function (e) { e.preventDefault(); gone = true; if (shown) plain(shown); });
+    c.addEventListener('webglcontextrestored', function () { c.remove(); paint = null; if (shown) backdrop(shown); });
+    return function (spec) {
+      if (gone) return;
+      var w = Math.max(1, window.innerWidth || 1), h = Math.max(1, window.innerHeight || 1);
+      var s = Math.min(window.devicePixelRatio || 1, 960 / Math.max(w, h));     // smooth content: a small buffer is plenty
+      var bw = Math.max(1, Math.round(w * s)), bh = Math.max(1, Math.round(h * s));
+      if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; gl.viewport(0, 0, bw, bh); }
+      var k = spec.colors, g = spec.lights || [], i, a;
+      gl.uniform4f(u.uW, w, h, bw, bh);
+      a = rgb(k[0]); gl.uniform3f(u.uA, a[0], a[1], a[2]);
+      a = rgb(k[1]); gl.uniform3f(u.uM, a[0], a[1], a[2]);
+      a = rgb(k[2]); gl.uniform3f(u.uB, a[0], a[1], a[2]);
+      for (i = 0; i < 2; i++) {
+        var q = g[i] || { color: '#000000', x: 0, y: 0, size: 1, strength: 0 };
+        a = rgb(q.color);
+        gl.uniform4f(u['uG' + (i + 1)], q.x, q.y, q.size, q.strength);
+        gl.uniform3f(u['uH' + (i + 1)], a[0], a[1], a[2]);
+      }
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+  }
+
+  function backdrop(spec) {
+    shown = spec;
+    if (!paint) paint = makeBackdrop();
+    paint(spec);
+  }
+
+  window.addEventListener('hashchange', function () { read(); sync(); });
+  window.addEventListener('resize', function () { if (shown) backdrop(shown); if (started) { size(); refresh(); } });
+  document.addEventListener('visibilitychange', sync);
+
+  return { start: start, now: now, phase: phase, backdrop: backdrop };
+})();
+/* ---- end of the scenekit runtime ---- */
+</script>
+<script>
+(function () {
+  'use strict';
+  var TAU = 6.2831853;
+  var time = document.getElementById('time'), date = document.getElementById('date');
+  var hour = document.getElementById('hour'), between = document.getElementById('between'), minute = document.getElementById('minute');
+  var before = document.getElementById('before'), after = document.getElementById('after');
+
+  // 12 or 24 hours, the separator and the order all follow the system's own settings.
+  var clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+  var day = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // The sky through the day: hour, then upper, middle and lower colour, then the colour,
+  // height and strength of the low light. Between two rows everything is blended.
+  var SKY = [
+    [ 0.00, '#05081a', '#0b1230', '#171c44', '#2b3a80', 0.95, 0.30],
+    [ 4.50, '#070b20', '#121a3e', '#272752', '#3a3f8a', 0.95, 0.32],
+    [ 5.75, '#10183c', '#2f3266', '#7a5278', '#c97a8a', 0.98, 0.45],
+    [ 6.75, '#24407a', '#6d7bb0', '#e3a58c', '#ffc59a', 0.98, 0.55],
+    [ 8.50, '#28569a', '#5587c0', '#9dbddb', '#fff0d0', 0.85, 0.26],
+    [12.50, '#265ca4', '#4a86c6', '#8fb6dc', '#ffffff', 0.25, 0.15],
+    [16.50, '#2a5797', '#5a87bd', '#a9bcd4', '#ffe9c4', 0.80, 0.26],
+    [18.25, '#2f4a80', '#8b7ba0', '#eaa66f', '#ffc27a', 0.98, 0.55],
+    [19.50, '#1a2254', '#54407a', '#c2636c', '#f08a6a', 1.00, 0.50],
+    [20.75, '#0c1238', '#262a5e', '#5a3a6c', '#7a4a8a', 1.00, 0.38],
+    [22.00, '#05081a', '#0b1230', '#171c44', '#2b3a80', 0.95, 0.30],
+    [24.00, '#05081a', '#0b1230', '#171c44', '#2b3a80', 0.95, 0.30]
+  ];
+
+  function blend(a, b, k) {
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), out = '#', i, u, v;
+    for (i = 16; i >= 0; i -= 8) {
+      u = x >> i & 255; v = y >> i & 255;
+      out += ('0' + Math.round(u + (v - u) * k).toString(16)).slice(-2);
+    }
+    return out;
+  }
+
+  function sky(now) {
+    var h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600, i = 0;
+    while (i < SKY.length - 2 && h >= SKY[i + 1][0]) i++;
+    var a = SKY[i], b = SKY[i + 1], k = (h - a[0]) / (b[0] - a[0]);
+    k = k * k * (3 - 2 * k);
+    return { colors: [blend(a[1], b[1], k), blend(a[2], b[2], k), blend(a[3], b[3], k)],
+             light: blend(a[4], b[4], k), y: a[5] + (b[5] - a[5]) * k, strength: a[6] + (b[6] - a[6]) * k };
+  }
+
+  Scene.start({
+    layout: function (width, height) {
+      var size = Math.min(height * 0.21, width * 0.15);
+      time.style.fontSize = size + 'px';
+      time.style.fontWeight = size < 110 ? 300 : 200;
+      date.style.fontSize = Math.max(9, size * 0.118) + 'px';
+      date.style.marginTop = (size * 0.10) + 'px';
+    },
+
+    // The digits and the date: at the start and on each new minute, also while paused.
+    minute: function (now) {
+      var parts = clock.formatToParts(now), h = '', m = '', sep = ':', half = '', first = true, i, p;
+      for (i = 0; i < parts.length; i++) {
+        p = parts[i];
+        if (p.type === 'hour') h = p.value;
+        else if (p.type === 'minute') m = p.value;
+        else if (p.type === 'dayPeriod') { half = p.value; first = h === ''; }
+        else if (p.type === 'literal' && h !== '' && m === '' && p.value.trim() !== '') sep = p.value.trim();
+      }
+      hour.textContent = h;
+      minute.textContent = m;
+      between.textContent = sep;
+      between.className = sep === ':' ? 'colon' : '';
+      before.textContent = first ? half : '';
+      after.textContent = first ? '' : half;
+      date.textContent = day.format(now);
+    },
+
+    // The sky: its colours follow the hour, and one soft light wanders very slowly.
+    // Five pictures a second is plenty for something this slow.
+    fps: 5,
+    frame: function (now) {
+      var s = sky(now), a = TAU * Scene.phase(300);
+      Scene.backdrop({ colors: s.colors, lights: [
+        { color: s.light, x: 0.5 + 0.16 * Math.sin(a), y: s.y + 0.03 * Math.cos(2 * a), size: 0.78, strength: s.strength },
+        { color: blend(s.colors[0], '#ffffff', 0.22), x: 0.5 - 0.22 * Math.sin(a + 1), y: 0.08, size: 0.9, strength: 0.14 }
+      ] });
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Threads",
+  "tags": [
+    "abstract",
+    "lines",
+    "dark"
+  ],
+  "color": "#0b0d1c",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 480,
+  "maxSide": 1600,
+  "background": "#020308",
+  "fallback": "linear-gradient(180deg,#020308 0%,#060a1c 40%,#1c1410 62%,#050714 100%)",
+  "variants": [
+    "frost"
+  ],
+  "poster": 340.0
+}

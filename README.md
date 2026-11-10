@@ -2,13 +2,14 @@
 
 A Mac app that keeps your desktop fresh: collect wallpapers, pick which collections take turns, and it rotates them for you. Connect a second display and it can stretch one wallpaper across both. It also plays live (animated) wallpapers. Target: a paid app on the Mac App Store.
 
-**Status, 2026-11-10:** a first working build exists in three parts.
+**Status, 2026-11-10:** a first working build exists in four parts.
 
 | Part | Where | State |
 | --- | --- | --- |
 | Interface (React, TypeScript) | [apps/web](apps/web/README.md) | Library, Discover and Rotation work; runs in the Mac app and as a browser preview |
 | Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover; 30 original wallpapers and 10 live scenes. **Deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare), serving from the server's disk |
 | Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar |
+| Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes. Built and previewed locally; **not deployed yet** |
 
 What is deliberately **not** being built before launch, and what still blocks launch, is in [docs/15-first-launch-scope.md](docs/15-first-launch-scope.md). Read that before adding features.
 

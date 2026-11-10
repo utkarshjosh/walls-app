@@ -80,14 +80,16 @@ export const DEFAULT_SETTINGS: Settings = {
 export const SAVED_COLLECTION = "Saved";
 
 /**
- * Starter wallpapers, revision 2: first-party originals at 3840 x 2400, plus one
- * 7680 x 2400 panorama per collection, so a new library has pictures that are
- * sharp on a Retina display and can stretch across two displays.
- * (Revision 1 was nine 1672 x 941 sample images, too small for most Macs; they
- * are no longer offered to new installs but stay in libraries that have them.)
+ * Starter wallpapers, revision 3: thirteen stills rendered from the live scenes
+ * (silk, glass, light trails, a planet's edge, a mountain lake) at 5120 x 3200,
+ * with one 7680 x 2400 panorama per collection for stretching across two displays.
+ * Revision 2 was twelve procedurally drawn ridges, gradients and dunes, which the
+ * owner found "clean but very very basic"; revision 1 was nine small samples.
+ * Earlier revisions are no longer offered to new installs but stay in libraries
+ * that already have them, and those libraries gain the new collections.
  * The ids are the catalog's, so Discover shows these as already saved.
  */
-export const STARTER_SET = 2;
+export const STARTER_SET = 3;
 
 const STARTERS: {
   id: string;
@@ -95,33 +97,34 @@ const STARTERS: {
   items: [catalogId: string, slug: string, title: string, color: string, panorama?: true][];
 }[] = [
   {
-    id: "starter-horizons",
-    name: "Horizons",
+    id: "starter-silk",
+    name: "Silk",
     items: [
-      ["95ab0e48108a", "far-ridge", "Far Ridge", "#93707c"],
-      ["39da88054498", "last-light", "Last Light", "#985240"],
-      ["fa5bccddd60f", "moonrise", "Moonrise", "#2e3d55"],
-      ["a76194ed6e27", "long-dusk", "Long Dusk", "#888776", true],
+      ["fcf40ca99748", "ink-silk", "Ink Silk", "#271f55"],
+      ["f7d5984cf4bc", "black-satin", "Black Satin", "#171819"],
+      ["5a4f17f170a5", "pearl-silk", "Pearl Silk", "#b8a49d"],
+      ["317d5172c3ab", "garnet-drape", "Garnet Drape", "#531818", true],
     ],
   },
   {
-    id: "starter-gradients",
-    name: "Gradients",
+    id: "starter-glass",
+    name: "Glass and light",
     items: [
-      ["a57de2dd18c1", "low-tide", "Low Tide", "#c5d5bf"],
-      ["20f76d3d7bc4", "ember-field", "Ember Field", "#b8501e"],
-      ["4cbb8e2f9bcb", "rose-quartz", "Rose Quartz", "#e6b1ba"],
-      ["42c777e6adb4", "slow-dawn", "Slow Dawn", "#bf8083", true],
+      ["e70f52435e95", "night-glass", "Night Glass", "#211b44"],
+      ["1c294b47de40", "paper-glass", "Paper Glass", "#dad6c9"],
+      ["cff97d7e6020", "black-glass", "Black Glass", "#151416"],
+      ["98e43e5a7ad6", "light-trails", "Light Trails", "#26222c"],
+      ["35a8589e7095", "glass-ribbon", "Glass Ribbon", "#1d1638", true],
     ],
   },
   {
-    id: "starter-dunes",
-    name: "Dunes",
+    id: "starter-far",
+    name: "Far places",
     items: [
-      ["f5c041af7fb0", "quiet-sands", "Quiet Sands", "#ddc0a9"],
-      ["1de95f4bc3a8", "rose-drift", "Rose Drift", "#ddb8b7"],
-      ["e5e75fca9c04", "black-sand", "Black Sand", "#2e2725"],
-      ["1dcfafc96917", "open-desert", "Open Desert", "#dbae83", true],
+      ["4772fa6e1517", "orbital-dawn", "Orbital Dawn", "#14182e"],
+      ["68d2b14275d7", "red-limb", "Red Limb", "#2f1614"],
+      ["b316c36e1cd2", "alpenglow", "Alpenglow", "#5a3f49"],
+      ["b1db5dca5150", "long-limb", "Long Limb", "#0e1226", true],
     ],
   },
 ];
@@ -138,8 +141,8 @@ function starterWallpaper(
     id: `d${catalogId}`,
     title,
     kind: "image",
-    width: panorama ? 7680 : 3840,
-    height: 2400,
+    width: panorama ? 7680 : 5120,
+    height: panorama ? 2400 : 3200,
     origin: "discover",
     full: { url: `/wallpapers/starter-${slug}.jpg` },
     thumb: { url: `/wallpapers/starter-${slug}-thumb.jpg` },

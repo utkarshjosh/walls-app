@@ -33,6 +33,8 @@ A folder named after the scene (lowercase, hyphens), holding exactly three files
 
 A scene that tells the time carries the tag `clock`. Its poster shows a frozen time, so the app does not put that poster on the desktop underneath the running scene (where the lock screen or Mission Control would show the wrong time); it leaves the existing desktop picture alone instead.
 
+A scene whose light follows the time of day (rule 3) is not a clock: nobody reads the hour off it, and its poster is an ordinary picture of one moment. It does not carry the `clock` tag.
+
 `author` and `license` are required, as for every other wallpaper: a scene adapted from someone else's work names them, gives the licence that allows commercial redistribution, and links the original in `sourceUrl`. Work whose licence forbids commercial use (the default on several shader sites) cannot be published, however good it looks.
 
 ## Rules for `scene.html`
@@ -66,17 +68,19 @@ A scene is one of two kinds, declared as `layout` in `meta.json` and honoured in
 - **Canvas scenes** (skies, gradients, landscapes) draw the part of the canvas their window covers, so the picture is continuous across displays.
 - **Per-display scenes** (a clock, anything with a focal point that must not be cut by a bezel) ignore `cw`, `ch`, `vx`, `vy` and lay themselves out whole in their own window, so each display shows the complete scene.
 
-An optional `&t=<seconds>` freezes the scene at that moment and draws one frame; it exists so a poster can be captured. For a canvas scene it is seconds into the loop; for a per-display scene it is seconds since local midnight.
+An optional `&t=<seconds>` freezes the scene at that moment and draws one frame; it exists so a poster can be captured. For a canvas scene it is seconds into the loop; for a per-display scene, and for a canvas scene that follows the time of day (rule 3), it is seconds since local midnight.
 
 ### 3. It keeps time from the wall clock
 
 Animation time comes from `Date.now()`, not from a counter, so separate windows stay in step and the scene looks the same after hours. Motion repeats over a fixed loop, or keeps the time value small, so precision does not degrade. A shader that never repeats is given a long loop with a slow dissolve across the join (the kit does this) rather than a visible jump.
 
+A scene may instead follow the local time of day: dawn, daylight, dusk and night in step with the clock of the Mac it runs on. Its loop is then the 24 hours from local midnight to local midnight, read from the clock's hours, minutes and seconds (so it is the time the menu bar shows, in whatever time zone the Mac is in), and it must look the same at 23:59:59 as at 00:00:00. Any quicker motion in it (drifting mist, ripples) repeats a whole number of times in the day, so that join is seamless too. With the kit this is `"clock": "day"` in `scene.json`.
+
 ### 4. It is calm and cheap
 
 - A wallpaper, not a screensaver: slow, low contrast, nothing that flashes or pulls the eye, and it must leave menu-bar text and desktop icons readable.
 - At most 30 frames a second. A full-window shader renders into a buffer no longer than 1600 pixels on its long side and lets the browser scale it up.
-- `paused=1` means use as little energy as possible: stop continuous animation and timers and leave one finished frame. A scene that tells the time may still update once a minute while paused. `paused=0` resumes.
+- `paused=1` means use as little energy as possible: stop continuous animation and timers and leave one finished frame. A scene that tells the time, or whose light follows the time of day, may still update once a minute while paused. `paused=0` resumes.
 - When `document.hidden` is true, it stops as if paused.
 - No CSS animations or transitions that run by themselves: they run at the display's full rate and ignore `paused`. Drive every change from the scene's own script.
 - No sound, no input handling, no cursor changes, no selectable text, no scrollbars. `html` has a background colour so nothing flashes white (the body may be made transparent once the scene has drawn its own backdrop).
@@ -94,10 +98,16 @@ The kit lives in `apps/api/seed/scene-sources/` and writes finished scenes into 
 | A fragment shader in the common web style (`mainImage(out vec4 fragColor, in vec2 fragCoord)` with `iTime` and `iResolution`) | `scenekit.py wrap-shader` with the shader file, a slug, and the title, author, licence and source | A canvas scene: geometry, clock, frame cap, pause, fallback and policy are added around the shader |
 | An idea for a scene made of ordinary HTML and CSS (a clock, a calendar) | `scenekit.py new-dom` with a slug | A per-display scene skeleton with the runtime already in place; you fill in what it draws |
 | A finished scene folder | `scenekit.py poster` | `poster.jpg`, captured with a local Chrome |
+| A built scene you want to see at another moment or window size | `scenekit.py shot` with `--t` and `--size` | A picture in a file of your choosing; nothing in `scenes/` changes |
+| A first-party shader you want as an ordinary still wallpaper | `scenekit.py still` with `--size`, `--t` and optionally `--variant` | A sharp JPEG drawn at full size (not through the 1600 pixel buffer), in the scene's own colours or one of the colourways its shader offers |
 
 A wrapped shader sees the canvas in points, not device pixels (`iResolution` is the size of the shared canvas). That keeps the picture identical across displays of different density, but a shader that depends on exact pixel sizes will look different from its original on the web.
 
 Each scene's sources live in `scene-sources/<slug>/` (`scene.json` plus `shader.glsl` or `scene.html`); `scenekit.py build` rebuilds the finished files from them. Run `python3 scenekit.py --help` for the workflow.
+
+A scene's id is the hash of its `scene.html`, and ids are saved in people's libraries, so the kit must rebuild an existing scene to the same bytes. Every option added to the kit therefore leaves a scene that does not use it exactly as it was (check with `git status` after `scenekit.py build`). A colourway (`"variants"` in `scene.json`, chosen in the shader with `#if defined(VARIANT_NAME)`) is used for stills only: the live scene is always built without one.
+
+Stills made this way are ordinary pictures, not scenes: they live in `apps/api/seed/stills/` with a list, `stills.json`, that gives each one's title, category, tags, colour, pack, pixel size and the recipe (`render`: scene, moment, colourway) it is drawn from. `scenekit.py stills` redraws them from that list and `walls seed` publishes them from it. None of this standard applies to them.
 
 Every scene, however it was made, then goes through the gate.
 

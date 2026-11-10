@@ -29,7 +29,8 @@ const usage = `walls — catalog service for the Still wallpaper app
 
 Usage:
   walls serve                  run the HTTP API
-  walls seed [-scenes dir]     load the starter artwork, live scenes and packs
+  walls seed [-scenes dir] [-stills dir]
+                               load the starter artwork, stills, live scenes and packs
   walls ingest <dir>           import a folder of your own images, videos and live scenes
   walls scene check <dir>...   check live scene folders against the scene standard
   walls rm <id>                remove an item and its stored files
@@ -183,6 +184,7 @@ func cmdServe(args []string) error {
 func cmdSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ContinueOnError)
 	scenes := fs.String("scenes", filepath.Join("seed", "scenes"), "folder of live scenes to register")
+	stills := fs.String("stills", filepath.Join("seed", "stills"), "folder of still pictures listed in its stills.json")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -197,6 +199,7 @@ func cmdSeed(args []string) error {
 	fmt.Printf("Seeding into %s (catalog %s)\n", storageLabel(e.cfg), filepath.Join(e.cfg.DataDir, "catalog.db"))
 	stats, err := seed.Run(ctx, e.pipeline, seed.Options{
 		ScenesDir: *scenes,
+		StillsDir: *stills,
 		Logf:      func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
 	})
 	if err != nil {
@@ -211,8 +214,8 @@ func cmdSeed(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\nDone in %v: %d added, %d updated, %d unchanged, %d removed; %d live scenes.\n",
-		stats.Elapsed.Round(100*time.Millisecond), stats.Added, stats.Updated, stats.Unchanged, stats.Removed, stats.Scenes)
+	fmt.Printf("\nDone in %v: %d added, %d updated, %d unchanged, %d removed; %d stills, %d live scenes.\n",
+		stats.Elapsed.Round(100*time.Millisecond), stats.Added, stats.Updated, stats.Unchanged, stats.Removed, stats.Stills, stats.Scenes)
 	if n := len(stats.ScenesSkipped); n > 0 {
 		fmt.Printf("%d %s skipped for failing the scene check (run \"walls scene check\" on a folder to see this again):\n", n, plural(n, "scene"))
 		for _, s := range stats.ScenesSkipped {

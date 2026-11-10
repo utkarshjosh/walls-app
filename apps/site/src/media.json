@@ -1,0 +1,260 @@
+{
+  "scenes": [
+    {
+      "slug": "arc-clock",
+      "title": "Arc Clock",
+      "tags": [
+        "clock",
+        "minimal"
+      ],
+      "color": "#1f1e1e",
+      "layout": "per-display"
+    },
+    {
+      "slug": "currents",
+      "title": "Currents",
+      "tags": [
+        "abstract",
+        "lines",
+        "cool"
+      ],
+      "color": "#112b35",
+      "layout": "canvas"
+    },
+    {
+      "slug": "daylight",
+      "title": "Daylight",
+      "tags": [
+        "landscape",
+        "lake",
+        "daylight"
+      ],
+      "color": "#51627f",
+      "layout": "canvas"
+    },
+    {
+      "slug": "dune-wind",
+      "title": "Dune Wind",
+      "tags": [
+        "desert",
+        "warm",
+        "light"
+      ],
+      "color": "#d2ae90",
+      "layout": "canvas"
+    },
+    {
+      "slug": "first-light",
+      "title": "First Light",
+      "tags": [
+        "dawn",
+        "horizon",
+        "calm"
+      ],
+      "color": "#66597a",
+      "layout": "canvas"
+    },
+    {
+      "slug": "ink-wash",
+      "title": "Ink Wash",
+      "tags": [
+        "monochrome",
+        "minimal",
+        "light"
+      ],
+      "color": "#c9c5bb",
+      "layout": "canvas"
+    },
+    {
+      "slug": "lava",
+      "title": "Lava",
+      "tags": [
+        "abstract",
+        "warm",
+        "dark"
+      ],
+      "color": "#84402b",
+      "layout": "canvas"
+    },
+    {
+      "slug": "low-orbit",
+      "title": "Low Orbit",
+      "tags": [
+        "space",
+        "planet",
+        "dark"
+      ],
+      "color": "#0a1524",
+      "layout": "canvas"
+    },
+    {
+      "slug": "quiet-clock",
+      "title": "Quiet Clock",
+      "tags": [
+        "clock",
+        "minimal"
+      ],
+      "color": "#6d95c4",
+      "layout": "per-display"
+    },
+    {
+      "slug": "silk",
+      "title": "Silk",
+      "tags": [
+        "abstract",
+        "fabric",
+        "dark"
+      ],
+      "color": "#1b1f4a",
+      "layout": "canvas"
+    },
+    {
+      "slug": "slow-aurora",
+      "title": "Slow Aurora",
+      "tags": [
+        "night",
+        "aurora",
+        "cool"
+      ],
+      "color": "#14463f",
+      "layout": "canvas"
+    },
+    {
+      "slug": "soft-glass",
+      "title": "Soft Glass",
+      "tags": [
+        "abstract",
+        "glass",
+        "dark"
+      ],
+      "color": "#0c0d24",
+      "layout": "canvas"
+    },
+    {
+      "slug": "starfield",
+      "title": "Starfield",
+      "tags": [
+        "night",
+        "space",
+        "cool"
+      ],
+      "color": "#161a35",
+      "layout": "canvas"
+    },
+    {
+      "slug": "threads",
+      "title": "Threads",
+      "tags": [
+        "abstract",
+        "lines",
+        "dark"
+      ],
+      "color": "#0b0d1c",
+      "layout": "canvas"
+    },
+    {
+      "slug": "tidal",
+      "title": "Tidal",
+      "tags": [
+        "abstract",
+        "gradient",
+        "warm"
+      ],
+      "color": "#a8676a",
+      "layout": "canvas"
+    }
+  ],
+  "stills": [
+    {
+      "slug": "orbital-dawn",
+      "title": "Orbital Dawn",
+      "color": "#14182e",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "ink-silk",
+      "title": "Ink Silk",
+      "color": "#271f55",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "alpenglow",
+      "title": "Alpenglow",
+      "color": "#5a3f49",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "night-glass",
+      "title": "Night Glass",
+      "color": "#211b44",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "light-trails",
+      "title": "Light Trails",
+      "color": "#26222c",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "black-satin",
+      "title": "Black Satin",
+      "color": "#171819",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "long-limb",
+      "title": "Long Limb",
+      "color": "#0e1226",
+      "width": 7680,
+      "height": 2400
+    },
+    {
+      "slug": "paper-glass",
+      "title": "Paper Glass",
+      "color": "#dad6c9",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "garnet-drape",
+      "title": "Garnet Drape",
+      "color": "#531818",
+      "width": 7680,
+      "height": 2400
+    },
+    {
+      "slug": "black-glass",
+      "title": "Black Glass",
+      "color": "#151416",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "red-limb",
+      "title": "Red Limb",
+      "color": "#2f1614",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "pearl-silk",
+      "title": "Pearl Silk",
+      "color": "#b8a49d",
+      "width": 5120,
+      "height": 3200
+    },
+    {
+      "slug": "glass-ribbon",
+      "title": "Glass Ribbon",
+      "color": "#1d1638",
+      "width": 7680,
+      "height": 2400
+    }
+  ]
+}

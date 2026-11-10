@@ -1,5 +1,6 @@
 # The catalog service as it runs on the server: the `walls` program, with Caddy
-# in front of it answering on ports 80 and 443. Started by deploy.sh.
+# in front of it answering on ports 80 and 443 and serving the product page.
+# Started by deploy.sh.
 name: walls
 
 services:
@@ -43,6 +44,8 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The product page (apps/site), uploaded by deploy.sh.
+      - ./site:/srv/site:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [api]

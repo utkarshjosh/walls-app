@@ -18,7 +18,7 @@ RUN mkdir /out/data
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=build /out/walls /app/walls
-# Live scenes, so "walls seed" finds them at ./seed/scenes.
+# Live scenes and stills, so "walls seed" finds them at ./seed/scenes and ./seed/stills.
 COPY seed /app/seed
 COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV WALLS_ADDR=:8787 \

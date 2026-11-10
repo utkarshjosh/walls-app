@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "clock": "day",
+  "title": "Daylight",
+  "tags": [
+    "landscape",
+    "lake",
+    "daylight"
+  ],
+  "color": "#51627f",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "maxSide": 1600,
+  "background": "#0c1424",
+  "fallback": "linear-gradient(180deg,#22365c 0%,#6f7fa6 34%,#e9b98f 52%,#40506e 60%,#141c30 100%)",
+  "poster": 64200.0
+}

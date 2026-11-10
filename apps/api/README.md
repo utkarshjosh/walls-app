@@ -10,7 +10,7 @@ It is one program, `walls`, with a few commands:
 | Command | What it does |
 | --- | --- |
 | `walls serve` | Runs the HTTP API (default `:8787`). |
-| `walls seed` | Draws the 30 starter wallpapers, registers the live scenes in `seed/scenes/` that pass the scene check, and creates the curated packs. Safe to re-run. |
+| `walls seed` | Draws the 30 starter wallpapers, publishes the stills listed in `seed/stills/stills.json`, registers the live scenes in `seed/scenes/` that pass the scene check, and creates the curated packs. Safe to re-run. |
 | `walls ingest <dir>` | Imports a folder of your own licensed images, videos and live scenes. |
 | `walls scene check <dir>...` | Checks live scene folders against the scene standard. Reads files only. |
 | `walls rm <id>` | Removes one item and its stored files. |

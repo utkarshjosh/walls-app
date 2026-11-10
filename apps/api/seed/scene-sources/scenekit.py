@@ -14,6 +14,8 @@ Where things live
   scene-sources/runtime/    the shared runtime - one copy, built into every scene
   scenes/<slug>/            the finished scene: scene.html, meta.json, poster.jpg.
                             Never edit these by hand; they are rewritten by this kit.
+  stills/                   still wallpapers drawn from the scenes' shaders at full size,
+                            listed in stills.json (what `walls seed` reads)
 
 Typical use
   You found a shader on the web (and its licence allows commercial redistribution):
@@ -31,10 +33,27 @@ Typical use
       python3 scenekit.py build            (everything)
       python3 scenekit.py build tidal lava (just these)
 
+  You want to see a scene at another moment or window size without touching its poster:
+      python3 scenekit.py shot silk --t 120 --size 3840x1200 --out /tmp/silk-wide.png
+
+  You want a sharp still wallpaper from a first-party shader (not the 1600 pixel live buffer):
+      python3 scenekit.py still silk --t 40 --size 5120x3200 --variant ember --out ember.jpg
+      python3 scenekit.py stills           (every still listed in stills/stills.json)
+
+Settings in scene.json worth knowing (first-party "native" shaders)
+  "clock": "day"      the scene follows the local time of day instead of a short loop: its
+                      loop is the 24 hours of the local day, uT runs 0..1 from midnight to
+                      midnight, and t (poster, shot, still) is seconds since local midnight.
+                      Quicker motion comes from orbit(k, ...) with a whole number k.
+  "variants": [...]   names of colourways the shader offers for stills. `still --variant
+                      ember` puts `#define VARIANT_EMBER 1` in front of the shader; the live
+                      scene is always built without any, so adding one never changes it.
+
 Every scene then still has to pass the gate (`walls scene check <folder>`) and be watched
 by a person before it is published. Python 3 standard library only.
 """
 import argparse
+import base64
 import html as htmllib
 import json
 import os
@@ -50,11 +69,16 @@ import zlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNTIME = os.path.join(HERE, "runtime")
 OUT = os.path.normpath(os.path.join(HERE, "..", "scenes"))   # where `walls seed` looks for scenes
+STILLS = os.path.normpath(os.path.join(HERE, "..", "stills"))  # still wallpapers and their list, stills.json
 
 STANDARD = 1
 MAX_HTML_BYTES = 512 * 1024
 MAX_SIDE = 1600            # the standard's limit for a shader's render buffer
 POSTER_W, POSTER_H = 1920, 1200
+DAY = 86400                # seconds in the loop of a scene that follows the local time of day
+STILL_TILE = 1024          # a still is drawn in tiles of this many pixels, so no single draw is heavy
+STILL_MAX_PIXELS = 60_000_000   # what the catalog accepts for one picture
+STILL_MAX_BYTES = 2_500_000     # a still larger than this is reported
 
 # The one policy line of the standard. It goes directly after the charset line, and the
 # text "Content-Security-Policy" may appear nowhere else in a scene.
@@ -63,6 +87,7 @@ POLICY = ("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'n
 OPENING = re.compile(r"\A\s*<!doctype html>\s*<html\b[^>]*>\s*<head>\s*<meta charset=\"utf-8\">\s*" + re.escape(POLICY), re.I)
 
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SIZE = re.compile(r"^(\d{2,5})x(\d{2,5})$")
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 SAFE_CSS = re.compile(r"^[#A-Za-z0-9(),.% -]+$")
 
@@ -320,13 +345,52 @@ def prepare_web_shader(src, name="the shader"):
 # Building
 # --------------------------------------------------------------------------------------
 
-def fill(template, values):
+def fill(template, values, flags=None):
+    """Fill a runtime template. {{NAME}} is replaced by a value. A flag chooses between
+    pieces of text: {{?NAME}}...{{/NAME}} is kept when the flag is set and removed when it
+    is not, {{^NAME}}...{{/NAME}} the other way round."""
+    for name, on in (flags or {}).items():
+        keep, drop = ("?", "^") if on else ("^", "?")
+        template = re.sub(r"\{\{\%s%s\}\}(.*?)\{\{/%s\}\}" % (keep, name, name), lambda m: m.group(1), template, flags=re.S)
+        template = re.sub(r"\{\{\%s%s\}\}.*?\{\{/%s\}\}" % (drop, name, name), "", template, flags=re.S)
     for key, value in values.items():
         template = template.replace("{{" + key + "}}", str(value))
-    left = re.search(r"\{\{[A-Z0-9]+\}\}", template)
+    left = re.search(r"\{\{[?^/]?[A-Z0-9]+\}\}", template)
     if left:
         raise Problem("the runtime template has an unknown placeholder %s" % left.group(0))
     return template
+
+
+def follows_day(slug, cfg):
+    """Whether the scene's loop is the local day ("clock": "day"); refuses settings that contradict it."""
+    clock = cfg.get("clock")
+    if clock is None:
+        return False
+    if clock != "day":
+        raise Problem('%s/scene.json: "clock" can only be "day" (the scene follows the local time of day)' % slug)
+    if cfg.get("kind") != "shader" or cfg.get("style", "web") != "native":
+        raise Problem('%s/scene.json: "clock": "day" is for first-party shaders ("style": "native")' % slug)
+    if float(cfg.get("loop", DAY)) != DAY:
+        raise Problem('%s/scene.json: a scene with "clock": "day" loops over the day; leave "loop" out or make it %d' % (slug, DAY))
+    return True
+
+
+def loop_of(slug, cfg):
+    return float(DAY if follows_day(slug, cfg) else cfg.get("loop", 900))
+
+
+def variants_of(slug, cfg):
+    names = cfg.get("variants") or []
+    if not isinstance(names, list) or not all(isinstance(v, str) and SLUG.match(v) for v in names):
+        raise Problem('%s/scene.json: "variants" must be a list of names like "ember" or "pale-rose"' % slug)
+    return names
+
+
+def native_frag(shader, main="shader-main.glsl", defines=()):
+    """A first-party shader with the kit's helpers in front and its main() behind. `defines`
+    go between the helpers and the shader; a live scene has none."""
+    lines = "".join("#define %s %s\n" % (name, value) for name, value in defines)
+    return (runtime("shader-lib.glsl") + "\n" + lines + shader + runtime(main)).strip()
 
 
 def build_shader(slug, cfg):
@@ -335,9 +399,11 @@ def build_shader(slug, cfg):
         raise Problem("%s is missing" % path)
     shader, notes = read(path), []
     style = cfg.get("style", "web")
+    day = follows_day(slug, cfg)
     if style == "native":
         # First-party shaders written against the kit's own helpers: `vec3 scene(p, uv, asp, px)`.
-        frag = (runtime("shader-lib.glsl") + "\n" + shader + runtime("shader-main.glsl")).strip()
+        variants_of(slug, cfg)
+        frag = native_frag(shader)
         newer, fade = "false", 0
     elif style == "web":
         body, outq, notes = prepare_web_shader(shader, os.path.relpath(path, HERE))
@@ -347,7 +413,7 @@ def build_shader(slug, cfg):
         raise Problem('%s/scene.json: "style" must be "web" or "native"' % slug)
     if "</script" in frag.lower():
         raise Problem("%s contains the text </script, which cannot go inside a scene" % path)
-    loop = float(cfg.get("loop", 900))
+    loop = loop_of(slug, cfg)
     max_side = int(cfg.get("maxSide", MAX_SIDE))
     if not 1 <= loop <= 86400:
         raise Problem('%s: "loop" must be between 1 and 86400 seconds' % slug)
@@ -363,7 +429,7 @@ def build_shader(slug, cfg):
         "POLICY": POLICY, "STANDARD": STANDARD, "TITLE": htmllib.escape(cfg.get("title") or slug),
         "CREDIT": credit(cfg), "LOOP": num(loop), "FADE": num(fade), "MAXSIDE": max_side, "ES3": newer,
         "BG": background, "FALLBACK": fallback, "FRAG": "\x00FRAG\x00",
-    })
+    }, {"DAY": day})
     return page.replace("\x00FRAG\x00", frag), notes
 
 
@@ -443,12 +509,12 @@ def find_chrome(explicit=None):
     return None
 
 
-def chrome(binary, scene_path, fragment, extra, timeout=90):
+def chrome(binary, scene_path, fragment, extra, timeout=90, size=(POSTER_W, POSTER_H)):
     url = "file://" + urllib.parse.quote(os.path.abspath(scene_path)) + "#" + fragment
     with tempfile.TemporaryDirectory(prefix="scenekit-chrome-") as profile:
         cmd = [binary, "--headless=new", "--no-first-run", "--no-default-browser-check", "--disable-extensions",
                "--hide-scrollbars", "--mute-audio", "--force-device-scale-factor=1",
-               "--window-size=%d,%d" % (POSTER_W, POSTER_H), "--virtual-time-budget=3000",
+               "--window-size=%d,%d" % size, "--virtual-time-budget=3000",
                "--user-data-dir=" + profile] + extra + [url]
         try:
             return subprocess.run(cmd, capture_output=True, timeout=timeout)
@@ -537,7 +603,7 @@ def read_png(path):
 def colours_from(png):
     """Average colour, and five colours from the upper edge to the lower one, of a picture."""
     small = png + ".small.png"
-    subprocess.run(["sips", "-z", "30", "48", png, "--out", small], capture_output=True, check=True)
+    subprocess.run(["sips", "-s", "format", "png", "-z", "30", "48", png, "--out", small], capture_output=True, check=True)
     w, h, rows = read_png(small)
     os.remove(small)
 
@@ -663,6 +729,183 @@ def cmd_poster(args):
     say("%-14s poster at t=%g  %d bytes  %s" % (args.slug, t, os.path.getsize(poster), poster))
 
 
+def need_chrome(explicit, what):
+    binary = find_chrome(explicit)
+    if not binary:
+        raise Problem("no Chrome was found, so %s. Install Google Chrome, or point at a Chromium-based browser "
+                      "with --chrome /path/to/binary (or the CHROME environment variable)." % what)
+    return binary
+
+
+def parse_size(text, what="--size"):
+    m = SIZE.match(text or "")
+    if not m:
+        raise Problem("%s is WIDTHxHEIGHT in pixels, like 5120x3200 (got %r)" % (what, text))
+    return int(m.group(1)), int(m.group(2))
+
+
+def cmd_shot(args):
+    check_slug(args.slug)
+    cfg = load(args.slug)
+    binary = need_chrome(args.chrome, "the scene cannot be captured")
+    w, h = parse_size(args.size)
+    scene = os.path.join(OUT, args.slug, "scene.html")
+    if not os.path.isfile(scene):
+        raise Problem("%s has not been built yet: python3 scenekit.py build %s" % (args.slug, args.slug))
+    t = args.t if args.t is not None else cfg.get("poster", 36540 if cfg["kind"] == "dom" else 20)
+    out = os.path.abspath(args.out)
+    with tempfile.TemporaryDirectory(prefix="scenekit-shot-") as tmp:
+        shot = os.path.join(tmp, "shot.png")
+        done = chrome(binary, scene, "t=%g" % t, ["--screenshot=" + shot], size=(w, h))
+        if not os.path.isfile(shot):
+            raise Problem("Chrome did not produce a screenshot:\n" + done.stderr.decode("utf-8", "replace")[-600:])
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        if out.lower().endswith(".png"):
+            shutil.copyfile(shot, out)
+        else:
+            subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "90", shot, "--out", out],
+                           capture_output=True, check=True)
+    say("%-14s the scene as a %dx%d window at t=%g  %s" % (args.slug, w, h, t, out))
+
+
+# --------------------------------------------------------------------------------------
+# Stills: the same shaders drawn sharp at full size, to be ordinary wallpapers
+# --------------------------------------------------------------------------------------
+
+def picture_size(data):
+    """Width and height of a PNG or JPEG held in memory, or None."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return struct.unpack(">II", data[16:24])
+    pos = 2
+    while data[:2] == b"\xff\xd8" and pos + 9 < len(data) and data[pos] == 0xFF:
+        kind, n = data[pos + 1], struct.unpack(">H", data[pos + 2:pos + 4])[0]
+        if 0xC0 <= kind <= 0xCF and kind not in (0xC4, 0xC8, 0xCC):       # a start-of-frame segment holds the size
+            h, w = struct.unpack(">HH", data[pos + 5:pos + 9])
+            return w, h
+        pos += 2 + n
+    return None
+
+
+def render_still(binary, slug, out, size, t=None, variant=None, ss=2, quality=90, dither=None):
+    """Draw scene `slug` at `size` pixels, frozen at `t`, into the file `out` (.jpg or .png).
+    The browser that draws the picture also encodes it, so the file is the same wherever
+    the kit runs. Returns the average colour of the picture as #rrggbb."""
+    check_slug(slug)
+    cfg = load(slug)
+    if cfg["kind"] != "shader" or cfg.get("style", "web") != "native":
+        raise Problem("%s: stills are drawn from first-party shaders only (\"style\": \"native\")" % slug)
+    w, h = size
+    if min(w, h) < 16 or max(w, h) > 16384 or w * h > STILL_MAX_PIXELS:
+        raise Problem("a still is at most 16384 pixels on a side and %d megapixels in all (got %dx%d)"
+                      % (STILL_MAX_PIXELS // 1000000, w, h))
+    if not 1 <= ss <= 4:
+        raise Problem("--ss is between 1 (no supersampling) and 4 (16 samples a pixel)")
+    if not 1 <= quality <= 100:
+        raise Problem("--quality is a JPEG quality between 1 and 100")
+    out = os.path.abspath(out)
+    as_png = out.lower().endswith(".png")
+    defines = [("SK_STILL", 1), ("SK_SS", ss)]
+    if dither is not None:
+        defines.append(("SK_DITHER", repr(float(dither))))
+    if variant:
+        if variant not in variants_of(slug, cfg):
+            raise Problem("%s has no variant called %r (scene.json lists: %s)"
+                          % (slug, variant, ", ".join(variants_of(slug, cfg)) or "none"))
+        defines.append(("VARIANT_" + variant.upper().replace("-", "_"), 1))
+    loop = loop_of(slug, cfg)
+    if t is None:
+        t = cfg.get("poster", 20)
+    frag = native_frag(read(os.path.join(source_dir(slug), "shader.glsl")), "still-main.glsl", defines)
+    if "</script" in frag.lower():
+        raise Problem("%s/shader.glsl contains the text </script, which cannot go inside a page" % slug)
+    page = fill(runtime("still.html"), {
+        "POLICY": POLICY, "TITLE": htmllib.escape(cfg.get("title") or slug), "W": w, "H": h, "TILE": STILL_TILE,
+        "PHASE": repr((float(t) % loop) / loop), "FRAG": "\x00FRAG\x00",
+        "MIME": "image/png" if as_png else "image/jpeg", "QUALITY": repr(quality / 100.0),
+    }).replace("\x00FRAG\x00", frag)
+    with tempfile.TemporaryDirectory(prefix="scenekit-still-") as tmp:
+        src = os.path.join(tmp, "still.html")
+        write(src, page)
+        done = chrome(binary, src, "", ["--dump-dom"], timeout=600, size=(800, 600))
+        dom = done.stdout
+        err = re.search(rb'<html[^>]*\bdata-still-error="([^"]*)"', dom)
+        if err:
+            raise Problem("%s could not be drawn as a still. Chrome said:\n      %s"
+                          % (slug, htmllib.unescape(err.group(1).decode("utf-8", "replace")).replace("\n", "\n      ")))
+        got = re.search(rb'<html[^>]*\bdata-still="data:image/(?:png|jpeg);base64,([A-Za-z0-9+/=]+)"', dom)
+        if not got:
+            raise Problem("Chrome did not hand back a picture:\n" + done.stderr.decode("utf-8", "replace")[-600:])
+        data = base64.b64decode(got.group(1))
+        if picture_size(data) != (w, h):
+            raise Problem("the picture came back as %s instead of %dx%d" % (picture_size(data), w, h))
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "wb") as f:
+            f.write(data)
+        try:
+            average, _ = colours_from(out)
+        except (ValueError, subprocess.CalledProcessError, OSError):
+            average = None                              # no `sips` here, or it could not read the picture
+    return average
+
+
+def cmd_still(args):
+    binary = need_chrome(args.chrome, "the still cannot be drawn")
+    size = parse_size(args.size)
+    average = render_still(binary, args.slug, args.out, size, t=args.t, variant=args.variant, ss=args.ss,
+                           quality=args.quality, dither=args.dither)
+    nbytes = os.path.getsize(args.out)
+    say("%-14s still %dx%d%s  %d bytes  colour %s  %s" % (args.slug, size[0], size[1], " (%s)" % args.variant if args.variant else "",
+                                                           nbytes, average or "unknown", os.path.abspath(args.out)))
+    if nbytes > STILL_MAX_BYTES:
+        say("    warning: larger than %.1f MB; lower --quality, or check the picture for noise" % (STILL_MAX_BYTES / 1e6))
+
+
+def load_stills():
+    path = os.path.join(STILLS, "stills.json")
+    if not os.path.isfile(path):
+        raise Problem("there is no list of stills at %s" % path)
+    try:
+        doc = json.loads(read(path))
+    except ValueError as e:
+        raise Problem("%s is not valid JSON: %s" % (path, e))
+    if not isinstance(doc, dict) or not isinstance(doc.get("stills"), list):
+        raise Problem('%s must be an object with a "stills" list' % path)
+    return path, doc
+
+
+def cmd_stills(args):
+    """Draw the stills listed in stills/stills.json: each entry names its file, its size
+    and, under "render", the scene, the moment and the variant it is drawn from."""
+    path, doc = load_stills()
+    binary = need_chrome(args.chrome, "the stills cannot be drawn")
+    wanted, done, changed = set(args.name), set(), False
+    for entry in doc["stills"]:
+        name = entry.get("file") or ""
+        stem = os.path.splitext(name)[0]
+        if wanted and stem not in wanted and name not in wanted:
+            continue
+        done.update((stem, name))
+        recipe = entry.get("render")
+        if not SLUG.match(stem) or not name.endswith(".jpg") or not isinstance(recipe, dict) or not recipe.get("scene"):
+            raise Problem('%s: every still needs a "file" like low-orbit-dawn.jpg and a "render" with a "scene"' % (name or "an entry"))
+        size = (int(entry.get("width") or 0), int(entry.get("height") or 0))
+        out = os.path.join(STILLS, name)
+        average = render_still(binary, recipe["scene"], out, size, t=recipe.get("t"), variant=recipe.get("variant") or None,
+                               ss=int(recipe.get("ss", 2)), quality=int(recipe.get("quality", 90)), dither=recipe.get("dither"))
+        nbytes = os.path.getsize(out)
+        say("%-22s %5dx%-5d %7.2f MB  colour %s" % (name, size[0], size[1], nbytes / 1e6, average or "unknown"))
+        if nbytes > STILL_MAX_BYTES:
+            say("    warning: larger than %.1f MB" % (STILL_MAX_BYTES / 1e6))
+        if average and (args.colors or not entry.get("color")) and entry.get("color") != average:
+            entry["color"], changed = average, True
+    missing = sorted(n for n in wanted if n not in done)
+    if missing:
+        raise Problem("stills.json has no still called %s" % ", ".join(missing))
+    if changed:
+        write(path, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+        say("stills.json updated (colours taken from the pictures)")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="scenekit.py", formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -732,6 +975,49 @@ restart is a slow dissolve rather than a jump. If it does repeat, give its perio
     p.add_argument("--t", type=float, metavar="SECONDS", help="the moment to freeze (default: the one remembered in scene.json)")
     p.add_argument("--chrome", metavar="PATH", help="the Chrome (or Chromium-based) binary to use")
     p.set_defaults(run=cmd_poster)
+
+    p = sub.add_parser("shot", help="capture a built scene at any moment and window size, into a file of your choosing",
+                       description="Open scenes/<slug>/scene.html in a headless local Chrome as a window of the given size, "
+                                   "frozen at one moment, and save what it shows. For looking at a scene through its loop "
+                                   "or on an unusual display (3840x1200 is two displays side by side). Nothing in scenes/ "
+                                   "is changed. Run `build` first if the source changed.")
+    p.add_argument("slug")
+    p.add_argument("--t", type=float, metavar="SECONDS", help="the moment to freeze (default: the poster's moment)")
+    p.add_argument("--size", default="%dx%d" % (POSTER_W, POSTER_H), metavar="WxH", help="window size in points (default %dx%d)" % (POSTER_W, POSTER_H))
+    p.add_argument("--out", required=True, metavar="FILE", help="where to write the picture (.png, or .jpg)")
+    p.add_argument("--chrome", metavar="PATH", help="the Chrome (or Chromium-based) binary to use")
+    p.set_defaults(run=cmd_shot)
+
+    p = sub.add_parser("still", help="draw a sharp still wallpaper from a first-party shader, at full size",
+                       formatter_class=argparse.RawDescriptionHelpFormatter,
+                       description="""Draw one frame of a first-party ("native") shader at the size asked for, not through
+the 1600 pixel buffer a live scene uses: every pixel of the picture is computed, as the
+average of --ss x --ss samples, and the usual dither keeps slow gradients from banding.
+The shader sees `#define SK_STILL 1`, so it may spend more work than it can afford live.
+
+--variant picks one of the colourways listed under "variants" in the scene's scene.json;
+the shader chooses its palette with `#if defined(VARIANT_NAME)`. Without it the still shows
+the live scene's own colours.""")
+    p.add_argument("slug")
+    p.add_argument("--t", type=float, metavar="SECONDS", help="the moment to draw: seconds into the loop, or since local midnight for a scene that follows the day (default: the poster's moment)")
+    p.add_argument("--size", default="5120x3200", metavar="WxH", help="size in pixels (default 5120x3200; 7680x2400 for a pair of displays)")
+    p.add_argument("--variant", metavar="NAME", help="a colourway from the scene's \"variants\"")
+    p.add_argument("--ss", type=int, default=2, metavar="N", help="supersampling: N x N samples a pixel (default 2)")
+    p.add_argument("--quality", type=int, default=90, metavar="Q", help="JPEG quality (default 90)")
+    p.add_argument("--dither", type=float, metavar="STEPS", help="dither strength in 8-bit steps (default: the scene's own)")
+    p.add_argument("--out", required=True, metavar="FILE", help="where to write the picture (.jpg, or .png for the exact pixels)")
+    p.add_argument("--chrome", metavar="PATH", help="the Chrome (or Chromium-based) binary to use")
+    p.set_defaults(run=cmd_still)
+
+    p = sub.add_parser("stills", help="draw the stills listed in stills/stills.json (all, or the ones named)",
+                       description="Redraw the still wallpapers that `walls seed` publishes. Each entry of "
+                                   "stills/stills.json names its file and size and, under \"render\", the scene, the moment "
+                                   "(t) and the variant it is drawn from. A still with no \"color\" gets the average "
+                                   "colour of its picture.")
+    p.add_argument("name", nargs="*", help="still to draw, by file name with or without .jpg; none means all")
+    p.add_argument("--colors", action="store_true", help="also replace colours already written in stills.json")
+    p.add_argument("--chrome", metavar="PATH", help="the Chrome (or Chromium-based) binary to use")
+    p.set_defaults(run=cmd_stills)
 
     args = parser.parse_args(argv)
     if not getattr(args, "run", None):
