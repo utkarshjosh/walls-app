@@ -2,6 +2,10 @@
 
 Decision, 2026-11-03: keep the collection experience simple and clean, with slight animation. Continue improving the UI through small, understandable changes. This document describes motion intent. The first local React prototype now uses Motion for dialogs and quiet status feedback.
 
+## Component reuse update — 2026-11-08
+
+Use the [component foundation](14-component-foundation.md) for current source selections and product direction. Imported components must follow this motion policy: library defaults such as animated grid reflow, spring overshoot, collapsing navigation labels and perpetual status pulses are not automatically accepted. Verify keyboard behavior, focus restoration and Reduced Motion in the integrated app. Preserve the current scheduling rules and local data while restyling. The earlier product-delivery order remains separate from the expanded Library / Discover / Rotation design target.
+
 ## Library and scope
 
 Use the free **Motion for React** package (`motion`, imported through `motion/react`) for transitions that need React lifecycle coordination. Simple hover/focus color changes can use CSS. Use one motion library, and pin its version when the frontend is created. No premium animation package is required. [Motion React documentation](https://motion.dev/docs/react), [official documentation index](https://motion.dev/llms.txt)

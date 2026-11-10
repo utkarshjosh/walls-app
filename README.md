@@ -1,8 +1,31 @@
-# Wallpaper Server
+# Still (working name) — wallpapers that change on their own
 
-A carefree wallpaper library: choose a few folders, connect your Mac, and let wallpapers change automatically. Browse and collect images while the app handles rotation, daily downloads, and offline playback. No ads or paid placement. Shared discovery and AI curation come later.
+A Mac app that keeps your desktop fresh: collect wallpapers, pick which collections take turns, and it rotates them for you. Connect a second display and it can stretch one wallpaper across both. It also plays live (animated) wallpapers. Target: a paid app on the Mac App Store.
 
-**Status:** the first local React prototype is implemented in [apps/web](apps/web/README.md). It supports collections, uploads, local persistence, previews, and rotation preferences. The Go server, Google sign-in, OCI integration, and native Mac client remain planned. The owner-created private bucket is untested.
+**Status, 2026-11-10:** a first working build exists in three parts.
+
+| Part | Where | State |
+| --- | --- | --- |
+| Interface (React, TypeScript) | [apps/web](apps/web/README.md) | Library, Discover and Rotation work; runs in the Mac app and as a browser preview |
+| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover; seeded with 30 original wallpapers and 5 live scenes; runs on local disk until bucket credentials are added |
+| Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar |
+
+What is deliberately **not** being built before launch, and what still blocks launch, is in [docs/15-first-launch-scope.md](docs/15-first-launch-scope.md). Read that before adding features.
+
+## Run it
+
+```bash
+# 1. Catalog server (Discover) on http://localhost:8787
+cd apps/api && go run ./cmd/walls seed && go run ./cmd/walls serve
+
+# 2a. Browser preview on http://localhost:5173
+cd apps/web && npm ci && npm run dev
+
+# 2b. Or the Mac app (starts the interface itself)
+cd apps/desktop && npm install && npm run dev
+```
+
+The documents below record how the plan got here. Where they disagree with the first-launch scope, the scope wins.
 
 ## Start here
 
@@ -11,13 +34,15 @@ A carefree wallpaper library: choose a few folders, connect your Mac, and let wa
 3. [Functional requirements](docs/03-functional-requirements.md) and [non-functional requirements](docs/04-non-functional-requirements.md).
 4. [Architecture](docs/05-architecture.md), [data model](docs/06-data-model.md), and [Oracle deployment and storage](docs/07-deployment-and-cost.md).
 5. [Implementation roadmap](docs/08-roadmap.md) and [decisions and open questions](docs/09-decisions-and-questions.md).
-6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md), [Collections design brief](docs/12-design-brief.md), and [motion/iteration guide](docs/13-motion-and-ui-iteration.md).
+6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md), [Collections design history](docs/12-design-brief.md), and [motion/iteration guide](docs/13-motion-and-ui-iteration.md).
+7. [Current component foundation](docs/14-component-foundation.md) and [component catalog](docs/design/component-catalog.json) — approved reuse approach, source links, design principles and integration checks.
+8. [First-launch scope](docs/15-first-launch-scope.md) — what ships first, the list of things not to build yet, and what blocks launch.
 
-## Product default
+## Earlier product default (planning history)
 
 Pick interests or starter folders → connect the Mac → hourly shuffle begins. One or more collections feed rotation directly; saved additions join automatically after sync. Regular controls are folders, Shuffle/In order, and three frequency presets. No separate playlist, calendar, or future queue to manage. See [future intelligence](specs/07-future-intelligence.md) for the deferred taste-learning and prompt-curation tracks.
 
-## Recommended design
+## Earlier recommended design (planning history)
 
 | Part | Proposal |
 | --- | --- |
@@ -31,7 +56,7 @@ Pick interests or starter folders → connect the Mac → hourly shuffle begins.
 
 The supplied **2 ARM cores / 12 GB RAM** describes one server. Two hosts are available: `oracle` has active applications; `agent-server-oci` is mostly empty and is the preferred initial deployment target for all core services. Exact inventory for each host remains to be checked.
 
-Google sign-in is selected; Firebase Auth versus Supabase Auth will be chosen during authentication integration. Start UI iteration with local sample state, not a custom identity system. Keep the combined compact Collections reference, with subtle Motion for React transitions and shared UI tokens.
+Google sign-in is selected; Firebase Auth versus Supabase Auth will be chosen during authentication integration. Start UI iteration with local sample state, not a custom identity system. Use the current component-first UI foundation, with shared tokens and subtle Motion for React transitions. The earlier collection-shelf mock is historical context; the latest component selections and minimal-information principles are recorded in the component foundation document.
 
 Users manage collections in the desktop app; a second management website is optional. Admin remains on the web. Direct Mac distribution avoids the App Store; a no-membership alpha has Gatekeeper friction, while Developer ID signing/notarization is the recommended later public release path. No paid membership is assumed for development.
 

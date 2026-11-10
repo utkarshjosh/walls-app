@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src * asset: http://asset.localhost blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live</title>
+<!--
+  Video player for live wallpapers. One window per display; each shows its own part
+  of one shared picture.
+
+  Everything comes from the URL fragment (sizes in CSS points):
+    #src=<url-encoded video URL>&cw=<canvas width>&ch=<canvas height>&vx=<window x in canvas>&vy=<window y in canvas>&paused=0|1
+  Defaults: cw=innerWidth, ch=innerHeight, vx=0, vy=0, paused=0.
+
+  The video is laid out to cover the whole cw x ch canvas, centred, and then shifted
+  by -vx,-vy. When a window shows only part of the canvas (a wallpaper spanning several
+  displays) playback position follows the wall clock, so the windows stay in step.
+
+  The page stays transparent: until a frame is ready, and if the video cannot be
+  loaded, whatever is behind the window shows through.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:transparent}
+video{position:fixed;top:0;left:0;display:block;max-width:none;object-fit:cover;object-position:50% 50%;
+  background:transparent;pointer-events:none;visibility:hidden}
+video.ready{visibility:visible}
+</style>
+</head>
+<body>
+<video id="v" muted loop autoplay playsinline webkit-playsinline disablepictureinpicture disableremoteplayback x-webkit-airplay="deny" preload="auto"></video>
+<script>
+(function () {
+  'use strict';
+  var v = document.getElementById('v');
+  var g = { src: '', cw: 1, ch: 1, vx: 0, vy: 0, paused: false };
+  var loaded = '', retryTimer = 0, retryMs = 0, syncTimer = 0, jump = true;
+
+  function readHash() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = kv[i].slice(j + 1);
+    }
+    var w = Math.max(1, window.innerWidth || 1), h = Math.max(1, window.innerHeight || 1);
+    var cw = parseFloat(o.cw), ch = parseFloat(o.ch), vx = parseFloat(o.vx), vy = parseFloat(o.vy);
+    g.cw = cw > 0 ? cw : w;
+    g.ch = ch > 0 ? ch : h;
+    g.vx = isFinite(vx) ? vx : 0;
+    g.vy = isFinite(vy) ? vy : 0;
+    g.paused = parseFloat(o.paused) === 1;
+    try { g.src = o.src ? decodeURIComponent(o.src) : ''; } catch (e) { g.src = ''; }
+    // Spanning: this window is only one part of the canvas.
+    g.span = g.vx !== 0 || g.vy !== 0 || g.cw > w + 1 || g.ch > h + 1;
+  }
+
+  // The element is the whole canvas; object-fit does the cover scaling inside it.
+  function layout() {
+    v.style.width = g.cw + 'px';
+    v.style.height = g.ch + 'px';
+    v.style.transform = 'translate(' + (-g.vx) + 'px,' + (-g.vy) + 'px)';
+  }
+
+  function load(again) {
+    if (!again && g.src === loaded) return;
+    loaded = g.src;
+    clearTimeout(retryTimer);
+    if (!again) retryMs = 0;
+    v.className = '';
+    jump = true;
+    v.autoplay = !g.paused && !document.hidden;
+    if (loaded) v.src = loaded; else v.removeAttribute('src');
+    v.load();
+  }
+
+  // Keep separate windows in step: steer toward the wall-clock position in the loop,
+  // by a speed change of at most 5% when close and by a jump when far off (or when `hard`).
+  // Returns false while the video is not ready to be steered.
+  function steer(hard) {
+    var d = v.duration;
+    if (!g.span) return true;
+    if (!(d > 0) || !isFinite(d) || v.seeking || v.readyState < 2) return false;
+    var want = (Date.now() / 1000) % d, err = want - v.currentTime;
+    if (err > d / 2) err -= d; else if (err < -d / 2) err += d;
+    var rate = 1;
+    if (hard || Math.abs(err) > 0.3) v.currentTime = want;
+    else if (Math.abs(err) > 0.008) rate = 1 + Math.max(-0.05, Math.min(0.05, err * 0.6));
+    if (Math.abs(rate - v.playbackRate) > 0.002) v.playbackRate = rate;
+    return true;
+  }
+
+  function sync() {
+    var run = !g.paused && !document.hidden && !!loaded;
+    clearInterval(syncTimer); syncTimer = 0;
+    if (run) {
+      if (jump) jump = !steer(true);               // starting or resuming: every window goes to the same place
+      var p = v.play();
+      if (p && p.catch) p.catch(function () {});
+      if (g.span) syncTimer = setInterval(function () { steer(false); }, 1000);
+    } else {
+      v.pause();
+      v.playbackRate = 1;
+      jump = true;
+    }
+  }
+
+  v.addEventListener('loadeddata', function () { v.className = 'ready'; retryMs = 0; sync(); });
+  // A failed load shows nothing. Try again later, backing off to once every five minutes.
+  v.addEventListener('error', function () {
+    v.className = '';
+    if (!loaded) return;
+    retryMs = Math.min(retryMs ? retryMs * 2 : 10000, 300000);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(function () { load(true); sync(); }, retryMs);
+  });
+
+  window.addEventListener('hashchange', function () { readHash(); layout(); load(); sync(); });
+  window.addEventListener('resize', function () { readHash(); layout(); });
+  document.addEventListener('visibilitychange', sync);
+
+  v.muted = true; v.defaultMuted = true;
+  readHash(); layout(); load(); sync();
+})();
+</script>
+</body>
+</html>

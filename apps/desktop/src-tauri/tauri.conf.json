@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Still",
+  "version": "0.1.0",
+  "identifier": "com.utkarshjoshi.still",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix ../web run dev",
+    "beforeBuildCommand": "npm --prefix ../web run build",
+    "frontendDist": "../../web/dist/client"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Still",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 880,
+        "minHeight": 600,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "dragDropEnabled": false,
+        "backgroundColor": "#151514",
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' asset: http://asset.localhost https: http://localhost:* data: blob:; media-src 'self' asset: http://asset.localhost https: http://localhost:* blob:; frame-src asset: http://asset.localhost https: http://localhost:*; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:*",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/library/**", "$APPCACHE/span/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    }
+  }
+}

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}}</title>
+<!--
+  {{TITLE}} - a live wallpaper scene. One self-contained file: no network, no assets.
+
+  Geometry comes from the URL fragment (all values in CSS points):
+    #cw=<canvas width>&ch=<canvas height>&vx=<window x in canvas>&vy=<window y in canvas>&paused=0|1
+  Defaults: cw=innerWidth, ch=innerHeight, vx=0, vy=0, paused=0.
+  Every window draws its own part of one shared picture, and animation time is taken
+  from the wall clock, so several windows line up in space and stay in step in time.
+
+  Optional, for capturing stills only: &t=<seconds> freezes the scene at that moment
+  of its {{LOOP}} second loop and draws a single frame. Absent, it changes nothing.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:{{BG}}}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
+body.still{background:{{FALLBACK}} no-repeat}
+body.still canvas{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script id="fs" type="x-shader/x-fragment">
+{{FRAG}}
+</script>
+<script>
+(function () {
+  'use strict';
+  var LOOP_MS = {{LOOP}} * 1000;    // every motion in the shader repeats exactly over this period
+  var MAX_SIDE = {{MAXSIDE}};          // longest side of the render buffer, in pixels (upscaled by CSS)
+  var FRAME_MS = 1000 / 30;       // 30 fps cap
+
+  var canvas = document.getElementById('c');
+  var gl = null, uC = null, uW = null, uT = null;
+  var raf = 0, last = 0, lost = false;
+  var g = { cw: 1, ch: 1, vx: 0, vy: 0, paused: false, t: null };
+
+  function winW() { return Math.max(1, window.innerWidth || 1); }
+  function winH() { return Math.max(1, window.innerHeight || 1); }
+
+  function readHash() {
+    var o = {}, kv = location.hash.slice(1).split('&'), i, j;
+    for (i = 0; i < kv.length; i++) {
+      j = kv[i].indexOf('=');
+      if (j > 0) o[kv[i].slice(0, j)] = parseFloat(kv[i].slice(j + 1));
+    }
+    g.cw = o.cw > 0 ? o.cw : winW();
+    g.ch = o.ch > 0 ? o.ch : winH();
+    g.vx = isFinite(o.vx) ? o.vx : 0;
+    g.vy = isFinite(o.vy) ? o.vy : 0;
+    g.paused = o.paused === 1;
+    g.t = isFinite(o.t) ? o.t : null;
+  }
+
+  function compile(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null;
+  }
+
+  function setup() {
+    var opts = { alpha: false, antialias: false, depth: false, stencil: false,
+                 premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+    try { gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts); }
+    catch (e) { gl = null; }
+    if (!gl) return false;
+    var vs = compile(gl.VERTEX_SHADER, 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}');
+    var fs = compile(gl.FRAGMENT_SHADER, document.getElementById('fs').textContent);
+    if (!vs || !fs) { gl = null; return false; }
+    var p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.bindAttribLocation(p, 0, 'a');
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { gl = null; return false; }
+    gl.useProgram(p);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    uC = gl.getUniformLocation(p, 'uC');
+    uW = gl.getUniformLocation(p, 'uW');
+    uT = gl.getUniformLocation(p, 'uT');
+    return true;
+  }
+
+  // No WebGL: show a still gradient in the scene's colours, placed by the same geometry.
+  function still() {
+    var b = document.body;
+    b.className = 'still';
+    b.style.backgroundSize = g.cw + 'px ' + g.ch + 'px';
+    b.style.backgroundPosition = (-g.vx) + 'px ' + (-g.vy) + 'px';
+  }
+
+  function fit() {
+    var w = winW(), h = winH(), dpr = window.devicePixelRatio || 1;
+    var s = Math.min(dpr, MAX_SIDE / Math.max(w, h));
+    var bw = Math.max(1, Math.round(w * s)), bh = Math.max(1, Math.round(h * s));
+    if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh; }
+    if (gl) gl.viewport(0, 0, bw, bh);
+  }
+
+  function draw() {
+    if (!gl || lost) return;
+    var ms = g.t !== null ? g.t * 1000 : Date.now();
+    gl.uniform4f(uC, g.cw, g.ch, g.vx, g.vy);
+    gl.uniform4f(uW, winW(), winH(), canvas.width, canvas.height);
+    gl.uniform1f(uT, ((ms % LOOP_MS) + LOOP_MS) % LOOP_MS / LOOP_MS);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  function tick(now) {
+    raf = requestAnimationFrame(tick);
+    if (now - last < FRAME_MS - 2) return;
+    last = now;
+    draw();
+  }
+
+  // Run the loop only while visible and not paused; otherwise leave exactly one still frame.
+  function sync() {
+    if (!gl) { still(); return; }
+    var run = !g.paused && g.t === null && !document.hidden && !lost;
+    if (run) {
+      if (!raf) raf = requestAnimationFrame(tick);
+    } else {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      if (!document.hidden) draw();
+    }
+  }
+
+  window.addEventListener('hashchange', function () { readHash(); sync(); });
+  window.addEventListener('resize', function () { readHash(); fit(); if (raf) draw(); sync(); });
+  document.addEventListener('visibilitychange', sync);
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault(); lost = true;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  });
+  canvas.addEventListener('webglcontextrestored', function () {
+    lost = false;
+    if (setup()) fit();
+    sync();
+  });
+
+  readHash();
+  if (setup()) fit();
+  sync();
+})();
+</script>
+</body>
+</html>

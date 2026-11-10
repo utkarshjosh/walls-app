@@ -24,6 +24,13 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-018 | Google sign-in; managed auth choice deferred | Firebase Auth or Supabase Auth at integration; avoid building a custom identity service |
 | ADR-019 | Start on `agent-server-oci` | Mostly empty host is preferred for API, DB, worker and web; `oracle` already runs applications |
 | ADR-020 | Motion for React with shared tokens | Restrained transitions, reduced-motion support, reusable components and documentation for human/LLM edits |
+| ADR-021 | Mac App Store, paid, is the launch channel | Owner decision 2026-11-10; supersedes ADR-016. Requires Apple Developer membership, full Xcode and a sandboxed build |
+| ADR-022 | No accounts, sign-in or library sync in v1; the library is local files | Supersedes ADR-018 and the server-compiled plans for launch. The App Store handles identity and payment; revisit after launch |
+| ADR-023 | The server is a read-only catalog for Discover: one Go binary, SQLite, object storage | Supersedes ADR-002 for launch. Move to PostgreSQL only when accounts arrive |
+| ADR-024 | Display modes (same / one across all / different on each) appear only with 2+ displays | Supersedes ADR-007. One display shows no display options at all |
+| ADR-025 | Live wallpapers ship as first-party animated scenes plus the user's own videos | Scenes are kilobytes and resolution-independent; catalog video hosting would exhaust the 8 GB bucket |
+| ADR-026 | The native core owns rotation; the interface only describes the plan | Rotation must run with the window closed; rules are mirrored and tested on both sides |
+| ADR-027 | A fresh install is paused and never changes the desktop until Start | Avoids surprising a new user and keeps App Store review simple |
 
 ## Confirm before deployment
 

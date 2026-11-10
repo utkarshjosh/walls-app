@@ -1,4 +1,12 @@
-# First desktop Collections design
+# Desktop Collections design history and current direction
+
+## Current direction — 2026-11-08
+
+The owner approved a **component-first approach**: reuse existing library components and review a small functioning Library slice, rather than continuing whole-screen image ideation. See the [component foundation](14-component-foundation.md) for the authoritative current design decisions, exact source links, selection statuses, integration caveats and rejected patterns.
+
+The broader product has Library, Discover and Rotation jobs. Keep routine status and rotation controls out of Library, avoid duplicated navigation, and reveal detail when it helps the current task. The current palette exploration is neutral dark with a nonblue accent; no final accent or generated image has been selected. The earlier light/green direction and mandatory three-concept workflow below describe the prior prototype and are retained as history, not current implementation requirements. Existing local behavior and backend integration limits still apply.
+
+## Earlier prototype brief — 2026-11-01 to 2026-11-04
 
 Brief established 2026-11-01; direction updated 2026-11-03. User-selected tone: **calm, light, image-first**, with simple clean layouts and subtle motion. The first local React prototype is implemented in apps/web; the native Mac app remains planned. Working product label: Wallpaper Server, with “Walls” used only as a short mockup label until branding is chosen.
 

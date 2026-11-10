@@ -1,17 +1,51 @@
-# Walls collection prototype
+# Still — the shared interface
 
-First local frontend slice, 2026-11-04. React, Vite, Motion, Radix Dialog, Inter, and IndexedDB. Based on the approved compact Collections mockup.
+The React interface for the wallpaper app. The same code runs in two places:
 
-Run `npm ci` then `npm run dev -- --host 0.0.0.0 --port 4173`. Build with `npm run build`; the retained packaging tests run with `npm run test:sites`.
+- inside the Mac app ([apps/desktop](../desktop)), where it changes the real desktop;
+- in a browser tab, as a **preview** — everything works, but "set as wallpaper" only updates the in-app preview, and the page says so.
 
-Implemented: collection shelves/detail, all-wallpaper search, image preview/download, new collection, multi-image JPEG/PNG upload with per-file validation (25 MiB / 60 MP), folder rotation toggles, order/frequency presets, pause preference, local backup export, subtle motion and reduced-motion support. Local data is stored in the browser's `walls-local` IndexedDB database. Browser storage limits and clearing site data affect retention; export is a manual backup, not cloud sync. Upload originals remain local and are not sanitized or sent to a server in this prototype.
+"Still" is a working name.
 
-Google sign-in, server authorization, OCI uploads, scheduling, native wallpaper changes, and the admin console are not implemented. Rotation controls save preferences; they do not change the Mac desktop yet. Local settings cannot be used as production authorization.
+## Run it
 
-The nine JPG wallpapers in `public/wallpapers` are generated illustrative content. They are not a scraped catalog or actual user photos. Assets were generated with the built-in Image Generation tool for the approved art direction: glider above clouds, aircraft wing at sunset, coastal flight, misty alpine valley, black-sand coast, layered dawn ridges, cream paper forms, limestone curves, and architectural shadows. See the root design brief for the reference image. Project code licensing remains pending the owner's selection; generated sample content does not grant rights in unrelated third-party images.
+```bash
+npm ci
+npm run dev
+```
 
-QA evidence and visual comparison are in `qa/` and `design-qa.md`. Keep the local preview open during iteration. Publishing and infrastructure work are separate delivery steps.
+Opens on http://localhost:5173 (the Mac app's development build loads this same address). Discover needs the catalog server from [apps/api](../api) on http://localhost:8787; set `VITE_API_URL` to point elsewhere. Without it, Discover shows an "unavailable" state and the rest of the app keeps working.
 
-Settings now shares rotation controls with Edit and shows the next-change timing preview, countdown, timezone, collection inclusion, pause, and a daily-at time. Interval previews align to the next local whole hour or three-hour clock boundary; daily previews follow browser-local wall time. The persisted dailyTime field are frontend-only until the server/native contract is extended. Run `npm test` for six timing tests, including DST and month boundaries.
+```bash
+npm test          # timing and ordering rules (19 tests)
+npm run typecheck
+npm run build     # type-check, bundle to dist/client, prepare the Sites worker output
+```
 
-Collection membership is managed on the main Collections screen. Settings/Edit show only a bounded count and Manage collections link, so dialog height does not grow with library size.
+## What is here
+
+| Section | Behaviour |
+| --- | --- |
+| Library | Collections with picture covers; open one to see its wallpapers; full-size viewer with previous/next; add JPEG/PNG/WebP (25 MB, 60 megapixels) or MP4/MOV/WebM (200 MB) by button or by dropping files on the window; each file reports its own result. Right-click or the ⋯ button for actions. |
+| Discover | Wallpapers and ready-made collections from the catalog server; Save / Saved; search; filters. "Live" lists animated wallpapers. A "For 2 displays" filter appears only when a second display is connected. |
+| Rotation | A to-scale picture of your displays showing what is on them; Previous / Pause / Next; which collections take part; how often; shuffle. A Displays section (same on each / one across all / different on each) appears only with two or more displays. A battery option appears only when a live wallpaper is in use. |
+
+A new install starts paused and never changes the desktop until Start is pressed.
+
+## How it is put together
+
+- `src/platform/` — the one boundary between interface and host. `types.ts` is the contract, `web.ts` the browser preview, `desktop.ts` the Mac app.
+- `src/state/` — the library: collections, wallpapers, settings. Saved locally (IndexedDB `walls-local`); data from the first prototype is migrated on load.
+- `src/lib/schedule.ts`, `src/lib/rotation.ts` — when the next change happens and which wallpaper comes next. The Mac app's Rust core follows the same rules.
+- `src/components/ui/` — buttons, dialogs, menus, select, switch on Radix primitives, styled from shared tokens in `src/styles.css`. See [NOTICE.md](src/components/ui/NOTICE.md) for component sources.
+- `public/live.html` — the page that plays a video as a live wallpaper.
+
+## Preview tools
+
+In the browser only, the top bar has a **Preview tools** menu: pretend one, two or three displays are attached (to see the multi-display features appear), and switch between the three accent proposals (champagne, sage, clay). It is never shown in the Mac app.
+
+## Sample images
+
+The nine JPEGs in `public/wallpapers` are generated illustrative images from the first prototype, shown as starter collections. They are not a licensed catalog.
+
+`.openai/hosting.json`, `worker/`, `scripts/prepare-sites-build.mjs` and `tests/sites-worker.test.mjs` package the preview for static hosting and are kept as they were.

@@ -1,0 +1,50 @@
+[package]
+name = "still"
+version = "0.1.0"
+description = "Still, a wallpaper app for macOS"
+edition = "2021"
+publish = false
+
+[lib]
+name = "still_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "still"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+chrono-tz = "0.10"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSDictionary", "NSEnumerator", "NSString", "NSValue", "NSURL", "NSError", "NSGeometry", "NSNotification", "NSOperation", "NSObject", "block2"] }
+objc2-app-kit = { version = "0.3", features = ["NSScreen", "NSWorkspace", "NSWindow", "NSResponder", "NSGraphics", "NSCell", "NSApplication", "objc2-core-foundation"] }
+
+# Decoding and resizing pictures (spanning one image across displays) is
+# painfully slow unoptimised; keep debug builds usable.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.image-webp]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3

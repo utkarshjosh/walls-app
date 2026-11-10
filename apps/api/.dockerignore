@@ -1,0 +1,6 @@
+# Keep runtime output and secrets out of the image.
+data/
+.env
+.env.*
+!.env.example
+*.log

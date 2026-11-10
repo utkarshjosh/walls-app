@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged by Tauri into the app bundle's Info.plist. -->
+<plist version="1.0">
+<dict>
+  <!-- Required by the Mac App Store. Change it if another category fits better. -->
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+</dict>
+</plist>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for a sandboxed Mac App Store build. Not used by `tauri dev` or a
+  plain `tauri build`; tauri.appstore.conf.json points at this file.
+  See "Mac App Store" in ../README.md before shipping with it.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <!-- Catalog requests from the UI and wallpaper downloads by the native side. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <!--
+    Probably also needed, not enabled yet: the Import dialog uses an
+    <input type="file">, and a sandboxed app can only show the system file
+    picker with this entitlement. Untested; see the README.
+  <key>com.apple.security.files.user-selected.read-only</key>
+  <true/>
+  -->
+  <!--
+    App Store and TestFlight uploads additionally need these two, with your own
+    Team ID in place of TEAMID:
+  <key>com.apple.application-identifier</key>
+  <string>TEAMID.com.utkarshjoshi.still</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>TEAMID</string>
+  -->
+</dict>
+</plist>

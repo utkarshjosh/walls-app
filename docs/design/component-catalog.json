@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-11-08",
+  "approach": "component-first",
+  "foundation": {
+    "library": "Shadcn Space",
+    "primitivePreference": "Radix UI"
+  },
+  "implementationStatus": "research-only; no component source installed or vendored",
+  "designNotes": "../14-component-foundation.md",
+  "palette": {
+    "finalSelection": null,
+    "direction": "neutral dark; restrained nonblue accent",
+    "proposedAccents": {
+      "champagne": "#CBB895",
+      "sage": "#A8B59A",
+      "clay": "#C6937A"
+    }
+  },
+  "components": [
+    {
+      "id": "primary-navigation",
+      "library": "Shadcn Space",
+      "component": "Tabs 05 - Underline",
+      "url": "https://shadcnspace.com/components/tabs",
+      "status": "recommended",
+      "access": "free-listed",
+      "observedRegistryItem": "@shadcn-space/tabs-05",
+      "registryNote": "Observed default is Base UI; verify exact Radix identifier during setup.",
+      "checks": [
+        "keep all navigation labels visible",
+        "restore tab-panel semantics or use route links",
+        "honor reduced motion",
+        "preserve state across destinations"
+      ]
+    },
+    {
+      "id": "gallery",
+      "library": "Space UI",
+      "component": "Adaptive Density Grid",
+      "url": "https://www.spaceui.one/components/adaptive-density-grid",
+      "status": "trial-required",
+      "access": "MIT per component page",
+      "observedRegistryItem": "@spaceui/components-spaceui-adaptive-density-grid",
+      "checks": [
+        "trial with local images; remote demo images failed to load",
+        "hide density controls initially",
+        "disable reflow and stagger animation",
+        "adapt Next.js-specific demo image rendering for Vite",
+        "measure large-library performance; content-visibility is not virtualization"
+      ]
+    },
+    {
+      "id": "image-preview",
+      "library": "Planes",
+      "component": "Photo Lightbox",
+      "url": "https://useplanes.com/components/photo-lightbox",
+      "status": "optional-paid",
+      "access": "Planes Pro",
+      "observedRegistryItem": "@useplanes/photo-lightbox",
+      "checks": [
+        "requires valid Pro license",
+        "verify Escape, focus restoration and reduced motion",
+        "keep existing Radix preview until adoption is decided"
+      ]
+    },
+    {
+      "id": "import",
+      "library": "Shadcn Space",
+      "component": "File Upload 01",
+      "url": "https://shadcnspace.com/components/file-upload",
+      "status": "recommended",
+      "access": "free-listed",
+      "checks": [
+        "connect existing local import and validation",
+        "restrict to supported image types",
+        "preserve per-file retry/error and persistence behavior"
+      ]
+    },
+    {
+      "id": "item-actions",
+      "library": "Shadcn Space",
+      "component": "Classic Context Menu",
+      "url": "https://shadcnspace.com/components/context-menu",
+      "status": "recommended",
+      "access": "free-listed",
+      "checks": [
+        "use conventional list, not radial bubble variant",
+        "also expose a discoverable keyboard-accessible action menu"
+      ]
+    },
+    {
+      "id": "rotation-interval",
+      "library": "Shadcn Space",
+      "component": "Select 01",
+      "url": "https://shadcnspace.com/components/select",
+      "status": "recommended",
+      "access": "free-listed",
+      "checks": [
+        "preserve existing timing rules",
+        "custom interval requires explicit validated input and scheduling integration"
+      ]
+    },
+    {
+      "id": "shuffle",
+      "library": "Shadcn Space",
+      "component": "Switch 05 - With label",
+      "url": "https://shadcnspace.com/components/switch",
+      "status": "recommended",
+      "access": "free-listed",
+      "checks": [
+        "visible Shuffle label",
+        "controlled state and keyboard operation"
+      ]
+    },
+    {
+      "id": "short-forms",
+      "library": "Shadcn Space",
+      "component": "Dialog",
+      "url": "https://shadcnspace.com/components/dialog",
+      "status": "recommended",
+      "access": "free-listed variants",
+      "checks": [
+        "use Radix-compatible primitive",
+        "retain focus trapping/restoration",
+        "keep collection checklists out of expanding settings modals"
+      ]
+    },
+    {
+      "id": "actionable-status",
+      "library": "Space UI",
+      "component": "Status Badge",
+      "url": "https://www.spaceui.one/components/status-badge",
+      "status": "optional",
+      "access": "MIT per component page",
+      "observedRegistryItem": "@spaceui/components-spaceui-status-badge",
+      "checks": [
+        "animated=false",
+        "show only relevant errors or detail-level status",
+        "no persistent success badge in Library"
+      ]
+    }
+  ],
+  "deferredPatterns": [
+    {
+      "component": "Planes Reaction Arc",
+      "url": "https://useplanes.com/components/reaction-arc",
+      "reason": "Unnecessary motion for the first Save/Saved flow; Pro license required."
+    },
+    {
+      "component": "Componentry Collection Surfer",
+      "url": "https://componentry.dev/docs/components/collection-surfer",
+      "reason": "Perspective scrolling showcase rather than practical library browsing."
+    },
+    {
+      "component": "Skecher Apple Mail Tabs",
+      "url": "https://skecher-ui.com/docs/apple-mail-tabs",
+      "reason": "Inactive navigation labels collapse; avoid for primary destinations."
+    }
+  ]
+}
