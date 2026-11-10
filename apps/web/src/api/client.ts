@@ -18,6 +18,18 @@ export interface CatalogItem {
   color: string;
   createdAt: string;
   files: { thumb: string; preview: string; original: string; poster: string | null };
+  /**
+   * Scenes only: "canvas" is one picture across displays, "per-display" is a
+   * scene drawn whole in every window (a clock). Null for pictures and videos.
+   */
+  layout?: "canvas" | "per-display" | null;
+}
+
+/** Whether a catalog scene draws itself whole on each display rather than across them. */
+export function isPerDisplay(item: Pick<CatalogItem, "kind" | "layout" | "tags">): boolean {
+  if (item.kind !== "scene") return false;
+  // Older catalog data has no layout; a clock is the one kind we know is per-display.
+  return item.layout ? item.layout === "per-display" : item.tags.includes("clock");
 }
 
 export interface CatalogCategory {
@@ -94,6 +106,9 @@ export const catalog = {
       signal,
     );
   },
+
+  wallpaper: (id: string, signal?: AbortSignal) =>
+    get<CatalogItem>(`/v1/wallpapers/${encodeURIComponent(id)}`, signal),
 
   packs: (signal?: AbortSignal) =>
     get<{ packs: CatalogPack[] }>("/v1/packs", signal).then((r) => r.packs),

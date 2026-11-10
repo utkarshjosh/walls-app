@@ -137,7 +137,11 @@ export function LibraryPage({
                 label: "Across all displays",
                 // Only pictures with the pixels for it are stretched across displays.
                 disabled: !canSpan(wallpaper, displays),
-                hint: canSpan(wallpaper, displays) ? undefined : "Too small",
+                hint: canSpan(wallpaper, displays)
+                  ? undefined
+                  : wallpaper.perDisplay
+                    ? "Whole on each"
+                    : "Too small",
                 onSelect: () => setWallpaper(wallpaper, { mode: "span" }),
               },
               { type: "separator" },

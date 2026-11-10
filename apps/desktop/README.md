@@ -151,6 +151,10 @@ everywhere; failing that it makes one automatic change; failing that it leaves
 every display as it is (the status then lists displays one by one, even in
 "same" or "span" mode). A wallpaper already on a display stays there.
 
+A scene marked `perDisplay` (a clock) draws itself whole in every window, so it
+is never one picture across displays: in span mode, or when spanning is asked
+for by hand, it is laid out and recorded as "same", poster included.
+
 ## Scenes are checked when they arrive
 
 A scene is an `.html` file, which means running code, so it is contained in

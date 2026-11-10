@@ -54,7 +54,11 @@ type Item struct {
 	OriginalType string // content type of the original
 	HasPoster    bool
 	Origin       string // "seed", "scene" or "ingest": who put it here
-	CreatedAt    time.Time
+	// Layout says how a live scene behaves when the wallpaper covers several
+	// displays: "canvas" (one picture across them) or "per-display" (drawn
+	// whole on each). Empty for images and videos.
+	Layout    string
+	CreatedAt time.Time
 }
 
 // Category is a slug with its display name and how many items use it.
@@ -170,6 +174,12 @@ var migrations = []string{
 		position INTEGER NOT NULL,
 		PRIMARY KEY (pack_id, item_id)
 	);`,
+
+	// Scenes say how they lay out across displays. Scenes loaded before this
+	// existed all drew one continuous picture, so they start as "canvas"
+	// until the next seed reads their meta.json.
+	`ALTER TABLE items ADD COLUMN layout TEXT;
+	UPDATE items SET layout = 'canvas' WHERE kind = 'scene';`,
 }
 
 func (db *DB) migrate(ctx context.Context) error {
@@ -263,9 +273,12 @@ func (db *DB) UpsertItem(ctx context.Context, it Item) error {
 	if it.CreatedAt.IsZero() {
 		it.CreatedAt = time.Now()
 	}
-	var source any
+	var source, layout any
 	if it.SourceURL != "" {
 		source = it.SourceURL
+	}
+	if it.Layout != "" {
+		layout = it.Layout
 	}
 
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -280,18 +293,19 @@ func (db *DB) UpsertItem(ctx context.Context, it Item) error {
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO items
 		(id, title, kind, width, height, bytes, stored_bytes, category, tags, author, license,
-		 source_url, color, rank, original_ext, original_type, has_poster, origin, search, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		 source_url, color, rank, original_ext, original_type, has_poster, origin, search, created_at, layout)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 		 title=excluded.title, kind=excluded.kind, width=excluded.width, height=excluded.height,
 		 bytes=excluded.bytes, stored_bytes=excluded.stored_bytes, category=excluded.category,
 		 tags=excluded.tags, author=excluded.author, license=excluded.license,
 		 source_url=excluded.source_url, color=excluded.color, rank=excluded.rank,
 		 original_ext=excluded.original_ext, original_type=excluded.original_type,
-		 has_poster=excluded.has_poster, origin=excluded.origin, search=excluded.search`,
+		 has_poster=excluded.has_poster, origin=excluded.origin, search=excluded.search,
+		 layout=excluded.layout`,
 		it.ID, it.Title, it.Kind, it.Width, it.Height, it.Bytes, it.StoredBytes, it.Category, string(tags),
 		it.Author, it.License, source, it.Color, it.Rank, it.OriginalExt, it.OriginalType, it.HasPoster,
-		it.Origin, searchText(it), it.CreatedAt.UTC().Truncate(time.Second).Format(time.RFC3339))
+		it.Origin, searchText(it), it.CreatedAt.UTC().Truncate(time.Second).Format(time.RFC3339), layout)
 	if err != nil {
 		return fmt.Errorf("catalog: save %s: %w", it.ID, err)
 	}
@@ -299,21 +313,21 @@ func (db *DB) UpsertItem(ctx context.Context, it Item) error {
 }
 
 const itemCols = `id, title, kind, width, height, bytes, stored_bytes, category, tags, author, license,
-	source_url, color, rank, original_ext, original_type, has_poster, origin, created_at`
+	source_url, color, rank, original_ext, original_type, has_poster, origin, created_at, layout`
 
 type scanner interface{ Scan(dest ...any) error }
 
 func scanItem(s scanner) (Item, error) {
 	var it Item
 	var tags, created string
-	var source sql.NullString
+	var source, layout sql.NullString
 	err := s.Scan(&it.ID, &it.Title, &it.Kind, &it.Width, &it.Height, &it.Bytes, &it.StoredBytes, &it.Category,
 		&tags, &it.Author, &it.License, &source, &it.Color, &it.Rank, &it.OriginalExt, &it.OriginalType,
-		&it.HasPoster, &it.Origin, &created)
+		&it.HasPoster, &it.Origin, &created, &layout)
 	if err != nil {
 		return it, err
 	}
-	it.SourceURL = source.String
+	it.SourceURL, it.Layout = source.String, layout.String
 	if err := json.Unmarshal([]byte(tags), &it.Tags); err != nil || it.Tags == nil {
 		it.Tags = []string{}
 	}

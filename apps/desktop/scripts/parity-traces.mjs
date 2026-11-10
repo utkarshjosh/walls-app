@@ -70,6 +70,9 @@ const sizes = [0, 640, 941, 1080, 1280, 1672, 1920, 2400, 2560, 2880, 3840, 5120
 for (let n = 0; n < 3000; n++) {
   const r = seeded(50000 + n);
   const item = { kind: pick(r, ["image", "image", "video", "scene"]), width: pick(r, sizes), height: pick(r, sizes) };
+  // A scene that draws itself whole on each display; the key is left out
+  // otherwise, as it is in real data.
+  if (r() < 0.25) item.perDisplay = r() < 0.8;
   const displays = Array.from({ length: Math.floor(r() * 4) }, () => ({
     x: Math.floor(r() * 6000) - 3000,
     y: Math.floor(r() * 3000) - 1500,

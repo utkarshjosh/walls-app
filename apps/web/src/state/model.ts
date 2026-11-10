@@ -23,6 +23,12 @@ export interface Wallpaper {
   sourceUrl?: string | null;
   /** Catalog tags. "clock" marks a scene that tells the time. */
   tags?: string[];
+  /**
+   * A scene drawn whole in every window rather than as one picture across
+   * displays. Undefined on scenes saved before this was recorded; those are
+   * looked up in the catalog once.
+   */
+  perDisplay?: boolean;
   /** Catalog id when saved from Discover; lets Discover show "Saved". */
   remoteId?: string;
   addedAt: number;

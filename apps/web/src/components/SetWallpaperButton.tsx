@@ -101,7 +101,13 @@ export function SetWallpaperButton({
           >
             <ModeGlyph mode="span" className="text-fg-muted" />
             Across all displays
-            {!spannable && tooSmall}
+            {!spannable &&
+              (item.perDisplay ? (
+                // A clock is drawn whole on every display; there is nothing to stretch.
+                <span className="ml-auto pl-4 text-xs text-fg-muted">Whole on each</span>
+              ) : (
+                tooSmall
+              ))}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Only on</DropdownMenuLabel>

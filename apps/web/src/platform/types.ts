@@ -59,6 +59,12 @@ export interface PlayItem {
   width: number;
   height: number;
   /**
+   * True for a scene that draws itself whole in every window (a clock).
+   * It is never laid out as one picture across displays: a "span" request or
+   * span mode shows it complete on each display. Absent means false.
+   */
+  perDisplay?: boolean;
+  /**
    * StoredFile.path of a still image. For video/scene wallpapers the host also
    * sets this as the ordinary desktop picture, so the lock screen and Mission
    * Control show a matching still. Absent for plain images.

@@ -5,6 +5,7 @@ import {
   CatalogError,
   catalog,
   fileUrl,
+  isPerDisplay,
   type CatalogCategory,
   type CatalogItem,
   type CatalogPack,
@@ -403,7 +404,7 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
               <SetWallpaperButton
                 size="lg"
                 busy={setting}
-                item={item}
+                item={{ ...item, perDisplay: isPerDisplay(item) }}
                 picture={{ src: fileUrl(item.files.thumb), color: item.color }}
                 // Setting a wallpaper keeps it: it is saved to the library first.
                 onSet={(target) => setWallpaper(() => library.saveItem(item), target)}

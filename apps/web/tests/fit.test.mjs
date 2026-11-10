@@ -112,3 +112,15 @@ test("the rotation summary counts each outcome", () => {
   // With a different wallpaper per display the sample is usable on the monitor.
   assert.deepEqual(rotationUse(library, desk, "each"), { spanned: 0, shown: 6, skipped: 1 });
 });
+
+test("a scene that draws itself whole on each display is never stretched", () => {
+  const clock = { kind: "scene", width: 1920, height: 1200, perDisplay: true };
+  assert.ok(fitsEvery(clock, desk));
+  assert.ok(!canSpan(clock, desk));
+  // Asking for "one across all" shows it complete on each display instead.
+  assert.equal(placementFor(clock, desk, "span"), "same");
+  assert.equal(placementFor(clock, desk, "same"), "same");
+  assert.deepEqual(rotationUse([clock, panorama], desk, "span"), { spanned: 1, shown: 1, skipped: 0 });
+  // An ordinary scene still spans.
+  assert.ok(canSpan({ kind: "scene", width: 1920, height: 1200, perDisplay: false }, desk));
+});

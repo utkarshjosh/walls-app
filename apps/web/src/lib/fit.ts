@@ -16,6 +16,12 @@ export interface FitItem {
   /** Pixels of the original. 0 (or less) means unknown. */
   width: number;
   height: number;
+  /**
+   * A scene that draws itself whole in every window (a clock) instead of
+   * being one picture across displays. It is never stretched: asking for
+   * "one across all" shows it complete on each display.
+   */
+  perDisplay?: boolean;
 }
 
 export interface FitDisplay {
@@ -83,7 +89,7 @@ export function fitsAny(item: FitItem, displays: readonly FitDisplay[]): boolean
 
 /** Large enough to be stretched across all displays as one picture. Needs at least two displays. */
 export function canSpan(item: FitItem, displays: readonly FitDisplay[]): boolean {
-  if (displays.length < 2) return false;
+  if (displays.length < 2 || item.perDisplay) return false;
   return alwaysFits(item) || enlargementSpanned(item, displays) <= limitFor(item.kind);
 }
 

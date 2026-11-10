@@ -38,11 +38,20 @@ const (
 	maxMetaBytes = 64 << 10
 )
 
+// The two ways a scene can lay itself out when a wallpaper covers more than
+// one display. The scene's meta.json must say which it is, because the app
+// cannot tell from outside and has to draw its previews the same way.
+const (
+	LayoutCanvas     = "canvas"      // one picture continuing across the displays
+	LayoutPerDisplay = "per-display" // the whole scene drawn in every window (a clock, say)
+)
+
 // Meta is a scene's meta.json after checking.
 type Meta struct {
 	Title     string
 	Author    string
 	License   string
+	Layout    string   // LayoutCanvas or LayoutPerDisplay
 	SourceURL string   // "" when the scene has no source link
 	Tags      []string // lowercase; never nil
 	Color     string   // "#rrggbb" in lowercase, or "" if not given
@@ -161,8 +170,9 @@ func CheckPoster(data []byte) (image.Image, []Problem) {
 
 var colourRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
-// CheckMeta checks a meta.json: it must say which standard it follows and
-// who made the scene under what licence. Attribution is never guessed.
+// CheckMeta checks a meta.json: it must say which standard it follows, who
+// made the scene under what licence, and how the scene lays itself out across
+// displays. Attribution is never guessed.
 func CheckMeta(data []byte) (Meta, []Problem) {
 	var problems []Problem
 	fail := func(format string, args ...any) {
@@ -199,6 +209,13 @@ func CheckMeta(data []byte) (Meta, []Problem) {
 	meta.Title = text("title")
 	meta.Author = text("author")
 	meta.License = text("license")
+
+	if raw, ok := fields["layout"]; !ok || string(raw) == "null" {
+		fail(`has no "layout"; it must be %q (one picture across displays) or %q (drawn whole on each display)`, LayoutCanvas, LayoutPerDisplay)
+	} else if json.Unmarshal(raw, &meta.Layout) != nil || (meta.Layout != LayoutCanvas && meta.Layout != LayoutPerDisplay) {
+		fail(`"layout" must be %q (one picture across displays) or %q (drawn whole on each display), not %s`, LayoutCanvas, LayoutPerDisplay, raw)
+		meta.Layout = ""
+	}
 
 	if raw, ok := fields["sourceUrl"]; ok && string(raw) != "null" {
 		var s string

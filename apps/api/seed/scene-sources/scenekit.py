@@ -235,6 +235,10 @@ def meta_of(cfg):
         "author": cfg.get("author") or "",
         "license": cfg.get("license") or "",
         "sourceUrl": cfg.get("sourceUrl") or None,
+        # How the app lays the scene out: one picture across displays, or the
+        # whole scene drawn in every window (a clock). The app never stretches
+        # a per-display scene, and its preview draws it whole on each display.
+        "layout": "per-display" if cfg.get("kind") == "dom" else "canvas",
     }
 
 

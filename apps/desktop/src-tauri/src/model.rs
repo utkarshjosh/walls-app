@@ -58,6 +58,11 @@ pub struct PlayItem {
     pub width: f64,
     #[serde(default, deserialize_with = "number_or_zero")]
     pub height: f64,
+    /// True for a scene that draws itself whole in every window (a clock).
+    /// It is never laid out as one picture across displays: a "span" request
+    /// or span mode shows it complete on each display. Absent means false.
+    #[serde(default, deserialize_with = "flag_or_false", skip_serializing_if = "std::ops::Not::not")]
+    pub per_display: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub poster_path: Option<String>,
 }
@@ -65,6 +70,11 @@ pub struct PlayItem {
 /// A missing or `null` size means "unknown", not a malformed item.
 fn number_or_zero<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f64, D::Error> {
     Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(0.0))
+}
+
+/// A missing or `null` flag means false.
+fn flag_or_false<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    Ok(Option::<bool>::deserialize(deserializer)?.unwrap_or(false))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +188,26 @@ mod tests {
         let written = serde_json::to_value(&item).unwrap();
         assert_eq!(written["width"], json!(3840.0));
         assert_eq!(written["height"], json!(2400.0));
+    }
+
+    #[test]
+    fn a_scene_can_be_marked_as_drawing_itself_whole_on_each_display() {
+        let clock: PlayItem = serde_json::from_value(json!({
+            "id": "clock", "kind": "scene", "path": "/lib/clock.html", "width": 1920, "height": 1200, "perDisplay": true
+        }))
+        .unwrap();
+        assert!(clock.per_display);
+        assert_eq!(serde_json::to_value(&clock).unwrap()["perDisplay"], json!(true));
+        // Absent or null means false, as in state saved before the flag existed.
+        for item in [
+            json!({ "id": "a", "kind": "scene", "path": "/lib/a.html" }),
+            json!({ "id": "a", "kind": "scene", "path": "/lib/a.html", "perDisplay": null }),
+            json!({ "id": "a", "kind": "scene", "path": "/lib/a.html", "perDisplay": false }),
+        ] {
+            let parsed: PlayItem = serde_json::from_value(item).unwrap();
+            assert!(!parsed.per_display);
+            assert!(serde_json::to_value(&parsed).unwrap().get("perDisplay").is_none(), "false is simply left out");
+        }
     }
 
     #[test]

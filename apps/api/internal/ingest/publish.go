@@ -74,6 +74,7 @@ type Asset struct {
 	Origin    string    // "seed", "scene" or "ingest"
 	CreatedAt time.Time // zero: now (only used the first time an item is added)
 	Color     string    // "#rrggbb" override; "" to compute from the thumbnail
+	Layout    string    // for scenes: "canvas" or "per-display"; "" otherwise
 	Grain     float64   // film grain for derivatives; see imaging.DeriveOptions
 }
 
@@ -175,7 +176,7 @@ func (p *Pipeline) Publish(ctx context.Context, a Asset) (Result, error) {
 		ID: id, Title: a.Meta.Title, Kind: a.Kind, Width: b.Dx(), Height: b.Dy(), Bytes: size,
 		Category: a.Meta.Category, Tags: a.Meta.Tags, Author: a.Meta.Author, License: a.Meta.License,
 		SourceURL: a.Meta.SourceURL, OriginalExt: a.Ext, OriginalType: a.ContentType,
-		HasPoster: hasPoster, Origin: a.Origin, CreatedAt: a.CreatedAt,
+		HasPoster: hasPoster, Origin: a.Origin, CreatedAt: a.CreatedAt, Layout: a.Layout,
 	}
 
 	uploaded := false
@@ -284,7 +285,7 @@ func makePoster(a Asset) ([]byte, int, int, error) {
 func sameDetails(a, b catalog.Item) bool {
 	return a.Title == b.Title && a.Kind == b.Kind && a.Category == b.Category && slices.Equal(a.Tags, b.Tags) &&
 		a.Author == b.Author && a.License == b.License && a.SourceURL == b.SourceURL && a.Color == b.Color &&
-		a.Rank == b.Rank && a.Origin == b.Origin && a.OriginalType == b.OriginalType &&
+		a.Rank == b.Rank && a.Origin == b.Origin && a.OriginalType == b.OriginalType && a.Layout == b.Layout &&
 		a.Width == b.Width && a.Height == b.Height && a.StoredBytes == b.StoredBytes
 }
 

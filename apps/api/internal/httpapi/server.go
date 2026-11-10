@@ -82,6 +82,7 @@ type itemJSON struct {
 	License   string    `json:"license"`
 	SourceURL *string   `json:"sourceUrl"`
 	Color     string    `json:"color"`
+	Layout    *string   `json:"layout"` // scenes: "canvas" or "per-display"; null for images and videos
 	CreatedAt string    `json:"createdAt"`
 	Files     filesJSON `json:"files"`
 }
@@ -143,6 +144,15 @@ func (s *Server) item(it catalog.Item) itemJSON {
 	if it.HasPoster {
 		p := s.fileURL(it.ID, "poster")
 		out.Files.Poster = &p
+	}
+	if it.Kind == catalog.KindScene {
+		// A scene always has a layout for the UI to act on. One stored
+		// without it draws one continuous picture, as every early scene did.
+		layout := it.Layout
+		if layout == "" {
+			layout = "canvas"
+		}
+		out.Layout = &layout
 	}
 	return out
 }

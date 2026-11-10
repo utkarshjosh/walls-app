@@ -25,6 +25,10 @@ pub struct FitItem {
     /// Pixels of the original. 0 (or less) means unknown.
     pub width: f64,
     pub height: f64,
+    /// A scene that draws itself whole in every window (a clock) instead of
+    /// being one picture across displays. It is never stretched: asking for
+    /// "one across all" shows it complete on each display.
+    pub per_display: bool,
 }
 
 /// What automatic rotation does with a wallpaper when every display shows the
@@ -99,7 +103,7 @@ pub fn fits_any(item: &FitItem, displays: &[DisplayInfo]) -> bool {
 
 /// Large enough to be stretched across all displays as one picture. Needs at least two displays.
 pub fn can_span(item: &FitItem, displays: &[DisplayInfo]) -> bool {
-    if displays.len() < 2 {
+    if displays.len() < 2 || item.per_display {
         return false;
     }
     always_fits(item) || enlargement_spanned(item, displays) <= limit_for(item.kind)
@@ -143,11 +147,15 @@ mod tests {
     }
 
     fn image(width: f64, height: f64) -> FitItem {
-        FitItem { kind: WallpaperKind::Image, width, height }
+        FitItem { kind: WallpaperKind::Image, width, height, per_display: false }
     }
 
     fn video(width: f64, height: f64) -> FitItem {
-        FitItem { kind: WallpaperKind::Video, width, height }
+        FitItem { kind: WallpaperKind::Video, width, height, per_display: false }
+    }
+
+    fn scene(width: f64, height: f64, per_display: bool) -> FitItem {
+        FitItem { kind: WallpaperKind::Scene, width, height, per_display }
     }
 
     fn four_k() -> FitItem {
@@ -251,7 +259,7 @@ mod tests {
     #[test]
     fn one_display_can_never_be_spanned() {
         assert!(!can_span(&panorama(), &[macbook()]));
-        assert!(!can_span(&FitItem { kind: WallpaperKind::Scene, width: 0.0, height: 0.0 }, &[macbook()]));
+        assert!(!can_span(&scene(0.0, 0.0, false), &[macbook()]));
     }
 
     #[test]
@@ -273,7 +281,7 @@ mod tests {
 
     #[test]
     fn scenes_and_pictures_of_unknown_size_always_pass() {
-        let scene = FitItem { kind: WallpaperKind::Scene, width: 1920.0, height: 1200.0 };
+        let scene = scene(1920.0, 1200.0, false);
         assert!(fits_every(&scene, &desk()));
         assert!(can_span(&scene, &desk()));
         assert_eq!(placement_for(&scene, &desk(), DisplayMode::Span), Placement::Span);
@@ -289,6 +297,19 @@ mod tests {
         assert_eq!(rotation_use(&library, &desk(), DisplayMode::Same), (0, 5, 2));
         // With a different wallpaper per display the sample is usable on the monitor.
         assert_eq!(rotation_use(&library, &desk(), DisplayMode::Each), (0, 6, 1));
+    }
+
+    #[test]
+    fn a_scene_that_draws_itself_whole_on_each_display_is_never_stretched() {
+        let clock = scene(1920.0, 1200.0, true);
+        assert!(fits_every(&clock, &desk()));
+        assert!(!can_span(&clock, &desk()));
+        // Asking for "one across all" shows it complete on each display instead.
+        assert_eq!(placement_for(&clock, &desk(), DisplayMode::Span), Placement::Same);
+        assert_eq!(placement_for(&clock, &desk(), DisplayMode::Same), Placement::Same);
+        assert_eq!(rotation_use(&[clock, panorama()], &desk(), DisplayMode::Span), (1, 1, 0));
+        // An ordinary scene still spans.
+        assert!(can_span(&scene(1920.0, 1200.0, false), &desk()));
     }
 
     // Not in the TypeScript file: the edges the port has to get right by hand.

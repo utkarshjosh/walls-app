@@ -12,7 +12,7 @@ import {
 import { cn, plural } from "@/lib/utils";
 import type { DisplayInfo, DisplayMode } from "@/platform/types";
 import { useLibrary } from "@/state/store";
-import { isLive, type Collection, type Wallpaper } from "@/state/model";
+import { isLive, playableRef, type Collection, type Wallpaper } from "@/state/model";
 import {
   DisplayPreview,
   ModeGlyph,
@@ -96,10 +96,19 @@ export function RotationPage({
   const empty = use.spanned + use.shown === 0;
   const displayLabel = multi ? "your displays" : (displays[0]?.name ?? "this display");
 
-  const pictureOf = (wallpaper: Wallpaper): PreviewPicture => ({
-    src: urlOf(wallpaper.kind === "image" ? wallpaper.full : (wallpaper.poster ?? wallpaper.thumb)),
-    color: wallpaper.color,
-  });
+  const pictureOf = (wallpaper: Wallpaper): PreviewPicture => {
+    // A scene runs in the stage itself, so the stage shows what the desktop shows.
+    const live = wallpaper.kind === "scene" ? urlOf(playableRef(wallpaper)) : undefined;
+    // A clock's still shows a frozen time; do not flash it under the running clock.
+    const frozen = live && wallpaper.tags?.includes("clock");
+    return {
+      src: frozen
+        ? undefined
+        : urlOf(wallpaper.kind === "image" ? wallpaper.full : (wallpaper.poster ?? wallpaper.thumb)),
+      color: wallpaper.color,
+      live,
+    };
+  };
 
   // Before anything has been shown, the stage previews what starting would put up.
   let layout: DisplayMode = "same";
@@ -502,7 +511,7 @@ function FitSummary({
   const parts: string[] = [];
   if (mode === "span" && (use.shown > 0 || use.skipped > 0)) {
     if (use.spanned) parts.push(`${use.spanned} stretch across`);
-    if (use.shown) parts.push(`${use.shown} too small to stretch, shown on each`);
+    if (use.shown) parts.push(`${use.shown} shown on each display instead`);
   }
   if (use.skipped) parts.push(`${use.skipped} skipped as too small for ${displayLabel}`);
   if (parts.length === 0) return null;

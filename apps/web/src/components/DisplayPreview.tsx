@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Laptop, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DisplayInfo, DisplayMode } from "@/platform/types";
+import { LiveFrame } from "./Picture";
 
 /** Left-to-right, then top-to-bottom: the order "different on each" assigns pictures in. */
 export function orderedDisplays(displays: readonly DisplayInfo[]): DisplayInfo[] {
@@ -28,6 +29,8 @@ export function DisplayIcon({
 export interface PreviewPicture {
   src: string | undefined;
   color?: string;
+  /** A scene's own file: when given, the scene runs in the display tile. */
+  live?: string;
 }
 
 /**
@@ -69,6 +72,7 @@ export function DisplayPreview({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState({ width: 0, height: 0 });
+  const reduceMotion = useReducedMotion();
 
   useLayoutEffect(() => {
     const element = box.current;
@@ -146,6 +150,22 @@ export function DisplayPreview({
                     />
                   )}
                 </AnimatePresence>
+
+                {/* A scene runs here exactly as it does on the desktop: given
+                    the same geometry, so a stretched scene lines up across the
+                    tiles and a per-display scene is whole in each. */}
+                {shown?.live && !reduceMotion && (
+                  <span key={shown.live} className="absolute inset-0 animate-fade-in">
+                    <LiveFrame
+                      kind="scene"
+                      src={
+                        spanning
+                          ? `${shown.live}#cw=${Math.round(width * scale)}&ch=${Math.round(height * scale)}&vx=${Math.round((display.x - minX) * scale)}&vy=${Math.round((display.y - minY) * scale)}`
+                          : shown.live
+                      }
+                    />
+                  </span>
+                )}
 
                 {labels && (
                   <span

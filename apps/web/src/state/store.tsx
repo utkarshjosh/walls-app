@@ -19,7 +19,7 @@ import type {
   RotationStatus,
   StoredFile,
 } from "@/platform/types";
-import { fileUrl, type CatalogItem, type CatalogPack } from "@/api/client";
+import { catalog, fileUrl, isPerDisplay, type CatalogItem, type CatalogPack } from "@/api/client";
 import { canSpan } from "@/lib/fit";
 import { prepareFile, thumbnailOf, titleFromFileName } from "@/lib/media";
 import { toSchedule } from "@/lib/schedule";
@@ -285,6 +285,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         path: full.path,
         width: wallpaper.width,
         height: wallpaper.height,
+        ...(wallpaper.perDisplay ? { perDisplay: true } : {}),
         ...(poster ? { posterPath: poster.path } : {}),
       };
     }
@@ -296,6 +297,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           path: url,
           width: wallpaper.width,
           height: wallpaper.height,
+          ...(wallpaper.perDisplay ? { perDisplay: true } : {}),
         }
       : null;
   }, []);
@@ -419,6 +421,37 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       probe.src = url;
     }
   }, [state.wallpapers, loaded, urlOf]);
+
+  // ── Scenes saved before their layout kind was recorded ──────────────────
+  // Whether a scene is one picture across displays or drawn whole on each
+  // decides how it is laid out and previewed, so older saves are looked up in
+  // the catalog once. If the catalog cannot say, nothing changes.
+  const lookedUp = useRef(new Set<string>());
+  useEffect(() => {
+    if (!loaded) return;
+    for (const wallpaper of Object.values(state.wallpapers)) {
+      if (wallpaper.kind !== "scene" || wallpaper.perDisplay !== undefined || !wallpaper.remoteId)
+        continue;
+      if (lookedUp.current.has(wallpaper.id)) continue;
+      lookedUp.current.add(wallpaper.id);
+      catalog
+        .wallpaper(wallpaper.remoteId)
+        .then((item) => {
+          setState((current) => {
+            const existing = current.wallpapers[wallpaper.id];
+            if (!existing || existing.perDisplay !== undefined) return current;
+            return {
+              ...current,
+              wallpapers: {
+                ...current.wallpapers,
+                [wallpaper.id]: { ...existing, tags: item.tags, perDisplay: isPerDisplay(item) },
+              },
+            };
+          });
+        })
+        .catch(() => {});
+    }
+  }, [state.wallpapers, loaded]);
 
   // ── Collections ─────────────────────────────────────────────────────────
   const createCollection = useCallback((name: string) => {
@@ -615,6 +648,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         license: item.license,
         sourceUrl: item.sourceUrl,
         tags: item.tags,
+        ...(item.kind === "scene" ? { perDisplay: isPerDisplay(item) } : {}),
         remoteId: item.id,
         addedAt: Date.now(),
       };

@@ -24,9 +24,12 @@ A folder named after the scene (lowercase, hyphens), holding exactly three files
   "color": "#1c2230",
   "author": "Still Originals",
   "license": "Still Original",
-  "sourceUrl": null
+  "sourceUrl": null,
+  "layout": "per-display"
 }
 ```
+
+`layout` says which of the two kinds of scene this is (rule 2): `"canvas"` for one picture across displays, `"per-display"` for a scene drawn whole in every window. The app relies on it: a per-display scene is never treated as stretched, and the app's own preview draws it complete on each display.
 
 A scene that tells the time carries the tag `clock`. Its poster shows a frozen time, so the app does not put that poster on the desktop underneath the running scene (where the lock screen or Mission Control would show the wrong time); it leaves the existing desktop picture alone instead.
 
@@ -58,7 +61,7 @@ Three addresses are allowed because they are names, not places a scene can reach
 
 All in points. The canvas is the whole surface the wallpaper covers: one display normally, the bounding box of all displays when one wallpaper is stretched across them. `vx`,`vy` is where this window sits inside the canvas. Defaults when absent: the window's own size, 0, 0, not paused. The scene reacts to `hashchange` and `resize`.
 
-A scene is one of two kinds, and says which by how it uses these numbers:
+A scene is one of two kinds, declared as `layout` in `meta.json` and honoured in how it uses these numbers:
 
 - **Canvas scenes** (skies, gradients, landscapes) draw the part of the canvas their window covers, so the picture is continuous across displays.
 - **Per-display scenes** (a clock, anything with a focal point that must not be cut by a bezel) ignore `cw`, `ch`, `vx`, `vy` and lay themselves out whole in their own window, so each display shows the complete scene.
@@ -103,7 +106,7 @@ Every scene, however it was made, then goes through the gate.
 `walls scene check <folder>` reads a scene folder and refuses it unless:
 
 1. the three files are present and within their size limits, and `poster.jpg` is a real 1920 x 1200 JPEG;
-2. `meta.json` is valid, with `standard: 1`, a title, an author and a licence;
+2. `meta.json` is valid, with `standard: 1`, a title, an author, a licence and a `layout`;
 3. the policy line is present, exact, in the position rule 1 requires, and is the only policy;
 4. none of the forbidden constructs in rule 1 appears anywhere in the file;
 5. the file reads `location.hash` and handles `paused` (so it can be laid out and frozen).

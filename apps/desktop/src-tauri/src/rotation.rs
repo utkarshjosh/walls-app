@@ -196,6 +196,19 @@ pub fn shape_for(mode: DisplayMode, displays: &[DisplayInfo]) -> (usize, Layout)
     }
 }
 
+/// What the size rules judge a wallpaper by: the size the UI sent, or failing
+/// that the size read from the file (`measured`), and whether it is a scene
+/// that draws itself whole on each display. Without either size it is
+/// "unknown", which passes.
+pub fn fit_item(item: &PlayItem, measured: Option<(u32, u32)>) -> FitItem {
+    let (width, height) = if item.width > 0.0 && item.height > 0.0 {
+        (item.width, item.height)
+    } else {
+        measured.map_or((0.0, 0.0), |(width, height)| (f64::from(width), f64::from(height)))
+    };
+    FitItem { kind: item.kind, width, height, per_display: item.per_display }
+}
+
 /// The layout for a one-wallpaper frame: stretched across the displays only
 /// when that is wanted and this wallpaper has the pixels for it; otherwise it
 /// is shown on each display. An unknown wallpaper is never stretched.
@@ -668,6 +681,19 @@ impl Worker {
         if mode_changed && engine::has_any(&self.saved.engine.current) {
             if let Err(error) = self.reshape(plan.display_mode) {
                 eprintln!("still: could not re-apply the wallpaper in the new display mode: {error}");
+            }
+        } else if self.saved.layout == Layout::Span {
+            // A scene that draws itself whole on each display is never one
+            // picture across displays. If it is recorded as one (saved before
+            // the plan said which scenes are like that), lay it out, and its
+            // poster underneath, per display, so the record matches the screen.
+            let frame = self.saved.engine.current.clone();
+            let whole_on_each = frame.iter().find(|id| !id.is_empty()).and_then(|id| self.item(id));
+            if whole_on_each.is_some_and(|item| item.per_display) {
+                match self.show_frame(&frame, &Layout::Same, Part::Everything) {
+                    Ok(()) => self.saved.layout = Layout::Same,
+                    Err(error) => eprintln!("still: could not lay the scene out per display: {}", error.message),
+                }
             }
         }
         self.update_live_pause();
@@ -1183,14 +1209,8 @@ impl Worker {
     /// older build) the size read from the file. Still unknown means it passes.
     fn size_of(&mut self, item: &PlayItem) -> FitItem {
         let known = item.width > 0.0 && item.height > 0.0;
-        let (width, height) = if known {
-            (item.width, item.height)
-        } else if item.kind == WallpaperKind::Image {
-            self.measure(&item.path).map_or((0.0, 0.0), |(width, height)| (f64::from(width), f64::from(height)))
-        } else {
-            (0.0, 0.0)
-        };
-        FitItem { kind: item.kind, width, height }
+        let measured = if !known && item.kind == WallpaperKind::Image { self.measure(&item.path) } else { None };
+        fit_item(item, measured)
     }
 
     /// The picture's size from its file, remembered until the file changes.
@@ -1274,12 +1294,26 @@ mod tests {
             path: format!("/lib/{id}.jpg"),
             width: 0.0,
             height: 0.0,
+            per_display: false,
             poster_path: None,
         }
     }
 
     fn sized(width: f64, height: f64) -> FitItem {
-        FitItem { kind: WallpaperKind::Image, width, height }
+        FitItem { kind: WallpaperKind::Image, width, height, per_display: false }
+    }
+
+    /// A scene with a poster, as the UI sends it; `per_display` is the clock kind.
+    fn scene_item(id: &str, per_display: bool) -> PlayItem {
+        PlayItem {
+            id: id.into(),
+            kind: WallpaperKind::Scene,
+            path: format!("/lib/{id}.html"),
+            width: 1920.0,
+            height: 1200.0,
+            per_display,
+            poster_path: Some(format!("/lib/{id}.jpg")),
+        }
     }
 
     /// A small library in plan order: a panorama, a 4K picture, the 1672 x 941
@@ -1632,7 +1666,7 @@ mod tests {
         assert_eq!(single_layout(true, None, &desk()), Layout::Same);
         // A picture whose size nobody knows, and a scene, may be stretched.
         assert_eq!(single_layout(true, Some(&sized(0.0, 0.0)), &desk()), Layout::Span);
-        let scene = FitItem { kind: WallpaperKind::Scene, width: 0.0, height: 0.0 };
+        let scene = FitItem { kind: WallpaperKind::Scene, width: 0.0, height: 0.0, per_display: false };
         assert_eq!(single_layout(true, Some(&scene), &desk()), Layout::Span);
     }
 
@@ -1772,6 +1806,86 @@ mod tests {
         assert_eq!(filled.current, ids(&["sample", ""]));
     }
 
+    // --- scenes that draw themselves whole on each display ---------------------
+
+    #[test]
+    fn the_size_rules_see_what_the_item_says_about_itself() {
+        let clock = fit_item(&scene_item("clock", true), None);
+        assert!(clock.per_display);
+        assert_eq!((clock.kind, clock.width, clock.height), (WallpaperKind::Scene, 1920.0, 1200.0));
+        assert!(!fit_item(&scene_item("aurora", false), None).per_display);
+        // The size the UI sent wins; a size read from the file fills in when there is none.
+        let known = PlayItem { width: 3840.0, height: 2400.0, ..image("a") };
+        assert_eq!(fit_item(&known, Some((10, 10))).width, 3840.0);
+        let measured = fit_item(&image("a"), Some((1672, 941)));
+        assert_eq!((measured.width, measured.height), (1672.0, 941.0));
+        assert_eq!(fit_item(&image("a"), None).width, 0.0);
+    }
+
+    /// The span-mode turn as the worker takes it: the next frame, its layout,
+    /// and what each display is then asked to show.
+    #[test]
+    fn in_span_mode_a_per_display_scene_takes_its_turn_whole_on_each_display() {
+        let clock = scene_item("clock", true);
+        let aurora = scene_item("aurora", false);
+        let candidates = vec![
+            ("clock".to_string(), fit_item(&clock, None)),
+            ("aurora".to_string(), fit_item(&aurora, None)),
+        ];
+        let mut random = rng(0);
+
+        let (first, layout) =
+            next_frame(&EngineState::default(), DisplayMode::Span, &candidates, &desk(), false, &mut random).unwrap();
+        assert_eq!(first.current, ids(&["clock"]));
+        assert_eq!(layout, Layout::Same, "recorded as what is on screen: the same scene on each display");
+        let targets = plan_targets(&layout, &[Some(clock.clone())], &desk());
+        assert_eq!(targets.len(), 2);
+        for target in &targets {
+            // Each window is its own canvas, and the poster underneath is set
+            // whole per display rather than cut into span pieces.
+            assert!(!target.spanned);
+            assert_eq!((target.viewport.x, target.viewport.y), (0.0, 0.0));
+            assert_eq!(
+                (target.viewport.canvas_width, target.viewport.canvas_height),
+                (target.display.width, target.display.height)
+            );
+            assert_eq!(target.item.poster_path.as_deref(), Some("/lib/clock.jpg"));
+        }
+        let showing = Saved { engine: first.clone(), layout, ..Default::default() };
+        assert_eq!(status_of(&showing).current, vec![CurrentEntry { display_id: None, item_id: "clock".into() }]);
+
+        // The ordinary scene's turn: one picture across both displays.
+        let (second, layout) = next_frame(&first, DisplayMode::Span, &candidates, &desk(), false, &mut random).unwrap();
+        assert_eq!(second.current, ids(&["aurora"]));
+        assert_eq!(layout, Layout::Span);
+        let targets = plan_targets(&layout, &[Some(aurora)], &desk());
+        assert!(targets.iter().all(|target| target.spanned));
+        assert_eq!((targets[0].viewport.canvas_width, targets[0].viewport.canvas_height), (3648.0, 1117.0));
+        assert_eq!((targets[1].viewport.x, targets[1].viewport.y), (1728.0, 0.0));
+    }
+
+    #[test]
+    fn a_per_display_scene_is_never_recorded_as_spanned() {
+        let clock = fit_item(&scene_item("clock", true), None);
+        // Asked for by hand as "one across all": laid out on each display instead.
+        assert_eq!(single_layout(true, Some(&clock), &desk()), Layout::Same);
+        // Showing on both displays when the mode changes to span: it is kept, as "same".
+        let kept = keep_for_all(
+            &ids(&["clock", "clock"]),
+            |_, slot| fit::fits_display(&clock, &desk()[slot]),
+            |_| fit::can_span(&clock, &desk()),
+        );
+        assert_eq!(kept, Some("clock".to_string()));
+        assert_eq!(single_layout(true, Some(&clock), &desk()), Layout::Same);
+        // It is still eligible in every mode: a scene fits any display.
+        let candidates = vec![("clock".to_string(), clock)];
+        assert_eq!(eligible_ids(&candidates, &desk(), DisplayMode::Span), ids(&["clock"]));
+        assert_eq!(eligible_ids(&candidates, &desk(), DisplayMode::Same), ids(&["clock"]));
+        // An ordinary scene is still one picture across the displays.
+        let aurora = fit_item(&scene_item("aurora", false), None);
+        assert_eq!(single_layout(true, Some(&aurora), &desk()), Layout::Span);
+    }
+
     // --- saved state ---------------------------------------------------------
 
     #[test]
@@ -1826,6 +1940,7 @@ mod tests {
         let plan = state.plan.as_ref().unwrap();
         assert_eq!(plan.items.len(), 2);
         assert_eq!((plan.items[0].width, plan.items[0].height), (0.0, 0.0), "no size means unknown");
+        assert!(plan.items.iter().all(|item| !item.per_display), "no flag means an ordinary wallpaper");
         assert_eq!(plan.items[1].poster_path.as_deref(), Some("/lib/clip.jpg"));
         assert_eq!(plan.display_mode, DisplayMode::Each);
         assert_eq!(state.engine.bag, ids(&["clip"]));

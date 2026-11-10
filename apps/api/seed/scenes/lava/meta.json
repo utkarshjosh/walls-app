@@ -9,5 +9,6 @@
   "color": "#84402b",
   "author": "Still Originals",
   "license": "Still Original",
-  "sourceUrl": null
+  "sourceUrl": null,
+  "layout": "canvas"
 }

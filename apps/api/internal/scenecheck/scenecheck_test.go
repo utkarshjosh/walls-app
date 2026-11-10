@@ -72,7 +72,7 @@ void main(){ float a = 1./3.; gl_FragColor = vec4(a / 2., uT, 0., 1.); } // top.
 const goodHTML = goodHead + goodBody
 
 const goodMeta = `{"standard": 1, "title": "Quiet Clock", "tags": ["clock", "minimal"], "color": "#1C2230",
- "author": "Still Originals", "license": "Still Original", "sourceUrl": null}`
+ "author": "Still Originals", "license": "Still Original", "sourceUrl": null, "layout": "per-display"}`
 
 var goodPoster = sync.OnceValue(func() []byte { return jpegOf(PosterWidth, PosterHeight) })
 
@@ -415,14 +415,39 @@ func TestCheckMeta(t *testing.T) {
 		t.Fatalf("good meta:%s", describe(problems))
 	}
 	if meta.Title != "Quiet Clock" || meta.Author != "Still Originals" || meta.License != "Still Original" ||
-		meta.SourceURL != "" || !slices.Equal(meta.Tags, []string{"clock", "minimal"}) || meta.Color != "#1c2230" {
+		meta.SourceURL != "" || !slices.Equal(meta.Tags, []string{"clock", "minimal"}) || meta.Color != "#1c2230" ||
+		meta.Layout != LayoutPerDisplay {
 		t.Errorf("meta = %+v", meta)
 	}
 
-	adapted := `{"standard":1,"title":"Slow Sea","author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/sea"}`
+	adapted := `{"standard":1,"title":"Slow Sea","author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/sea","layout":"canvas"}`
 	meta, problems = CheckMeta([]byte(adapted))
-	if len(problems) != 0 || meta.SourceURL != "https://example.com/sea" || meta.Tags == nil || len(meta.Tags) != 0 || meta.Color != "" {
+	if len(problems) != 0 || meta.SourceURL != "https://example.com/sea" || meta.Tags == nil || len(meta.Tags) != 0 || meta.Color != "" ||
+		meta.Layout != LayoutCanvas {
 		t.Errorf("adapted meta = %+v%s", meta, describe(problems))
+	}
+
+	// layout: required, and one of exactly two values.
+	base := `{"standard":1,"title":"A","author":"B","license":"C"`
+	for value, want := range map[string]string{
+		`"canvas"`: LayoutCanvas, `"per-display"`: LayoutPerDisplay,
+	} {
+		meta, problems := CheckMeta([]byte(base + `,"layout":` + value + `}`))
+		if len(problems) != 0 || meta.Layout != want {
+			t.Errorf("layout %s should pass as %q: %+v%s", value, want, meta, describe(problems))
+		}
+	}
+	for _, tail := range []string{
+		`}`, `,"layout":null}`, // missing
+		`,"layout":"stretch"}`, `,"layout":"Canvas"}`, `,"layout":"per display"}`, `,"layout":"perDisplay"}`,
+		`,"layout":""}`, `,"layout":1}`, `,"layout":["canvas"]}`, `,"layout":true}`,
+	} {
+		meta, problems := CheckMeta([]byte(base + tail))
+		all := describe(problems)
+		if len(problems) != 1 || meta.Layout != "" || !strings.Contains(all, `"canvas" (one picture across displays)`) ||
+			!strings.Contains(all, `"per-display" (drawn whole on each display)`) {
+			t.Errorf("meta ending %s: want one plain reason naming both layouts, got %+v%s", tail, meta, all)
+		}
 	}
 
 	bad := map[string]string{
@@ -455,8 +480,8 @@ func TestCheckMeta(t *testing.T) {
 
 	// Several things wrong at once: every one is reported.
 	_, problems = CheckMeta([]byte(`{"standard": 3, "tags": ["A"], "color": "red"}`))
-	if len(problems) != 6 {
-		t.Errorf("want 6 reasons (standard, title, author, license, tag, color), got %d:%s", len(problems), describe(problems))
+	if len(problems) != 7 {
+		t.Errorf("want 7 reasons (standard, title, author, license, layout, tag, color), got %d:%s", len(problems), describe(problems))
 	}
 }
 
@@ -507,7 +532,7 @@ func TestCheckDir(t *testing.T) {
 		t.Fatalf("good scene:%s", describe(res.Problems))
 	}
 	if res.Name != "quiet-clock" || string(res.HTML) != goodHTML || !bytes.Equal(res.PosterData, goodPoster()) ||
-		res.Poster == nil || res.Meta.Title != "Quiet Clock" {
+		res.Poster == nil || res.Meta.Title != "Quiet Clock" || res.Meta.Layout != LayoutPerDisplay {
 		t.Errorf("result does not carry what was checked: name %q, %d html bytes, meta %+v", res.Name, len(res.HTML), res.Meta)
 	}
 
@@ -554,8 +579,8 @@ func TestCheckDir(t *testing.T) {
 	if got := codes(res.Problems); !slices.Equal(got, want) {
 		t.Errorf("all-wrong scene: kinds %v, want %v%s", got, want, describe(res.Problems))
 	}
-	if len(res.Problems) != 9 { // 3 forbidden constructs, 2 meta fields, 4 single ones
-		t.Errorf("all-wrong scene: %d reasons, want 9:%s", len(res.Problems), describe(res.Problems))
+	if len(res.Problems) != 10 { // 3 forbidden constructs, 3 meta fields, 4 single ones
+		t.Errorf("all-wrong scene: %d reasons, want 10:%s", len(res.Problems), describe(res.Problems))
 	}
 
 	if res := CheckDir(filepath.Join(t.TempDir(), "nope")); res.OK() || res.Problems[0].Where() != "folder" {

@@ -5,12 +5,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/utkarshjoshi/walls/apps/api/internal/catalog"
+	"github.com/utkarshjoshi/walls/apps/api/internal/httpapi"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
 	"github.com/utkarshjoshi/walls/apps/api/internal/scenecheck"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
@@ -71,8 +74,8 @@ func sceneHTML(marker string) []byte {
 		"</script>\n</body>\n</html>\n")
 }
 
-const firstPartyMeta = `{"standard":1,"title":"Tidal","tags":["abstract","warm"],"color":"#A8676A","author":"Still Originals","license":"Still Original","sourceUrl":null}`
-const adaptedMeta = `{"standard":1,"title":"Slow Sea","tags":["sea"],"author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/slow-sea"}`
+const firstPartyMeta = `{"standard":1,"title":"Tidal","tags":["abstract","warm"],"color":"#A8676A","author":"Still Originals","license":"Still Original","sourceUrl":null,"layout":"canvas"}`
+const adaptedMeta = `{"standard":1,"title":"Slow Sea","tags":["sea"],"author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/slow-sea","layout":"per-display"}`
 
 func writeScene(t *testing.T, root, slug string, files map[string][]byte) {
 	t.Helper()
@@ -145,8 +148,8 @@ func TestSeed(t *testing.T) {
 		}
 	}
 	// Every reason is reported, not just the first.
-	if n := len(stats.ScenesSkipped[2].Reasons); n != 4 { // policy text + standard + author + licence
-		t.Errorf("bad-old-style has %d reasons, want 4: %v", n, stats.ScenesSkipped[2].Reasons)
+	if n := len(stats.ScenesSkipped[2].Reasons); n != 5 { // policy text + standard + author + licence + layout
+		t.Errorf("bad-old-style has %d reasons, want 5: %v", n, stats.ScenesSkipped[2].Reasons)
 	}
 
 	items := allItems(t, p)
@@ -216,11 +219,11 @@ func TestSeed(t *testing.T) {
 	}
 	if tidal.Kind != catalog.KindScene || tidal.Category != "live" || tidal.Color != "#a8676a" || !tidal.HasPoster ||
 		tidal.Width != 1920 || tidal.Height != 1200 || tidal.OriginalExt != "html" || !slices.Equal(tidal.Tags, []string{"abstract", "warm"}) ||
-		tidal.Author != "Still Originals" || tidal.License != "Still Original" || tidal.SourceURL != "" {
+		tidal.Author != "Still Originals" || tidal.License != "Still Original" || tidal.SourceURL != "" || tidal.Layout != "canvas" {
 		t.Errorf("tidal = %+v", tidal)
 	}
 	if sea.Author != "Ana Ruiz" || sea.License != "CC BY 4.0" || sea.SourceURL != "https://example.com/slow-sea" ||
-		!slices.Equal(sea.Tags, []string{"sea"}) || !strings.HasPrefix(sea.Color, "#") || len(sea.Color) != 7 {
+		!slices.Equal(sea.Tags, []string{"sea"}) || !strings.HasPrefix(sea.Color, "#") || len(sea.Color) != 7 || sea.Layout != "per-display" {
 		t.Errorf("an adapted scene must keep its own credits; got %+v", sea)
 	}
 
@@ -280,6 +283,61 @@ func TestSeed(t *testing.T) {
 	after := allItems(t, p)
 	if !slices.EqualFunc(before, after, func(a, b catalog.Item) bool { return a.ID == b.ID && a.Rank == b.Rank }) {
 		t.Error("re-seeding changed ids or order")
+	}
+
+	// Changing only meta.json: scene.html is the same bytes, so the id is the
+	// same, and the next seed must still pick up the new details. Here the
+	// scene turns out to be one that draws itself whole on each display.
+	api := (&httpapi.Server{DB: p.DB, Store: p.Store, StorageName: "local"}).Handler()
+	layoutOverAPI := func(id string) any {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		api.ServeHTTP(rec, httptest.NewRequest("GET", "/v1/wallpapers/"+id, nil))
+		var item map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &item); err != nil || rec.Code != 200 {
+			t.Fatalf("GET item %s: %d %s", id, rec.Code, rec.Body.String())
+		}
+		layout, present := item["layout"]
+		if !present {
+			t.Fatalf("item %s has no \"layout\" key: %s", id, rec.Body.String())
+		}
+		return layout
+	}
+	if got := layoutOverAPI(tidal.ID); got != "canvas" {
+		t.Fatalf("before the change the API reports layout %v, want canvas", got)
+	}
+	writeScene(t, scenes, "tidal", map[string][]byte{
+		"meta.json": []byte(strings.Replace(firstPartyMeta, `"layout":"canvas"`, `"layout":"per-display"`, 1)),
+	})
+	stats, err = Run(ctx, p, opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Added != 0 || stats.Updated != 1 || stats.Unchanged != 31 || stats.Removed != 0 {
+		t.Errorf("after changing only a layout: %+v", stats)
+	}
+	if now, err := p.DB.GetItem(ctx, tidal.ID); err != nil || now.Layout != "per-display" || now.Title != "Tidal" || now.Rank != tidal.Rank {
+		t.Errorf("tidal after the change: %+v %v", now, err)
+	}
+	if got := layoutOverAPI(tidal.ID); got != "per-display" {
+		t.Errorf("after re-seeding the API reports layout %v, want per-display", got)
+	}
+	if got := layoutOverAPI(items[0].ID); got != nil {
+		t.Errorf("a picture's layout over the API = %v, want null", got)
+	}
+	// The other meta.json fields follow the same path.
+	writeScene(t, scenes, "tidal", map[string][]byte{
+		"meta.json": []byte(`{"standard":1,"title":"Tidal Two","tags":["sea"],"color":"#102030","author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/t","layout":"per-display"}`),
+	})
+	if stats, err = Run(ctx, p, opt); err != nil || stats.Updated != 1 || stats.Added != 0 {
+		t.Fatalf("after changing the other details: %+v %v", stats, err)
+	}
+	if now, _ := p.DB.GetItem(ctx, tidal.ID); now.Title != "Tidal Two" || now.Author != "Ana Ruiz" || now.License != "CC BY 4.0" ||
+		now.SourceURL != "https://example.com/t" || now.Color != "#102030" || !slices.Equal(now.Tags, []string{"sea"}) {
+		t.Errorf("tidal after changing its details: %+v", now)
+	}
+	if page, _ := p.DB.ListItems(ctx, catalog.Query{Q: "tidal two"}); len(page.Items) != 1 {
+		t.Errorf("search does not find the scene under its new title")
 	}
 
 	// A missing scenes folder (seed run from the wrong place) leaves the

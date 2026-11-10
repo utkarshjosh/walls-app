@@ -175,6 +175,10 @@ A scene is a folder with three files: `scene.html`, `poster.jpg` and
   `.../1999/xhtml`) are allowed, exactly as written and nothing longer.
 - **It reads `location.hash` and handles `paused`**, which is how the app tells
   a scene its size and freezes it to save energy.
+- **`meta.json` says how the scene lays out across displays**: `"layout"` is
+  `"canvas"` (one picture continuing across them) or `"per-display"` (drawn
+  whole on each, like a clock). The API passes it on as `layout` on the item,
+  so the app can preview the scene the way it will really run.
 
 To add a scene:
 
@@ -195,9 +199,10 @@ itself. A scene that fails is skipped with its reasons and the rest of the run
 carries on. After `seed`, the published scenes are exactly the ones in
 `seed/scenes/` that pass: a scene that was removed from the folder, or was
 changed and no longer passes, is taken out of the catalog. A scene's title,
-tags, colour, author, licence and source link come from its `meta.json`, and
-its id is a fingerprint of `scene.html`, so an approved scene cannot change
-without becoming a different item.
+tags, colour, layout, author, licence and source link come from its
+`meta.json`, and its id is a fingerprint of `scene.html`, so an approved scene
+cannot change without becoming a different item. Editing only `meta.json`
+keeps the id; the next `seed` or `ingest` updates the stored details in place.
 
 What the gate does not judge. It checks that a scene cannot reach anything and
 follows the layout contract. It does not check that a scene is calm, that it is

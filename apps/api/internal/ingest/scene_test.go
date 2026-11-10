@@ -39,10 +39,10 @@ func TestIngestScenes(t *testing.T) {
 
 	clock := sceneHTML("quiet clock")
 	writeSceneDir(t, filepath.Join(dir, "quiet-clock"), clock, 1920, 1200,
-		`{"standard":1,"title":"Quiet Clock","tags":["clock"],"color":"#1C2230","author":"Ana Ruiz","license":"MIT","sourceUrl":"https://example.com/clock"}`)
+		`{"standard":1,"title":"Quiet Clock","tags":["clock"],"color":"#1C2230","author":"Ana Ruiz","license":"MIT","sourceUrl":"https://example.com/clock","layout":"per-display"}`)
 	// Two things wrong: it calls out, and its poster is the wrong size.
 	writeSceneDir(t, filepath.Join(dir, "sneaky"), strings.Replace(sceneHTML("sneaky"), "var paused", "navigator.sendBeacon('/x'); var paused", 1), 1280, 720,
-		`{"standard":1,"title":"Sneaky","author":"X","license":"Y"}`)
+		`{"standard":1,"title":"Sneaky","author":"X","license":"Y","layout":"canvas"}`)
 	// A sub-folder that is not a scene is left alone.
 	os.Mkdir(filepath.Join(dir, "notes"), 0o755)
 	write(t, filepath.Join(dir, "notes"), "deep.jpg", jpegBytes(t, picture(64, 64, 1)))
@@ -84,7 +84,7 @@ func TestIngestScenes(t *testing.T) {
 	if got.ID != hex.EncodeToString(sum[:])[:12] || it.Kind != catalog.KindScene || it.Category != "live" || it.Title != "Quiet Clock" ||
 		it.Author != "Ana Ruiz" || it.License != "MIT" || it.SourceURL != "https://example.com/clock" || it.Color != "#1c2230" ||
 		strings.Join(it.Tags, ",") != "clock" || it.Origin != "ingest" || it.Width != 1920 || it.Height != 1200 || !it.HasPoster ||
-		it.OriginalType != "text/html; charset=utf-8" || it.Bytes != int64(len(clock)) {
+		it.OriginalType != "text/html; charset=utf-8" || it.Bytes != int64(len(clock)) || it.Layout != "per-display" {
 		t.Errorf("scene item = %+v", it)
 	}
 	if len(ItemKeys(it)) != 4 {
@@ -95,6 +95,22 @@ func TestIngestScenes(t *testing.T) {
 	rep, _ = p.IngestDir(ctx, dir)
 	if r := byFile(rep)["quiet-clock/"]; r.Status != "unchanged" || r.ID != got.ID {
 		t.Errorf("second run: %+v", r)
+	}
+
+	// Changing only meta.json (same scene.html, so the same id) updates the
+	// stored details in place.
+	write(t, filepath.Join(dir, "quiet-clock"), "meta.json",
+		[]byte(`{"standard":1,"title":"Quieter Clock","tags":["clock","calm"],"author":"Ana Ruiz","license":"MIT","sourceUrl":null,"layout":"canvas"}`))
+	rep, _ = p.IngestDir(ctx, dir)
+	if r := byFile(rep)["quiet-clock/"]; r.Status != "updated" || r.ID != got.ID {
+		t.Errorf("after editing meta.json: %+v", r)
+	}
+	if now, _ := p.DB.GetItem(ctx, got.ID); now.Layout != "canvas" || now.Title != "Quieter Clock" || now.SourceURL != "" ||
+		strings.Join(now.Tags, ",") != "clock,calm" || now.Rank != it.Rank || !now.CreatedAt.Equal(it.CreatedAt) {
+		t.Errorf("item after editing meta.json = %+v", now)
+	}
+	if n, _ := p.DB.CountItems(ctx); n != 2 {
+		t.Errorf("a metadata change must not add an item; count = %d", n)
 	}
 
 	// A scene folder can also be named directly.

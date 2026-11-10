@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -196,7 +197,10 @@ func TestUpsertGetDelete(t *testing.T) {
 	ctx := context.Background()
 	db := openTest(t)
 	created := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
-	orig := item(1, func(it *Item) { it.CreatedAt = created; it.SourceURL = "https://example.com/a"; it.Tags = nil })
+	orig := item(1, func(it *Item) {
+		it.CreatedAt, it.SourceURL, it.Tags = created, "https://example.com/a", nil
+		it.Kind, it.HasPoster, it.Layout = KindScene, true, "per-display"
+	})
 	if err := db.UpsertItem(ctx, orig); err != nil {
 		t.Fatal(err)
 	}
@@ -204,18 +208,32 @@ func TestUpsertGetDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.CreatedAt.Equal(created) || got.SourceURL != "https://example.com/a" || got.Tags == nil || len(got.Tags) != 0 {
+	if !got.CreatedAt.Equal(created) || got.SourceURL != "https://example.com/a" || got.Tags == nil || len(got.Tags) != 0 ||
+		got.Layout != "per-display" {
 		t.Fatalf("round trip: %+v", got)
+	}
+	// An image has no layout, and that survives the round trip as empty.
+	if err := db.UpsertItem(ctx, item(2, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if img, _ := db.GetItem(ctx, fmt.Sprintf("%012x", 2)); img.Layout != "" {
+		t.Fatalf("image layout = %q, want none", img.Layout)
+	}
+	if page, _ := db.ListItems(ctx, Query{}); len(page.Items) != 2 || page.Items[0].Layout != "per-display" || page.Items[1].Layout != "" {
+		t.Fatalf("layouts in a list: %+v", page.Items)
+	}
+	if err := db.DeleteItem(ctx, fmt.Sprintf("%012x", 2)); err != nil {
+		t.Fatal(err)
 	}
 
 	// Updating keeps the original creation time and can clear the source URL.
 	changed := orig
-	changed.Title, changed.SourceURL, changed.CreatedAt = "Renamed", "", created.Add(48*time.Hour)
+	changed.Title, changed.SourceURL, changed.CreatedAt, changed.Layout = "Renamed", "", created.Add(48*time.Hour), "canvas"
 	if err := db.UpsertItem(ctx, changed); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = db.GetItem(ctx, orig.ID)
-	if got.Title != "Renamed" || got.SourceURL != "" || !got.CreatedAt.Equal(created) {
+	if got.Title != "Renamed" || got.SourceURL != "" || !got.CreatedAt.Equal(created) || got.Layout != "canvas" {
 		t.Fatalf("after update: %+v", got)
 	}
 	if n, _ := db.CountItems(ctx); n != 1 {
@@ -354,5 +372,68 @@ func TestSlugifyHumanize(t *testing.T) {
 		if got := Humanize(in); got != want {
 			t.Errorf("Humanize(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A catalog made before scenes had a layout must keep working: the new
+// column is added, scenes already in it become "canvas", and images and
+// videos stay without one.
+func TestMigrationAddsLayoutToAnOlderCatalog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const row = `INSERT INTO items (id, title, kind, width, height, bytes, stored_bytes, category, tags, author, license,
+		source_url, color, rank, original_ext, original_type, has_poster, origin, search, created_at)
+		VALUES (?, ?, ?, 1920, 1200, 10, 20, ?, '["calm"]', 'Still Originals', 'Still Original', NULL, '#112233', ?, ?, ?, ?, ?, ?, '2026-11-10T00:00:00Z')`
+	for _, stmt := range []struct {
+		q    string
+		args []any
+	}{
+		{migrations[0], nil}, // the schema as first shipped
+		{`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`, nil},
+		{`INSERT INTO schema_migrations VALUES (1, '2026-11-10T00:00:00Z')`, nil},
+		{row, []any{"aaaaaaaaaaaa", "Tidal", "scene", "live", 100, "html", "text/html; charset=utf-8", 1, "scene", "tidal"}},
+		{row, []any{"bbbbbbbbbbbb", "Low Tide", "image", "gradients", 200, "jpg", "image/jpeg", 0, "seed", "low tide"}},
+		{row, []any{"cccccccccccc", "Waves", "video", "live", 300, "mp4", "video/mp4", 1, "ingest", "waves"}},
+	} {
+		if _, err := old.Exec(stmt.q, stmt.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("opening an older catalog: %v", err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	page, err := db.ListItems(ctx, Query{})
+	if err != nil || len(page.Items) != 3 {
+		t.Fatalf("after migrating: %d items, %v", len(page.Items), err)
+	}
+	if s, i, v := page.Items[0], page.Items[1], page.Items[2]; s.Layout != "canvas" || i.Layout != "" || v.Layout != "" ||
+		s.Title != "Tidal" || i.Title != "Low Tide" || v.Title != "Waves" {
+		t.Fatalf("layouts after migrating: scene %q, image %q, video %q", s.Layout, i.Layout, v.Layout)
+	}
+
+	// The next seed can then set the real value.
+	scene := page.Items[0]
+	scene.Layout = "per-display"
+	if err := db.UpsertItem(ctx, scene); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := db.GetItem(ctx, scene.ID); got.Layout != "per-display" {
+		t.Fatalf("layout after update = %q", got.Layout)
+	}
+	// Opening again does not run the migration twice.
+	db.Close()
+	if db, err = Open(path); err != nil {
+		t.Fatalf("reopening: %v", err)
+	}
+	if got, _ := db.GetItem(ctx, scene.ID); got.Layout != "per-display" {
+		t.Fatalf("layout after reopening = %q (the migration must not reset it)", got.Layout)
 	}
 }

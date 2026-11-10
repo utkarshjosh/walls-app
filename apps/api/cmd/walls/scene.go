@@ -56,7 +56,7 @@ func cmdScene(args []string) error {
 	failed := 0
 	for _, res := range results {
 		if res.OK() {
-			fmt.Printf("PASS  %-*s  %q by %s (%s)\n", nameWidth, res.Name, res.Meta.Title, res.Meta.Author, res.Meta.License)
+			fmt.Printf("PASS  %-*s  %q by %s (%s), %s\n", nameWidth, res.Name, res.Meta.Title, res.Meta.Author, res.Meta.License, res.Meta.Layout)
 			continue
 		}
 		failed++

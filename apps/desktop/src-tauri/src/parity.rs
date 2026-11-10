@@ -60,10 +60,13 @@ struct FitCase {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Size {
     kind: WallpaperKind,
     width: f64,
     height: f64,
+    #[serde(default)]
+    per_display: bool,
 }
 
 #[derive(Deserialize)]
@@ -123,7 +126,12 @@ fn rust_gives_the_same_answers_as_the_typescript_rules() {
     }
 
     for (number, case) in traces.fits.iter().enumerate() {
-        let item = FitItem { kind: case.item.kind, width: case.item.width, height: case.item.height };
+        let item = FitItem {
+            kind: case.item.kind,
+            width: case.item.width,
+            height: case.item.height,
+            per_display: case.item.per_display,
+        };
         let displays: Vec<DisplayInfo> = case
             .displays
             .iter()

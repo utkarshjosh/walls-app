@@ -101,7 +101,7 @@ func newFixture(t *testing.T) *fixture {
 
 	sceneImg := picture(960, 600, 200)
 	publish(ingest.Asset{Data: []byte("<!doctype html><html><body>scene</body></html>"), Kind: catalog.KindScene, Ext: "html",
-		ContentType: "text/html; charset=utf-8", Image: sceneImg, PosterJPEG: jpegBytes(t, sceneImg), Color: "#a8676a",
+		ContentType: "text/html; charset=utf-8", Image: sceneImg, PosterJPEG: jpegBytes(t, sceneImg), Color: "#a8676a", Layout: "per-display",
 		Meta: ingest.Meta{Title: "Tidal", Category: "live", Tags: []string{"abstract"}}, Rank: 400})
 
 	db.PutPack(ctx, catalog.Pack{ID: "quiet-gradients", Name: "Quiet gradients", Description: "Soft blends.", Position: 1},
@@ -146,8 +146,8 @@ func keys(m map[string]any) []string {
 	return out
 }
 
-var itemKeys = []string{"author", "bytes", "category", "color", "createdAt", "files", "height", "id", "kind", "license",
-	"sourceUrl", "tags", "title", "width"}
+var itemKeys = []string{"author", "bytes", "category", "color", "createdAt", "files", "height", "id", "kind", "layout",
+	"license", "sourceUrl", "tags", "title", "width"}
 
 // checkItem verifies an item object has exactly the contract's fields and types.
 func checkItem(t *testing.T, it map[string]any) {
@@ -179,6 +179,17 @@ func checkItem(t *testing.T, it map[string]any) {
 		}
 	default:
 		t.Errorf("kind = %v", it["kind"])
+	}
+	// layout: a scene says how it lays out across displays; nothing else has one.
+	switch layout := it["layout"]; it["kind"] {
+	case "scene":
+		if layout != "canvas" && layout != "per-display" {
+			t.Errorf("a scene's layout must be \"canvas\" or \"per-display\", got %v", layout)
+		}
+	case "image", "video":
+		if layout != nil {
+			t.Errorf("%v layout must be null, got %v", it["kind"], layout)
+		}
 	}
 	for _, n := range []string{"width", "height", "bytes"} {
 		if v, ok := it[n].(float64); !ok || v <= 0 || v != float64(int64(v)) {
@@ -258,6 +269,17 @@ func TestListAndItem(t *testing.T) {
 	if items[3].(map[string]any)["color"] != "#a8676a" {
 		t.Errorf("scene colour = %v", items[3].(map[string]any)["color"])
 	}
+	// The exact JSON: the key is "layout", a string for the scene and null
+	// for the image and the video.
+	if n := strings.Count(rec.Body.String(), `"layout":"per-display"`); n != 1 {
+		t.Errorf(`want exactly one "layout":"per-display" (the scene), found %d`, n)
+	}
+	if n := strings.Count(rec.Body.String(), `"layout":null`); n != 3 {
+		t.Errorf(`want "layout":null on the two images and the video, found %d`, n)
+	}
+	if items[3].(map[string]any)["layout"] != "per-display" || items[0].(map[string]any)["layout"] != nil || items[2].(map[string]any)["layout"] != nil {
+		t.Errorf("layouts: scene %v, image %v, video %v", items[3].(map[string]any)["layout"], items[0].(map[string]any)["layout"], items[2].(map[string]any)["layout"])
+	}
 
 	titlesFor := func(query string) []string {
 		t.Helper()
@@ -316,8 +338,22 @@ func TestListAndItem(t *testing.T) {
 	rec = f.do("GET", "/v1/wallpapers/"+f.ids["Tidal"])
 	it := decode(t, rec)
 	checkItem(t, it)
-	if rec.Code != 200 || it["title"] != "Tidal" || it["kind"] != "scene" || it["width"] != 960.0 {
+	if rec.Code != 200 || it["title"] != "Tidal" || it["kind"] != "scene" || it["width"] != 960.0 || it["layout"] != "per-display" {
 		t.Errorf("item: %d %v", rec.Code, it)
+	}
+
+	// Both values pass through, and a scene stored before layouts existed
+	// (no value) is reported as "canvas", never null.
+	for stored, want := range map[string]string{"canvas": "canvas", "per-display": "per-display", "": "canvas"} {
+		out := f.srv.item(catalog.Item{ID: "aaaaaaaaaaaa", Kind: catalog.KindScene, HasPoster: true, Layout: stored})
+		if out.Layout == nil || *out.Layout != want {
+			t.Errorf("scene stored with layout %q: API layout %v, want %q", stored, out.Layout, want)
+		}
+	}
+	for _, kind := range []string{catalog.KindImage, catalog.KindVideo} {
+		if out := f.srv.item(catalog.Item{ID: "aaaaaaaaaaaa", Kind: kind, Layout: "canvas"}); out.Layout != nil {
+			t.Errorf("%s: API layout %v, want null", kind, *out.Layout)
+		}
 	}
 }
 

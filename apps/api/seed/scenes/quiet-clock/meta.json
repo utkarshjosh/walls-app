@@ -8,5 +8,6 @@
   "color": "#6d95c4",
   "author": "Still Originals",
   "license": "Still Original",
-  "sourceUrl": null
+  "sourceUrl": null,
+  "layout": "per-display"
 }

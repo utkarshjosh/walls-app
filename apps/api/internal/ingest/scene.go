@@ -17,7 +17,7 @@ const SceneCategory = "live"
 
 // SceneAsset runs the scene gate on a folder. If the scene passes, the
 // returned Asset holds exactly the bytes that were checked, with its title,
-// credits, tags and colour taken from the scene's own meta.json. The caller
+// credits, tags, colour and layout taken from the scene's own meta.json. The caller
 // sets Origin and Rank and publishes it. If it fails, the Result says why and
 // the Asset must not be used.
 //
@@ -30,7 +30,7 @@ func SceneAsset(dir string) (Asset, scenecheck.Result) {
 	}
 	asset := Asset{
 		Data: res.HTML, Kind: catalog.KindScene, Ext: "html", ContentType: "text/html; charset=utf-8",
-		Image: res.Poster, Color: res.Meta.Color,
+		Image: res.Poster, Color: res.Meta.Color, Layout: res.Meta.Layout,
 		Meta: Meta{
 			Title: res.Meta.Title, Category: SceneCategory, Tags: res.Meta.Tags,
 			Author: res.Meta.Author, License: res.Meta.License, SourceURL: res.Meta.SourceURL,
