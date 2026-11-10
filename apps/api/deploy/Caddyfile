@@ -1,0 +1,29 @@
+# Caddy in front of the catalog service.
+#
+# Cloudflare sits in front of this server and decides whether visitors use
+# http or https, so nothing here redirects between the two (doing so would
+# loop when Cloudflare talks to this server over plain http).
+{
+	auto_https disable_redirects
+}
+
+(catalog) {
+	encode zstd gzip
+	reverse_proxy api:8787
+}
+
+# Plain http: what Cloudflare uses in "Flexible" mode.
+http:// {
+	import catalog
+}
+
+# https: what Cloudflare uses in "Full" mode. Caddy asks for a public
+# certificate first (required by "Full (strict)") and otherwise uses one it
+# signs itself, so this always answers.
+https://{$WALLS_DOMAIN} {
+	tls {
+		issuer acme
+		issuer internal
+	}
+	import catalog
+}

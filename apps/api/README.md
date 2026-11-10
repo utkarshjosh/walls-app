@@ -32,6 +32,29 @@ database `data/catalog.db` and, by default, the files in `data/objects/`.
 
 Run the tests with `go test ./...`.
 
+## Deployed
+
+The catalog is live at **https://walls.utkarshjoshi.com**, on the Oracle server reached as `agent-server-oci`, behind Cloudflare. Release builds of the app use this address; development runs use `http://localhost:8787`.
+
+To deploy, or to update the server after `walls seed` or `walls ingest`:
+
+```sh
+./deploy/deploy.sh
+```
+
+It builds `walls` for the server, takes a consistent copy of the local catalog in `data/`, uploads both, and restarts the service. The server ends up serving exactly the local catalog, so the routine is: change the catalog here, look at it, run the script.
+
+What runs on the server, in `~/walls` (`deploy/compose.yaml`):
+
+- `api`: the `walls` program, not root, with a read-only filesystem apart from its data folder, serving files from the server's own disk.
+- `web`: Caddy on ports 80 and 443 in front of it. It holds a public certificate that it renews by itself.
+
+Useful on the server: `cd ~/walls && sudo docker compose ps`, `sudo docker compose logs -f api`, `sudo docker compose down` to stop everything.
+
+Not set up: the `walls-assets` bucket (files are on the server's disk; add bucket settings in `~/walls/walls.env` to move them), any backup of the server's copy (the catalog is rebuilt from this repository, so the repository is the source of truth), and edge caching (see below).
+
+**Cloudflare caching.** Files are sent with a year-long cache header, but Cloudflare only caches by file extension and these addresses have none, so every request currently reaches the server. Adding a Cache Rule in Cloudflare for paths starting with `/v1/files/` ("eligible for cache", respect origin headers) would let Cloudflare serve them. Files carry `no-transform` so Cloudflare does not rewrite them: a scene must arrive byte for byte.
+
 ## Settings
 
 Settings are environment variables. For convenience `walls` also reads a

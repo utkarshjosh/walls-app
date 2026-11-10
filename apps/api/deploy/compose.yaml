@@ -1,0 +1,53 @@
+# The catalog service as it runs on the server: the `walls` program, with Caddy
+# in front of it answering on ports 80 and 443. Started by deploy.sh.
+name: walls
+
+services:
+  api:
+    # Only a small filesystem to run the program in; `walls` itself is one
+    # static file built on the development machine and mounted read-only.
+    image: alpine:3
+    command: ["/app/walls", "serve"]
+    user: "${WALLS_UID}:${WALLS_GID}"
+    environment:
+      WALLS_ADDR: ":8787"
+      WALLS_DATA_DIR: /data
+      WALLS_STORAGE: local
+      # Who may call the API from a web page: the Mac app, and a development
+      # copy of the interface on this address.
+      WALLS_CORS_ORIGINS: "tauri://localhost,http://tauri.localhost,http://localhost:5173"
+    # Optional overrides, e.g. bucket settings (see .env.example). Never commit it.
+    env_file:
+      - path: ./walls.env
+        required: false
+    volumes:
+      - ./bin/walls:/app/walls:ro
+      - ./data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8787/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    image: caddy:2-alpine
+    environment:
+      WALLS_DOMAIN: "${WALLS_DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

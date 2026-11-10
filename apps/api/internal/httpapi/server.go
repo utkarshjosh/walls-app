@@ -23,7 +23,11 @@ const (
 	grantTTL = 15 * time.Minute
 
 	cacheLists     = "public, max-age=60"
-	cacheImmutable = "public, max-age=31536000, immutable"
+	// Files never change (their id is a hash of their bytes). "no-transform"
+	// tells a proxy in front, such as Cloudflare, not to rewrite them: a scene
+	// must arrive byte for byte, or the app's check on it would rightly fail,
+	// and a picture must not be recompressed.
+	cacheImmutable = "public, max-age=31536000, immutable, no-transform"
 	cacheRedirect  = "private, max-age=600"
 
 	defaultLimit = 30

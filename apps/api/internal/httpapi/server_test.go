@@ -428,7 +428,7 @@ func TestFilesLocal(t *testing.T) {
 		t.Fatalf("GET original: %d, %d bytes", rec.Code, rec.Body.Len())
 	}
 	h := rec.Header()
-	if h.Get("Content-Type") != "video/mp4" || h.Get("Cache-Control") != "public, max-age=31536000, immutable" ||
+	if h.Get("Content-Type") != "video/mp4" || h.Get("Cache-Control") != "public, max-age=31536000, immutable, no-transform" ||
 		h.Get("Accept-Ranges") != "bytes" || h.Get("Content-Length") != "300000" || h.Get("ETag") == "" {
 		t.Errorf("headers: %v", h)
 	}

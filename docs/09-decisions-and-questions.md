@@ -34,6 +34,8 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-028 | Wallpapers are judged against the connected displays' real pixels; rotation skips what would look blurry and only stretches pictures that have the pixels | Owner feedback 2026-11-10 after small pictures were stretched across a Retina display and a 1080p monitor. A still picture may be enlarged by a quarter at most; video by 2.2x |
 | ADR-029 | Live scenes follow a written standard with a kit, a gate and a re-check in the app | Owner wants many more scenes, including ones adapted from the web, without hand-coding each; a scene is running code, so each layer must hold if the one before it is wrong |
 | ADR-030 | No sharing and no community features; Discover is published and curated by us | Owner decision 2026-11-10: no user base yet, quality is maintained by curation |
+| ADR-031 | The catalog is served at `walls.utkarshjoshi.com`, not under the product name | The address is built into every shipped copy of the app and the product name is undecided; a later product domain can point at the same server while this one keeps working |
+| ADR-032 | First deployment serves files from the server's disk, with Cloudflare in front | The whole catalog is 36 MB; the bucket adds nothing yet and its credentials are not on the server. Revisit when the catalog grows or a backup is wanted |
 
 ## Confirm before deployment
 

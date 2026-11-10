@@ -56,8 +56,17 @@ export interface CatalogQuery {
   limit?: number;
 }
 
+/**
+ * Where the catalog lives. A release build talks to the deployed service; a
+ * development run talks to a catalog on this machine. VITE_API_URL overrides
+ * both (e.g. to try the deployed catalog from a development run).
+ *
+ * The public name is deliberately not the product's name: it is built into
+ * every copy of the app that ships, so it must outlive a rename.
+ */
+export const PUBLIC_CATALOG = "https://walls.utkarshjoshi.com";
 export const API_BASE: string = (
-  import.meta.env.VITE_API_URL ?? "http://localhost:8787"
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8787" : PUBLIC_CATALOG)
 ).replace(/\/$/, "");
 
 /** File URLs come back relative unless the server is configured with a public URL. */
