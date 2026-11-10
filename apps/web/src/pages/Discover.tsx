@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { Bookmark, BookmarkCheck, Check, FolderPlus, Monitor, Search } from "lucide-react";
 import {
   CatalogError,
@@ -25,6 +26,21 @@ import { GridSkeleton, WallpaperGrid, WallpaperTile } from "@/components/Wallpap
 import { EmptyState, PageHeader } from "./Library";
 
 type Filter = { id: string; label: string; query: CatalogQuery };
+
+/** The bookmark pops when a wallpaper becomes saved, so the click is felt. */
+function SaveMark({ saved }: { saved: boolean }) {
+  return (
+    <motion.span
+      key={String(saved)}
+      initial={{ scale: saved ? 0.5 : 1 }}
+      animate={{ scale: 1 }}
+      transition={{ duration: 0.18 }}
+      className="inline-flex"
+    >
+      {saved ? <BookmarkCheck /> : <Bookmark />}
+    </motion.span>
+  );
+}
 
 const itemAspect = (item: CatalogItem) =>
   item.width > 0 && item.height > 0 ? item.width / item.height : 16 / 10;
@@ -256,8 +272,8 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
               {packs.map((pack) => {
                 const saved = state.collections.some((collection) => collection.packId === pack.id);
                 return (
-                  <article key={pack.id}>
-                    <div className="grid aspect-[16/10] grid-cols-3 grid-rows-2 gap-0.5 overflow-hidden rounded-panel bg-surface">
+                  <article key={pack.id} className="group/pack">
+                    <div className="grid aspect-[16/10] grid-cols-3 grid-rows-2 gap-0.5 overflow-hidden rounded-panel bg-surface [&_img]:transition-[opacity,transform] [&_img]:duration-500 [&_img]:ease-quiet group-hover/pack:[&_img]:scale-[1.03]">
                       {pack.covers.slice(0, 3).map((cover, index) => (
                         <Picture
                           key={cover}
@@ -332,7 +348,7 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
                   aria-pressed={saved}
                   onClick={() => toggleSave(item)}
                 >
-                  {saved ? <BookmarkCheck /> : <Bookmark />}
+                  <SaveMark saved={saved} />
                   {busy ? "Saving…" : saved ? "Saved" : "Save"}
                 </Button>
               );
@@ -381,7 +397,7 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
           return (
             <>
               <Button size="lg" disabled={busy} aria-pressed={saved} onClick={() => toggleSave(item)}>
-                {saved ? <BookmarkCheck /> : <Bookmark />}
+                <SaveMark saved={saved} />
                 {busy ? "Saving…" : saved ? "Saved" : "Save"}
               </Button>
               <SetWallpaperButton

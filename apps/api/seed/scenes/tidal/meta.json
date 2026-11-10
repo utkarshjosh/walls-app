@@ -1,1 +1,13 @@
-{"title": "Tidal", "tags": ["abstract", "gradient", "warm"], "color": "#a8676a"}
+{
+  "standard": 1,
+  "title": "Tidal",
+  "tags": [
+    "abstract",
+    "gradient",
+    "warm"
+  ],
+  "color": "#a8676a",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null
+}

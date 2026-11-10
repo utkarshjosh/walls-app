@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Slow Aurora",
+  "tags": [
+    "night",
+    "aurora",
+    "cool"
+  ],
+  "color": "#14463f",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 240,
+  "maxSide": 1600,
+  "background": "#02030a",
+  "fallback": "linear-gradient(180deg,#02030a 0%,#06141f 28%,#0f4a3c 47%,#07202a 62%,#040b14 100%)",
+  "poster": 205
+}

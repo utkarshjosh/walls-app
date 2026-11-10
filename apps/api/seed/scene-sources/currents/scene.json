@@ -1,0 +1,22 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Currents",
+  "tags": [
+    "abstract",
+    "lines",
+    "cool"
+  ],
+  "color": "#112b35",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 300,
+  "maxSide": 1600,
+  "colors": [
+    "#0a1a2a",
+    "#0f2c3a",
+    "#0c2030"
+  ],
+  "poster": 40
+}

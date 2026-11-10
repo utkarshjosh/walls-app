@@ -6,6 +6,14 @@ Decision, 2026-11-03: keep the collection experience simple and clean, with slig
 
 Use the [component foundation](14-component-foundation.md) for current source selections and product direction. Imported components must follow this motion policy: library defaults such as animated grid reflow, spring overshoot, collapsing navigation labels and perpetual status pulses are not automatically accepted. Verify keyboard behavior, focus restoration and Reduced Motion in the integrated app. Preserve the current scheduling rules and local data while restyling. The earlier product-delivery order remains separate from the expanded Library / Discover / Rotation design target.
 
+## Owner update — 2026-11-10
+
+After using the first build the owner asked for more "motion graphics, feedback" and smoother Discover tiles. This widens the earlier, very quiet default without changing its limits.
+
+Now expected: a cross-fade when the wallpaper on a display changes; a sliding highlight on segmented choices; a slight dip when a control is pressed; state marks (saved, selected) that pop in rather than appear; tile pictures that ease in a few percent under the pointer while the tile itself stays put.
+
+Still not allowed: animating gallery layout, spring overshoot, staggered entrances, anything that moves without the person having done something, and motion that ignores Reduced Motion. Do not put a blur behind controls that sit on tiles; it makes long grids stutter while scrolling in the Mac app's web view.
+
 ## Library and scope
 
 Use the free **Motion for React** package (`motion`, imported through `motion/react`) for transitions that need React lifecycle coordination. Simple hover/focus color changes can use CSS. Use one motion library, and pin its version when the frontend is created. No premium animation package is required. [Motion React documentation](https://motion.dev/docs/react), [official documentation index](https://motion.dev/llms.txt)

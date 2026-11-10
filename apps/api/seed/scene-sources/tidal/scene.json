@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Tidal",
+  "tags": [
+    "abstract",
+    "gradient",
+    "warm"
+  ],
+  "color": "#a8676a",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 240,
+  "maxSide": 1100,
+  "background": "#0b0d1a",
+  "fallback": "linear-gradient(200deg,#0d0e1b 0%,#4c2640 35%,#c97878 65%,#f5dbb8 100%)",
+  "poster": 60
+}

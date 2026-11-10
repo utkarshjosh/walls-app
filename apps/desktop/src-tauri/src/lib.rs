@@ -8,6 +8,7 @@
 //!   schedule   when the next change is due           (pure)
 //!   fit        is a wallpaper large enough for a display (pure)
 //!   library    the folder of wallpaper files
+//!   scene      is an arriving scene file safe to keep        (pure)
 //!   displays   the attached displays, via AppKit
 //!   wallpaper  span geometry (pure) and setting desktop pictures
 //!   live       desktop-level windows for video and scene wallpapers
@@ -28,6 +29,7 @@ mod model;
 mod parity;
 mod power;
 mod rotation;
+mod scene;
 mod schedule;
 mod tray;
 mod wallpaper;

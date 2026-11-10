@@ -67,7 +67,7 @@ export function Lightbox({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[rgb(10_10_9/0.94)] backdrop-blur-xl data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[rgb(10_10_9/0.96)] data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className="fixed inset-0 z-50 flex flex-col data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in"

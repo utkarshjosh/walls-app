@@ -30,7 +30,8 @@ const usage = `walls — catalog service for the Still wallpaper app
 Usage:
   walls serve                  run the HTTP API
   walls seed [-scenes dir]     load the starter artwork, live scenes and packs
-  walls ingest <dir>           import a folder of your own images and videos
+  walls ingest <dir>           import a folder of your own images, videos and live scenes
+  walls scene check <dir>...   check live scene folders against the scene standard
   walls rm <id>                remove an item and its stored files
   walls render [flags]         write the starter artwork to a folder (for tuning the generator)
 
@@ -55,6 +56,8 @@ func main() {
 		err = cmdIngest(args)
 	case "rm":
 		err = cmdRemove(args)
+	case "scene":
+		err = cmdScene(args)
 	case "render":
 		err = cmdRender(args)
 	case "help", "-h", "--help":
@@ -210,8 +213,14 @@ func cmdSeed(args []string) error {
 	}
 	fmt.Printf("\nDone in %v: %d added, %d updated, %d unchanged, %d removed; %d live scenes.\n",
 		stats.Elapsed.Round(100*time.Millisecond), stats.Added, stats.Updated, stats.Unchanged, stats.Removed, stats.Scenes)
-	for _, s := range stats.ScenesSkipped {
-		fmt.Println("  scene skipped —", s)
+	if n := len(stats.ScenesSkipped); n > 0 {
+		fmt.Printf("%d %s skipped for failing the scene check (run \"walls scene check\" on a folder to see this again):\n", n, plural(n, "scene"))
+		for _, s := range stats.ScenesSkipped {
+			fmt.Printf("  %s\n", s.Name)
+			for _, reason := range s.Reasons {
+				fmt.Printf("      %s\n", reason)
+			}
+		}
 	}
 	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "CATEGORY\tITEMS")
@@ -252,12 +261,15 @@ func cmdIngest(args []string) error {
 			id = "-"
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.File, r.Status, id, r.Detail)
+		for _, more := range r.More {
+			fmt.Fprintf(tw, "\t\t\t  %s\n", more)
+		}
 	}
 	tw.Flush()
 	fmt.Printf("\n%d of %d files are in the catalog.\n", rep.Imported, len(rep.Results))
 	if rep.Imported == 0 {
 		if len(rep.Results) == 0 {
-			return fmt.Errorf("no image or video files found in %s", fs.Arg(0))
+			return fmt.Errorf("no images, videos or scene folders found in %s", fs.Arg(0))
 		}
 		return errors.New("nothing could be imported")
 	}
@@ -290,4 +302,11 @@ func cmdRemove(args []string) error {
 	}
 	fmt.Printf("Removed %s (%q, %s) and its stored files.\n", it.ID, it.Title, it.Kind)
 	return nil
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
 }

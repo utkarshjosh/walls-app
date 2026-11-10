@@ -28,29 +28,35 @@ import { nextChange } from "@/lib/schedule";
 
 const DISPLAY_KEY = "still.preview.displays";
 
-function simulatedDisplays(count: number): DisplayInfo[] {
+/** Arrangements the preview tools can pretend are connected. */
+export type SimulatedLayout = "1" | "2" | "2v" | "3";
+const LAYOUTS: readonly SimulatedLayout[] = ["1", "2", "2v", "3"];
+
+function simulatedDisplays(layout: SimulatedLayout): DisplayInfo[] {
+  const alone = layout === "1";
   const builtIn: DisplayInfo = {
     id: "preview-1",
     name: "Built-in Display",
     x: 0,
     y: 0,
-    width: count === 1 ? window.screen.width : 1512,
-    height: count === 1 ? window.screen.height : 982,
-    scale: window.devicePixelRatio >= 2 || count > 1 ? 2 : 1,
+    width: alone ? window.screen.width : 1512,
+    height: alone ? window.screen.height : 982,
+    scale: window.devicePixelRatio >= 2 || !alone ? 2 : 1,
     primary: true,
   };
-  if (count <= 1) return [builtIn];
+  if (alone) return [builtIn];
   const studio: DisplayInfo = {
     id: "preview-2",
     name: "Studio Display",
-    x: 1512,
-    y: -458,
+    // Beside the laptop, or centred above it for the stacked arrangement.
+    x: layout === "2v" ? -524 : 1512,
+    y: layout === "2v" ? -1440 : -458,
     width: 2560,
     height: 1440,
     scale: 2,
     primary: false,
   };
-  if (count === 2) return [builtIn, studio];
+  if (layout !== "3") return [builtIn, studio];
   const side: DisplayInfo = {
     id: "preview-3",
     name: "LG UltraFine",
@@ -64,12 +70,12 @@ function simulatedDisplays(count: number): DisplayInfo[] {
   return [side, builtIn, studio];
 }
 
-function readDisplayCount(): number {
+function readLayout(): SimulatedLayout {
   try {
-    const value = Number(localStorage.getItem(DISPLAY_KEY));
-    return value >= 1 && value <= 3 ? value : 1;
+    const value = localStorage.getItem(DISPLAY_KEY) as SimulatedLayout | null;
+    return value && LAYOUTS.includes(value) ? value : "1";
   } catch {
-    return 1;
+    return "1";
   }
 }
 
@@ -78,9 +84,9 @@ function leftToRight(displays: DisplayInfo[]): DisplayInfo[] {
 }
 
 export interface WebPlatform extends Platform {
-  /** Preview tools only: pretend this many displays are attached (1–3). */
-  setSimulatedDisplayCount(count: number): void;
-  simulatedDisplayCount(): number;
+  /** Preview tools only: pretend this arrangement of displays is attached. */
+  setSimulatedLayout(layout: SimulatedLayout): void;
+  simulatedLayout(): SimulatedLayout;
 }
 
 export function createWebPlatform(): WebPlatform {
@@ -88,13 +94,13 @@ export function createWebPlatform(): WebPlatform {
   const displayListeners = new Set<(displays: DisplayInfo[]) => void>();
   const rotationListeners = new Set<(status: RotationStatus) => void>();
 
-  let displayCount = readDisplayCount();
+  let layout = readLayout();
   let plan: RotationPlan | null = null;
   let engine: EngineState = emptyEngine();
   let nextAt: number | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const displays = () => simulatedDisplays(displayCount);
+  const displays = () => simulatedDisplays(layout);
   const frameSize = () => (plan?.displayMode === "each" ? displays().length : 1);
   const ids = () => plan?.items.map((item) => item.id) ?? [];
 
@@ -211,10 +217,10 @@ export function createWebPlatform(): WebPlatform {
       displayListeners.add(listener);
       return () => displayListeners.delete(listener);
     },
-    setSimulatedDisplayCount(count) {
-      displayCount = Math.min(3, Math.max(1, Math.round(count)));
+    setSimulatedLayout(next) {
+      layout = next;
       try {
-        localStorage.setItem(DISPLAY_KEY, String(displayCount));
+        localStorage.setItem(DISPLAY_KEY, layout);
       } catch {
         /* preview-only preference; fine to lose */
       }
@@ -222,7 +228,7 @@ export function createWebPlatform(): WebPlatform {
       for (const listener of displayListeners) listener(displays());
       emit();
     },
-    simulatedDisplayCount: () => displayCount,
+    simulatedLayout: () => layout,
 
     async storeFile(name, data) {
       const db = await localDb();

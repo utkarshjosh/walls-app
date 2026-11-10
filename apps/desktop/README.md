@@ -102,6 +102,7 @@ src-tauri/
     schedule.rs   when the next change is due           (pure, tested)
     fit.rs        is a wallpaper large enough for a display (pure, tested)
     library.rs    the folder of wallpaper files
+    scene.rs      is an arriving scene file safe to keep (pure, tested)
     displays.rs   attached displays, via AppKit
     wallpaper.rs  span geometry (pure, tested) and setting desktop pictures
     live.rs       desktop-level windows for video and scene wallpapers
@@ -149,6 +150,22 @@ display it is too small for. Still keeps a showing wallpaper that can go
 everywhere; failing that it makes one automatic change; failing that it leaves
 every display as it is (the status then lists displays one by one, even in
 "same" or "span" mode). A wallpaper already on a display stays there.
+
+## Scenes are checked when they arrive
+
+A scene is an `.html` file, which means running code, so it is contained in
+layers (`docs/16-live-scene-standard.md`). The app is layer 3. When an `.html`
+file is stored or downloaded, `scene.rs` keeps it only if it carries the
+standard's content policy: exactly one
+`<meta http-equiv="Content-Security-Policy">`, with exactly the standard's
+`content`, ahead of any script and with nothing in front of it but the doctype,
+the `<html>` and `<head>` tags and `<meta charset="utf-8">`. That last part is
+what makes the policy certain to be applied: the same line inside a comment or
+in the body would be in the file and ignored by the web engine. A file that
+fails is never written into the library and the person sees "That live
+wallpaper is not in a form Still can run safely." Scenes already in the library
+are not re-checked, so ones saved under an earlier policy text keep playing.
+Only a file named `.html` can be played as a scene.
 
 ## Icons
 

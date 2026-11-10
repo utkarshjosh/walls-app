@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- scenekit:policy -->
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arc Clock</title>
+<!-- scenekit:notes
+  Arc Clock - the source of a per-display live wallpaper scene.
+
+  HOW TO WORK ON THIS FILE
+  Fill in the four marked places, then run
+      python3 scenekit.py build arc-clock
+  and open ../scenes/arc-clock/scene.html in a browser to look. Edit this file, never that one.
+
+  The three comments whose text starts with "scenekit" are replaced when building: by the
+  security policy, by a short header (this note is left out of the finished scene), and by
+  the shared runtime. Leave them where they are; the policy one must stay directly after
+  the charset line.
+
+  Rules that keep a scene publishable (the standard has the full list):
+  - Everything stays inside this one file. No addresses, no loading, no storing, no frames.
+  - Slow and quiet: it sits behind someone's work. No selectable text, no pointer effects.
+  - Draw only from the hooks below; never start timers or animation loops of your own, and
+    avoid CSS animations. The runtime then handles pause, hidden pages and the frame cap.
+  - Lay out from the window size given to layout(); ignore the cw/ch/vx/vy geometry values.
+-->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#101114}
+body{-webkit-user-select:none;user-select:none}
+#dial{position:fixed;display:block}
+</style>
+</head>
+<body>
+<canvas id="dial"></canvas>
+
+<!-- scenekit:runtime -->
+<script>
+(function () {
+  'use strict';
+  var TAU = 6.2831853;
+  var dial = document.getElementById('dial'), ctx = dial.getContext('2d');
+  var radius = 100, ratio = 1, box = 240;
+
+  // One ring: a faint full circle, and over it an arc that starts at twelve o'clock and
+  // grows clockwise, brightening toward a small bright head. `turn` is 0..1 of the way round.
+  function ring(r, turn, width, rgb) {
+    var start = -TAU / 4, end = start + TAU * turn, x = r * Math.cos(end), y = r * Math.sin(end), paint, glow;
+    ctx.lineWidth = width * 0.6;
+    ctx.strokeStyle = 'rgba(' + rgb + ',0.09)';
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    if (turn > 0.0005) {
+      paint = 'rgba(' + rgb + ',0.8)';
+      if (ctx.createConicGradient) {
+        paint = ctx.createConicGradient(start - 0.02, 0, 0);
+        paint.addColorStop(0, 'rgba(' + rgb + ',0.10)');
+        paint.addColorStop(Math.min(0.999, turn + 0.003), 'rgba(' + rgb + ',0.95)');
+        paint.addColorStop(1, 'rgba(' + rgb + ',0.95)');
+      }
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = paint;
+      ctx.beginPath(); ctx.arc(0, 0, r, start, end); ctx.stroke();
+    }
+    glow = ctx.createRadialGradient(x, y, 0, x, y, width * 7);
+    glow.addColorStop(0, 'rgba(' + rgb + ',0.30)');
+    glow.addColorStop(1, 'rgba(' + rgb + ',0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x, y, width * 7, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(' + rgb + ',1)';
+    ctx.beginPath(); ctx.arc(x, y, width * 1.55, 0, TAU); ctx.fill();
+  }
+
+  function draw(now) {
+    var h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds() + now.getMilliseconds() / 1000, i, a, big;
+    var width = Math.max(1.4, radius * 0.0075);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, box, box);
+    ctx.translate(box / 2, box / 2);
+    // Twelve small marks, a little stronger at the quarters, so the time can be read without numerals.
+    for (i = 0; i < 12; i++) {
+      a = TAU * i / 12 - TAU / 4; big = i % 3 === 0;
+      ctx.fillStyle = 'rgba(245,238,225,' + (big ? 0.5 : 0.24) + ')';
+      ctx.beginPath(); ctx.arc(radius * 1.12 * Math.cos(a), radius * 1.12 * Math.sin(a), width * (big ? 0.95 : 0.7), 0, TAU); ctx.fill();
+    }
+    ring(radius, (m + s / 60) / 60, width, '245,238,225');                   // minutes: the outer ring
+    ring(radius * 0.72, (h + m / 60 + s / 3600) / 12, width * 1.15, '224,194,142');   // hours: the inner ring
+  }
+
+  Scene.start({
+    layout: function (width, height) {
+      radius = Math.min(width, height) * 0.25;
+      box = Math.ceil(radius * 2.5);
+      ratio = Math.min(2, window.devicePixelRatio || 1);
+      dial.width = Math.round(box * ratio);
+      dial.height = Math.round(box * ratio);
+      dial.style.width = box + 'px';
+      dial.style.height = box + 'px';
+      dial.style.left = Math.round((width - box) / 2) + 'px';
+      dial.style.top = Math.round(height * 0.47 - box / 2) + 'px';      // a little above the middle
+      // Graphite, with a faint warm light behind the dial. Drawn once; it does not move.
+      Scene.backdrop({ colors: ['#0f1013', '#17181b', '#1c1b1d'],
+                       lights: [{ color: '#3a342c', x: 0.5, y: 0.47, size: 0.52, strength: 0.55 }] });
+    },
+    // The heads creep round too slowly to see; two pictures a second keeps them smooth.
+    fps: 2,
+    frame: draw
+  });
+})();
+</script>
+</body>
+</html>

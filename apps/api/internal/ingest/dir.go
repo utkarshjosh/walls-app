@@ -23,6 +23,7 @@ type FileResult struct {
 	Status string // added | updated | unchanged | skipped | failed
 	ID     string
 	Detail string
+	More   []string // further lines of detail (every reason a scene failed its check)
 }
 
 // Report is the outcome of importing a folder.
@@ -99,13 +100,24 @@ func sniffFile(path string) (imaging.Format, bool, error) {
 	return format, ok, nil
 }
 
-// IngestDir imports every media file directly inside dir (sub-folders are not
-// visited). Problems with one file never stop the others. The error return is
-// only for a folder that cannot be read at all.
+// IngestDir imports every image and video directly inside dir, and every live
+// scene: a sub-folder holding a scene.html (or dir itself, if it is one).
+// Other sub-folders are not visited. Scenes must pass the scene gate; a
+// scene that fails is skipped with its reasons. Problems with one file never
+// stop the others. The error return is only for a folder that cannot be read
+// at all.
 func (p *Pipeline) IngestDir(ctx context.Context, dir string) (Report, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return Report{}, fmt.Errorf("cannot read %s: %w", dir, err)
+	}
+	if IsSceneDir(dir) { // the folder is itself one scene
+		res := p.ingestScene(ctx, dir, filepath.Base(filepath.Clean(dir))+"/")
+		rep := Report{Results: []FileResult{res}}
+		if res.Status != "skipped" && res.Status != "failed" {
+			rep.Imported = 1
+		}
+		return rep, nil
 	}
 
 	var man manifest
@@ -173,6 +185,19 @@ func (p *Pipeline) IngestDir(ctx context.Context, dir string) (Report, error) {
 				res.Status = "skipped"
 			}
 		} else {
+			rep.Imported++
+		}
+		rep.Results = append(rep.Results, res)
+	}
+
+	// Live scenes: one per sub-folder that holds a scene.html.
+	for _, e := range entries {
+		sub := filepath.Join(dir, e.Name())
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") || !IsSceneDir(sub) {
+			continue
+		}
+		res := p.ingestScene(ctx, sub, e.Name()+"/")
+		if res.Status != "skipped" && res.Status != "failed" {
 			rep.Imported++
 		}
 		rep.Results = append(rep.Results, res)

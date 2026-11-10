@@ -4,7 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0",
+  // A press is felt: the control dips slightly and comes back.
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium transition-[color,background-color,box-shadow,transform] duration-100 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -14,9 +15,10 @@ const buttonVariants = cva(
           "bg-raised text-fg hover:bg-hover shadow-[inset_0_0_0_1px_var(--color-line)]",
         ghost: "text-fg-muted hover:bg-raised hover:text-fg",
         danger: "bg-danger/15 text-danger hover:bg-danger/25",
-        // Sits on top of a picture.
+        // Sits on top of a picture. Solid rather than blurred: a blur behind
+        // every tile control makes a long grid stutter while scrolling.
         glass:
-          "bg-black/45 text-white backdrop-blur-md hover:bg-black/65 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12)]",
+          "bg-black/60 text-white hover:bg-black/75 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)]",
       },
       size: {
         sm: "h-7 px-2.5 text-sm",

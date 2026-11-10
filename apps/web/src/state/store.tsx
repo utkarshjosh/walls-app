@@ -26,6 +26,7 @@ import { toSchedule } from "@/lib/schedule";
 import { newId } from "@/lib/utils";
 import {
   SAVED_COLLECTION,
+  underlayRef,
   refNames,
   restore,
   seedState,
@@ -276,8 +277,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (!("file" in wallpaper.full)) return null;
       const full = known[wallpaper.full.file];
       if (!full) return null;
-      const poster =
-        wallpaper.poster && "file" in wallpaper.poster ? known[wallpaper.poster.file] : undefined;
+      const underlay = underlayRef(wallpaper);
+      const poster = underlay && "file" in underlay ? known[underlay.file] : undefined;
       return {
         id: wallpaper.id,
         kind: wallpaper.kind,
@@ -613,6 +614,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         author: item.author,
         license: item.license,
         sourceUrl: item.sourceUrl,
+        tags: item.tags,
         remoteId: item.id,
         addedAt: Date.now(),
       };

@@ -21,6 +21,8 @@ export interface Wallpaper {
   author?: string;
   license?: string;
   sourceUrl?: string | null;
+  /** Catalog tags. "clock" marks a scene that tells the time. */
+  tags?: string[];
   /** Catalog id when saved from Discover; lets Discover show "Saved". */
   remoteId?: string;
   addedAt: number;
@@ -277,6 +279,28 @@ export function restore(saved: unknown): LibraryState | null {
  */
 function offerStarters(state: LibraryState): LibraryState {
   return (state.starterSet ?? 1) >= STARTER_SET ? state : withStarters(state);
+}
+
+/**
+ * What may be played for a live wallpaper, or undefined for a still picture.
+ * A scene kept as a file is only ever run from a name ending in .html: the Mac
+ * app checks such files on arrival, and anything else must never be framed as
+ * a page.
+ */
+export function playableRef(wallpaper: Wallpaper): Ref | undefined {
+  if (wallpaper.kind === "image") return undefined;
+  if (wallpaper.kind === "scene" && "file" in wallpaper.full)
+    return /\.html?$/i.test(wallpaper.full.file) ? wallpaper.full : undefined;
+  return wallpaper.full;
+}
+
+/**
+ * The still to put on the desktop underneath a live wallpaper, if any.
+ * A clock's poster shows a frozen time, so it is never used for that
+ * (docs/16-live-scene-standard.md).
+ */
+export function underlayRef(wallpaper: Wallpaper): Ref | undefined {
+  return wallpaper.tags?.includes("clock") ? undefined : wallpaper.poster;
 }
 
 export function isLive(wallpaper: Pick<Wallpaper, "kind">): boolean {

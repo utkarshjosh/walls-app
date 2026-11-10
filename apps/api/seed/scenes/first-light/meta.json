@@ -1,1 +1,13 @@
-{"title": "First Light", "tags": ["dawn", "horizon", "calm"], "color": "#66597a"}
+{
+  "standard": 1,
+  "title": "First Light",
+  "tags": [
+    "dawn",
+    "horizon",
+    "calm"
+  ],
+  "color": "#66597a",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null
+}

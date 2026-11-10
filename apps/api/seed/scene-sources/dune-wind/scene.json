@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Dune Wind",
+  "tags": [
+    "desert",
+    "warm",
+    "light"
+  ],
+  "color": "#d2ae90",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 300,
+  "maxSide": 1600,
+  "background": "#5a3324",
+  "fallback": "linear-gradient(180deg,#e9d6bf 0%,#efdcc4 38%,#d9ab80 55%,#b07850 78%,#6e3f2b 100%)",
+  "poster": 250
+}

@@ -1,1 +1,13 @@
-{"title": "Ink Wash", "tags": ["monochrome", "minimal", "light"], "color": "#c9c5bb"}
+{
+  "standard": 1,
+  "title": "Ink Wash",
+  "tags": [
+    "monochrome",
+    "minimal",
+    "light"
+  ],
+  "color": "#c9c5bb",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null
+}

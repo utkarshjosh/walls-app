@@ -3,7 +3,10 @@ package seed
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -12,10 +15,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/utkarshjoshi/walls/apps/api/internal/catalog"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
+	"github.com/utkarshjoshi/walls/apps/api/internal/scenecheck"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
 )
 
@@ -34,20 +39,40 @@ func newPipeline(t *testing.T) *ingest.Pipeline {
 	return &ingest.Pipeline{DB: db, Store: store}
 }
 
+// poster returns a 1920×1200 JPEG, the size the scene standard requires.
+var posters sync.Map
+
 func poster(t *testing.T, tint uint8) []byte {
 	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, 960, 600))
-	for y := 0; y < 600; y++ {
-		for x := 0; x < 960; x++ {
-			img.SetRGBA(x, y, color.RGBA{uint8(x / 4), tint, uint8(y / 3), 255})
+	if data, ok := posters.Load(tint); ok {
+		return data.([]byte)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 1920, 1200))
+	for y := 0; y < 1200; y++ {
+		for x := 0; x < 1920; x++ {
+			img.SetRGBA(x, y, color.RGBA{uint8(x / 8), tint, uint8(y / 5), 255})
 		}
 	}
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, nil); err != nil {
 		t.Fatal(err)
 	}
+	posters.Store(tint, buf.Bytes())
 	return buf.Bytes()
 }
+
+// sceneHTML is a minimal scene that meets the standard. The marker makes
+// each scene's bytes, and so its id, different.
+func sceneHTML(marker string) []byte {
+	return []byte("<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n" + scenecheck.PolicyLine + "\n<title>" + marker + "</title>\n" +
+		"<style>html,body{margin:0;background:#1c2230}</style>\n</head>\n<body>\n<canvas id=\"c\"></canvas>\n<script>\n" +
+		"(function () {\n  var paused = /paused=1/.test(location.hash); // " + marker + "\n" +
+		"  window.addEventListener('hashchange', function () { paused = /paused=1/.test(location.hash); });\n})();\n" +
+		"</script>\n</body>\n</html>\n")
+}
+
+const firstPartyMeta = `{"standard":1,"title":"Tidal","tags":["abstract","warm"],"color":"#A8676A","author":"Still Originals","license":"Still Original","sourceUrl":null}`
+const adaptedMeta = `{"standard":1,"title":"Slow Sea","tags":["sea"],"author":"Ana Ruiz","license":"CC BY 4.0","sourceUrl":"https://example.com/slow-sea"}`
 
 func writeScene(t *testing.T, root, slug string, files map[string][]byte) {
 	t.Helper()
@@ -62,8 +87,6 @@ func writeScene(t *testing.T, root, slug string, files map[string][]byte) {
 	}
 }
 
-const sceneHTML = "<!doctype html><html><body><canvas></canvas><script>/* %s */</script></body></html>"
-
 func allItems(t *testing.T, p *ingest.Pipeline) []catalog.Item {
 	t.Helper()
 	page, err := p.DB.ListItems(context.Background(), catalog.Query{Limit: 1000})
@@ -77,34 +100,53 @@ func TestSeed(t *testing.T) {
 	ctx := context.Background()
 	p := newPipeline(t)
 	scenes := t.TempDir()
+	tidalHTML := sceneHTML("tidal")
 	writeScene(t, scenes, "tidal", map[string][]byte{
-		"scene.html": []byte(strings.Replace(sceneHTML, "%s", "tidal", 1)),
-		"poster.jpg": poster(t, 80),
-		"meta.json":  []byte(`{"title":"Tidal","tags":["Abstract","warm"],"color":"#A8676A"}`),
+		"scene.html": tidalHTML, "poster.jpg": poster(t, 80), "meta.json": []byte(firstPartyMeta),
 	})
-	writeScene(t, scenes, "first-light", map[string][]byte{
-		"scene.html": []byte(strings.Replace(sceneHTML, "%s", "first light", 1)),
-		"poster.jpg": poster(t, 160),
-		"meta.json":  []byte(`{"tags":["dawn"]}`), // no title or colour: both are filled in
+	writeScene(t, scenes, "slow-sea", map[string][]byte{
+		"scene.html": sceneHTML("slow sea"), "poster.jpg": poster(t, 160), "meta.json": []byte(adaptedMeta),
 	})
-	// Half-written folders: must be skipped without failing the run.
-	writeScene(t, scenes, "no-poster", map[string][]byte{
-		"scene.html": []byte(strings.Replace(sceneHTML, "%s", "x", 1)), "meta.json": []byte(`{"title":"X"}`),
+	// Scenes that fail the gate: each is skipped with its reasons, and the
+	// run carries on.
+	writeScene(t, scenes, "bad-calls-out", map[string][]byte{
+		"scene.html": bytes.Replace(sceneHTML("x"), []byte("(function () {"), []byte("(function () { fetch('/collect');"), 1),
+		"poster.jpg": poster(t, 80), "meta.json": []byte(firstPartyMeta),
 	})
-	writeScene(t, scenes, "partial-html", map[string][]byte{
-		"scene.html": []byte("<!doctype html><html><body><canv"), "poster.jpg": poster(t, 1), "meta.json": []byte(`{"title":"Y"}`),
+	writeScene(t, scenes, "bad-old-style", map[string][]byte{ // what scenes looked like before the standard
+		"scene.html": bytes.Replace(sceneHTML("y"), []byte(scenecheck.Policy), []byte("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"), 1),
+		"poster.jpg": poster(t, 80), "meta.json": []byte(`{"title":"Old","tags":["x"],"color":"#112233"}`),
 	})
-	writeScene(t, scenes, "bad-meta", map[string][]byte{
-		"scene.html": []byte(strings.Replace(sceneHTML, "%s", "z", 1)), "poster.jpg": poster(t, 2), "meta.json": []byte(`{"title":`),
+	writeScene(t, scenes, "bad-no-poster", map[string][]byte{
+		"scene.html": sceneHTML("z"), "meta.json": []byte(firstPartyMeta),
 	})
 
 	opt := Options{ScenesDir: scenes, Scale: 1.0 / 24} // 160×100 renders keep the test quick
+	var log strings.Builder
+	opt.Logf = func(format string, args ...any) { fmt.Fprintf(&log, format+"\n", args...) }
 	stats, err := Run(ctx, p, opt)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stats.Added != 32 || stats.Scenes != 2 || len(stats.ScenesSkipped) != 3 || stats.Removed != 0 {
 		t.Fatalf("first run stats: %+v", stats)
+	}
+	for i, want := range []struct{ name, reason string }{
+		{"bad-calls-out", "forbidden: fetch"},
+		{"bad-no-poster", "poster.jpg: is missing"},
+		{"bad-old-style", "the policy text differs"},
+	} {
+		got := stats.ScenesSkipped[i]
+		if got.Name != want.name || !strings.Contains(strings.Join(got.Reasons, "\n"), want.reason) {
+			t.Errorf("skipped scene %d = %+v, want %s with a reason mentioning %q", i, got, want.name, want.reason)
+		}
+		if !strings.Contains(log.String(), want.reason) {
+			t.Errorf("the log does not say why %s was skipped (%q)", want.name, want.reason)
+		}
+	}
+	// Every reason is reported, not just the first.
+	if n := len(stats.ScenesSkipped[2].Reasons); n != 4 { // policy text + standard + author + licence
+		t.Errorf("bad-old-style has %d reasons, want 4: %v", n, stats.ScenesSkipped[2].Reasons)
 	}
 
 	items := allItems(t, p)
@@ -115,11 +157,16 @@ func TestSeed(t *testing.T) {
 	wide := 0
 	for _, it := range items {
 		byKind[it.Kind]++
-		if it.Author != Author || it.License != License || !it.CreatedAt.Equal(Date) {
-			t.Errorf("%s: attribution/date wrong: %+v", it.Title, it)
+		if !it.CreatedAt.Equal(Date) {
+			t.Errorf("%s: created %v, want the fixed seed date", it.Title, it.CreatedAt)
 		}
-		if it.Kind == catalog.KindImage && it.Width*10 >= it.Height*26 {
-			wide++
+		if it.Kind == catalog.KindImage {
+			if it.Author != Author || it.License != License {
+				t.Errorf("%s: credited to %q / %q", it.Title, it.Author, it.License)
+			}
+			if it.Width*10 >= it.Height*26 {
+				wide++
+			}
 		}
 	}
 	if byKind[catalog.KindImage] != 30 || byKind[catalog.KindScene] != 2 || wide != 6 {
@@ -150,30 +197,34 @@ func TestSeed(t *testing.T) {
 		}
 	}
 
-	// Scenes: html original with the right content type, poster kept, colour and title rules.
+	// Scenes take their title, credits, tags, colour and source from meta.json.
 	live, _ := p.DB.ListItems(ctx, catalog.Query{Kind: "live"})
 	if len(live.Items) != 2 {
 		t.Fatalf("live items = %d", len(live.Items))
 	}
-	var tidal, first catalog.Item
+	var tidal, sea catalog.Item
 	for _, it := range live.Items {
 		switch it.Title {
 		case "Tidal":
 			tidal = it
-		case "First Light":
-			first = it
+		case "Slow Sea":
+			sea = it
 		}
 	}
-	if tidal.ID == "" || first.ID == "" {
+	if tidal.ID == "" || sea.ID == "" {
 		t.Fatalf("scene titles: %q, %q", live.Items[0].Title, live.Items[1].Title)
 	}
 	if tidal.Kind != catalog.KindScene || tidal.Category != "live" || tidal.Color != "#a8676a" || !tidal.HasPoster ||
-		tidal.Width != 960 || tidal.Height != 600 || tidal.OriginalExt != "html" || !slices.Equal(tidal.Tags, []string{"abstract", "warm"}) {
+		tidal.Width != 1920 || tidal.Height != 1200 || tidal.OriginalExt != "html" || !slices.Equal(tidal.Tags, []string{"abstract", "warm"}) ||
+		tidal.Author != "Still Originals" || tidal.License != "Still Original" || tidal.SourceURL != "" {
 		t.Errorf("tidal = %+v", tidal)
 	}
-	if !strings.HasPrefix(first.Color, "#") || len(first.Color) != 7 {
-		t.Errorf("first-light colour should be computed from the poster, got %q", first.Color)
+	if sea.Author != "Ana Ruiz" || sea.License != "CC BY 4.0" || sea.SourceURL != "https://example.com/slow-sea" ||
+		!slices.Equal(sea.Tags, []string{"sea"}) || !strings.HasPrefix(sea.Color, "#") || len(sea.Color) != 7 {
+		t.Errorf("an adapted scene must keep its own credits; got %+v", sea)
 	}
+
+	// The stored original is the source file byte for byte, and the id is its hash.
 	original, preview, thumb, posterKey := ingest.Keys(tidal.ID, "html")
 	f, info, err := p.Store.Open(ctx, original)
 	if err != nil {
@@ -181,8 +232,10 @@ func TestSeed(t *testing.T) {
 	}
 	html, _ := io.ReadAll(f)
 	f.Close()
-	if info.ContentType != "text/html; charset=utf-8" || !strings.Contains(string(html), "tidal") || tidal.Bytes != int64(len(html)) {
-		t.Errorf("scene original: type %q, %d bytes", info.ContentType, len(html))
+	sum := sha256.Sum256(tidalHTML)
+	if info.ContentType != "text/html; charset=utf-8" || !bytes.Equal(html, tidalHTML) || tidal.ID != hex.EncodeToString(sum[:])[:12] ||
+		tidal.Bytes != int64(len(tidalHTML)) {
+		t.Errorf("scene original: type %q, %d bytes, id %s", info.ContentType, len(html), tidal.ID)
 	}
 	for _, key := range []string{preview, thumb, posterKey} {
 		if info, err := p.Store.Head(ctx, key); err != nil || info.ContentType != "image/jpeg" {
@@ -229,45 +282,53 @@ func TestSeed(t *testing.T) {
 		t.Error("re-seeding changed ids or order")
 	}
 
-	// A half-written scenes folder must not retire scenes already loaded …
-	stats, _ = Run(ctx, p, opt)
-	if n, _ := p.DB.CountItems(ctx); n != 32 || stats.Removed != 0 {
-		t.Errorf("scenes were pruned while the folder was incomplete: %d items, %+v", n, stats)
-	}
-	// … nor must a missing folder.
+	// A missing scenes folder (seed run from the wrong place) leaves the
+	// loaded scenes alone.
 	stats, err = Run(ctx, p, Options{ScenesDir: filepath.Join(scenes, "nope"), Scale: opt.Scale})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := p.DB.CountItems(ctx); n != 32 || stats.Scenes != 0 {
+	if n, _ := p.DB.CountItems(ctx); n != 32 || stats.Scenes != 0 || stats.Removed != 0 {
 		t.Errorf("missing scenes folder: %d items, %+v", n, stats)
 	}
 
-	// Once the folder is clean, a changed scene replaces its old version and
-	// a deleted one is retired; the Live pack follows.
-	for _, slug := range []string{"no-poster", "partial-html", "bad-meta", "first-light"} {
-		os.RemoveAll(filepath.Join(scenes, slug))
-	}
-	writeScene(t, scenes, "tidal", map[string][]byte{"scene.html": []byte(strings.Replace(sceneHTML, "%s", "tidal v2", 1))})
+	// A published scene whose file is changed so that it no longer passes is
+	// retired at the next run: what is published must be what passes.
+	writeScene(t, scenes, "tidal", map[string][]byte{
+		"scene.html": bytes.Replace(tidalHTML, []byte("(function () {"), []byte("(function () { new WebSocket('wss://e.example');"), 1),
+	})
 	stats, err = Run(ctx, p, opt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Added != 1 || stats.Removed != 2 || stats.Scenes != 1 {
-		t.Errorf("after editing scenes: %+v", stats)
+	if stats.Removed != 1 || stats.Scenes != 1 || len(stats.ScenesSkipped) != 4 {
+		t.Errorf("after breaking tidal: %+v", stats)
 	}
 	if _, err := p.DB.GetItem(ctx, tidal.ID); !errors.Is(err, catalog.ErrNotFound) {
-		t.Error("the old version of the edited scene is still in the catalog")
+		t.Error("a scene that stopped passing the gate is still published")
 	}
 	if _, err := p.Store.Head(ctx, original); !errors.Is(err, storage.ErrNotFound) {
-		t.Error("the old scene's objects were not removed")
+		t.Error("the retired scene's files were not removed")
 	}
-	if pk, items, _ := p.DB.GetPack(ctx, "live"); pk.Count != 1 || items[0].Title != "Tidal" {
-		t.Errorf("live pack after edit: %+v", pk)
+	if pk, items, _ := p.DB.GetPack(ctx, "live"); pk.Count != 1 || items[0].Title != "Slow Sea" {
+		t.Errorf("live pack after retiring tidal: %+v", pk)
 	}
 
-	// With no scenes left the Live pack disappears.
-	os.RemoveAll(filepath.Join(scenes, "tidal"))
+	// An edited scene that still passes replaces its old version.
+	writeScene(t, scenes, "slow-sea", map[string][]byte{"scene.html": sceneHTML("slow sea, second cut")})
+	stats, err = Run(ctx, p, opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Added != 1 || stats.Removed != 1 || stats.Scenes != 1 {
+		t.Errorf("after editing slow-sea: %+v", stats)
+	}
+	if _, err := p.DB.GetItem(ctx, sea.ID); !errors.Is(err, catalog.ErrNotFound) {
+		t.Error("the old version of the edited scene is still in the catalog")
+	}
+
+	// With no passing scenes left the Live pack disappears.
+	os.RemoveAll(filepath.Join(scenes, "slow-sea"))
 	if _, err := Run(ctx, p, opt); err != nil {
 		t.Fatal(err)
 	}

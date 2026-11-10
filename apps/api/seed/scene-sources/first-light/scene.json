@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "First Light",
+  "tags": [
+    "dawn",
+    "horizon",
+    "calm"
+  ],
+  "color": "#66597a",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 240,
+  "maxSide": 1600,
+  "background": "#080a18",
+  "fallback": "linear-gradient(180deg,#1a2444 0%,#6b5878 34%,#e5a385 56%,#57506f 62%,#1a1c30 100%)",
+  "poster": 42
+}

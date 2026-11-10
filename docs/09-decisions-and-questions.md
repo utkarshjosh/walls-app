@@ -32,6 +32,8 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-026 | The native core owns rotation; the interface only describes the plan | Rotation must run with the window closed; rules are mirrored and tested on both sides |
 | ADR-027 | A fresh install is paused and never changes the desktop until Start | Avoids surprising a new user and keeps App Store review simple |
 | ADR-028 | Wallpapers are judged against the connected displays' real pixels; rotation skips what would look blurry and only stretches pictures that have the pixels | Owner feedback 2026-11-10 after small pictures were stretched across a Retina display and a 1080p monitor. A still picture may be enlarged by a quarter at most; video by 2.2x |
+| ADR-029 | Live scenes follow a written standard with a kit, a gate and a re-check in the app | Owner wants many more scenes, including ones adapted from the web, without hand-coding each; a scene is running code, so each layer must hold if the one before it is wrong |
+| ADR-030 | No sharing and no community features; Discover is published and curated by us | Owner decision 2026-11-10: no user base yet, quality is maintained by curation |
 
 ## Confirm before deployment
 

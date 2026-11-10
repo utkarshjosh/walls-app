@@ -33,10 +33,10 @@ Each of these was either in the earlier plan or is a tempting next step. None is
 
 ### Community and "smart" features
 
-5. **Wallpapers submitted by users, profiles, likes, comments, follower counts.** Public user content needs moderation, a reporting and blocking flow (an App Store requirement), and a rights process. Discover in v1 is curated by us only.
+5. **Wallpapers submitted by users, profiles, likes, comments, follower counts.** Public user content needs moderation, a reporting and blocking flow (an App Store requirement), and a rights process. Discover in v1 is curated by us only. Confirmed by the owner on 2026-11-10: there is no community or user base yet, so we publish the wallpapers and collections ourselves and keep the quality up.
 6. **Anything AI: taste learning, "describe a wallpaper", generated images on demand.**
 7. **Pulling from Unsplash, Pexels, Wallhaven or any other site.** Each has API keys, attribution rules and hot-linking terms. Curate and license a catalog instead.
-8. **Engagement mechanics: streaks, "wallpaper of the day" notifications, badges, sharing to social networks.**
+8. **Engagement mechanics: streaks, "wallpaper of the day" notifications, badges, sharing to social networks.** Sharing wallpapers socially is ruled out for now by the owner, not merely postponed.
 
 ### Payments and distribution
 
@@ -61,7 +61,7 @@ Each of these was either in the earlier plan or is a tempting next step. None is
 ### Depth in live wallpapers
 
 20. **Hosting videos in the catalog.** A good loop is 50–200 MB; a few dozen would fill the bucket. Catalog live wallpapers are scenes (a few kilobytes each). People can still add their own videos locally.
-21. **Scenes written by third parties, a scene editor, interactive or audio-reactive wallpapers, web pages as wallpapers.** Scenes run code, so v1 ships only ones we wrote.
+21. **Scenes submitted by users, a scene editor, interactive or audio-reactive wallpapers, scenes that fetch live data, web pages as wallpapers.** Scenes run code. We may adapt other people's work when its licence allows, but every scene is built with our kit, passes the gate and is reviewed by us before it is published ([live scene standard](16-live-scene-standard.md)).
 22. **Video conversion or trimming.** Accept MP4, MOV and WebM as they are.
 
 ### Polish that can wait

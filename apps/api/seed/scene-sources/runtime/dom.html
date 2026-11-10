@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- scenekit:policy -->
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}}</title>
+<!-- scenekit:notes
+  {{TITLE}} - the source of a per-display live wallpaper scene.
+
+  HOW TO WORK ON THIS FILE
+  Fill in the four marked places, then run
+      python3 scenekit.py build {{SLUG}}
+  and open ../scenes/{{SLUG}}/scene.html in a browser to look. Edit this file, never that one.
+
+  The three comments whose text starts with "scenekit" are replaced when building: by the
+  security policy, by a short header (this note is left out of the finished scene), and by
+  the shared runtime. Leave them where they are; the policy one must stay directly after
+  the charset line.
+
+  Rules that keep a scene publishable (the standard has the full list):
+  - Everything stays inside this one file. No addresses, no loading, no storing, no frames.
+  - Slow and quiet: it sits behind someone's work. No selectable text, no pointer effects.
+  - Draw only from the hooks below; never start timers or animation loops of your own, and
+    avoid CSS animations. The runtime then handles pause, hidden pages and the frame cap.
+  - Lay out from the window size given to layout(); ignore the cw/ch/vx/vy geometry values.
+-->
+<style>
+/* 1. FILL IN: the darkest colour of the scene, so nothing flashes white while it loads. */
+html,body{margin:0;height:100%;overflow:hidden;background:#10131c}
+body{-webkit-user-select:none;user-select:none;-webkit-font-smoothing:antialiased;
+  font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;color:#f4f1ea}
+
+/* 2. FILL IN: your styles. */
+#stage{position:fixed;left:0;right:0;text-align:center}
+#big{font-weight:200;line-height:1}
+#small{opacity:.8}
+</style>
+</head>
+<body>
+<!-- 3. FILL IN: your markup. -->
+<div id="stage"><div id="big"></div><div id="small"></div></div>
+
+<!-- scenekit:runtime -->
+<script>
+// 4. FILL IN: what the scene shows. Use Scene.now() rather than new Date(), so stills can be frozen.
+(function () {
+  'use strict';
+  var stage = document.getElementById('stage'), big = document.getElementById('big'), small = document.getElementById('small');
+  var clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+  var day = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  Scene.start({
+    // The window's size in points. Called first, and again whenever the size changes.
+    layout: function (width, height) {
+      var unit = Math.min(width, height);
+      big.style.fontSize = (unit * 0.16) + 'px';
+      small.style.fontSize = (unit * 0.024) + 'px';
+      stage.style.top = (height * 0.34) + 'px';
+    },
+
+    // Once at the start and then on every new minute - also while paused.
+    minute: function (now) {
+      big.textContent = clock.format(now);
+      small.textContent = day.format(now);
+      // A smooth background that never shows bands. Three colours, upper to lower; lights are optional.
+      Scene.backdrop({ colors: ['#10131c', '#1b2333', '#2c3346'],
+                       lights: [{ color: '#4a5a7a', x: 0.5, y: 0.9, size: 0.7, strength: 0.35 }] });
+    }
+
+    // For slow continuous motion, add a frame hook and a frame rate (30 at most; slow things need far less):
+    //   , fps: 5,
+    //   frame: function (now) { var p = Scene.phase(240);  /* 0..1 round a 240 second loop */ }
+  });
+})();
+</script>
+</body>
+</html>

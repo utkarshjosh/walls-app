@@ -1,0 +1,19 @@
+{
+  "kind": "shader",
+  "style": "native",
+  "title": "Ink Wash",
+  "tags": [
+    "monochrome",
+    "minimal",
+    "light"
+  ],
+  "color": "#c9c5bb",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 360,
+  "maxSide": 1300,
+  "background": "#37383b",
+  "fallback": "linear-gradient(160deg,#ede7db 0%,#e6e0d4 55%,#b9b5ac 80%,#77756f 100%)",
+  "poster": 0
+}

@@ -6,6 +6,7 @@ import {
   FolderMinus,
   FolderPlus,
   ImagePlus,
+  Laptop,
   Monitor,
   Pencil,
   Search,
@@ -16,10 +17,10 @@ import { fitNote } from "@/lib/fitNote";
 import { plural } from "@/lib/utils";
 import { platform } from "@/platform";
 import { useLibrary } from "@/state/store";
-import { aspectOf, type Collection, type Wallpaper } from "@/state/model";
+import { aspectOf, playableRef, type Collection, type Wallpaper } from "@/state/model";
 import { ActionMenu, WithContextMenu, type MenuEntry } from "@/components/ActionMenu";
 import { ConfirmDialog, NameDialog } from "@/components/Dialogs";
-import { orderedDisplays } from "@/components/DisplayPreview";
+import { isBuiltIn, orderedDisplays } from "@/components/DisplayPreview";
 import { ImportDialog } from "@/components/ImportDialog";
 import { Lightbox, type LightboxItem } from "@/components/Lightbox";
 import { Picture } from "@/components/Picture";
@@ -145,6 +146,8 @@ export function LibraryPage({
                 (display): MenuEntry => ({
                   type: "item",
                   label: display.name,
+                  // A laptop or a monitor, so it is clear which display is meant.
+                  icon: isBuiltIn(display) ? Laptop : Monitor,
                   hint: fitsDisplay(wallpaper, display) ? undefined : "Too small",
                   onSelect: () => setWallpaper(wallpaper, { mode: "same", displayId: display.id }),
                 }),
@@ -242,7 +245,7 @@ export function LibraryPage({
     title: wallpaper.title,
     kind: wallpaper.kind,
     image: urlOf(wallpaper.kind === "image" ? wallpaper.full : (wallpaper.poster ?? wallpaper.thumb)),
-    live: wallpaper.kind === "image" ? undefined : urlOf(wallpaper.full),
+    live: urlOf(playableRef(wallpaper)),
     color: wallpaper.color,
     aspect: aspectOf(wallpaper),
     detail: describe(wallpaper),
@@ -399,7 +402,7 @@ export function LibraryPage({
                         thumb={urlOf(wallpaper.thumb)}
                         color={wallpaper.color}
                         kind={wallpaper.kind}
-                        liveSrc={wallpaper.kind === "image" ? undefined : urlOf(wallpaper.full)}
+                        liveSrc={urlOf(playableRef(wallpaper))}
                         showing={showingIds.has(wallpaper.id)}
                         lowResolution={displays.length > 0 && !fitsAny(wallpaper, displays)}
                         onOpen={() => setViewing(index)}
@@ -624,7 +627,8 @@ function CollectionCard({
         type="button"
         onClick={onOpen}
         aria-label={`Open ${name}`}
-        className="block aspect-[16/10] w-full overflow-hidden rounded-panel bg-surface"
+        // The cover's pictures ease in a touch under the pointer; the card stays put.
+        className="block aspect-[16/10] w-full overflow-hidden rounded-panel bg-surface [&_img]:transition-[opacity,transform] [&_img]:duration-500 [&_img]:ease-quiet group-hover/card:[&_img]:scale-[1.03] group-focus-within/card:[&_img]:scale-[1.03]"
       >
         {cover.length === 0 ? (
           <span className="flex size-full items-center justify-center border border-dashed border-line text-sm text-fg-faint">

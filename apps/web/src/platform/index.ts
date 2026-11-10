@@ -1,9 +1,9 @@
 import { createDesktopPlatform } from "./desktop";
-import { createWebPlatform, type WebPlatform } from "./web";
+import { createWebPlatform, type SimulatedLayout, type WebPlatform } from "./web";
 import type { Platform } from "./types";
 
 export type * from "./types";
-export type { WebPlatform };
+export type { SimulatedLayout, WebPlatform };
 
 const insideTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 

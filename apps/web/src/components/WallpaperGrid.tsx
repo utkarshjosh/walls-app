@@ -140,14 +140,22 @@ export function WallpaperTile({
         aria-label={`Open ${title}`}
         className="absolute inset-0 block size-full focus-visible:outline-offset-[-2px]"
       >
-        <Picture src={thumb} alt="" color={color} className="size-full" />
+        <Picture
+          src={thumb}
+          alt=""
+          color={color}
+          className="size-full"
+          // The picture eases in a touch under the pointer; the tile itself
+          // never moves, so the grid stays still.
+          imageClassName="transition-[opacity,transform] duration-500 ease-quiet group-hover/tile:scale-[1.035] group-focus-within/tile:scale-[1.035]"
+        />
         {playing && liveSrc && (
           <span className="absolute inset-0 animate-fade-in">
             <LiveFrame kind={kind} src={liveSrc} />
           </span>
         )}
         {/* Name appears on hover/focus only; the picture is the content. */}
-        <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end bg-gradient-to-t from-black/70 to-transparent px-3 pt-10 pb-2.5 text-left opacity-0 transition-opacity duration-150 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100">
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end bg-gradient-to-t from-black/70 to-transparent px-3 pt-10 pb-2.5 text-left opacity-0 transition-opacity duration-200 ease-quiet group-focus-within/tile:opacity-100 group-hover/tile:opacity-100">
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium text-white">{title}</span>
             {caption && <span className="block truncate text-xs text-white/70">{caption}</span>}
@@ -169,7 +177,7 @@ export function WallpaperTile({
       {(actions || pinnedActions) && (
         <span className="absolute top-2 right-2 flex gap-1.5">
           {actions && (
-            <span className="flex gap-1.5 opacity-0 transition-opacity duration-150 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 has-[[data-state=open]]:opacity-100">
+            <span className="flex gap-1.5 opacity-0 transition-opacity duration-200 ease-quiet group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 has-[[data-state=open]]:opacity-100">
               {actions}
             </span>
           )}
@@ -184,8 +192,8 @@ export function Badge({ children, tone }: { children: ReactNode; tone?: "tint" }
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-2xs font-medium backdrop-blur-md",
-        tone === "tint" ? "bg-tint text-tint-ink" : "bg-black/50 text-white",
+        "rounded-full px-2 py-0.5 text-2xs font-medium",
+        tone === "tint" ? "bg-tint text-tint-ink" : "bg-black/60 text-white",
       )}
     >
       {children}

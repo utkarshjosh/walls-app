@@ -37,6 +37,7 @@ The documents below record how the plan got here. Where they disagree with the f
 6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md), [Collections design history](docs/12-design-brief.md), and [motion/iteration guide](docs/13-motion-and-ui-iteration.md).
 7. [Current component foundation](docs/14-component-foundation.md) and [component catalog](docs/design/component-catalog.json) — approved reuse approach, source links, design principles and integration checks.
 8. [First-launch scope](docs/15-first-launch-scope.md) — what ships first, the list of things not to build yet, and what blocks launch.
+9. [Live scene standard](docs/16-live-scene-standard.md) — what a live wallpaper made of code must be, how to make one from web material, and how the app contains it.
 
 ## Earlier product default (planning history)
 

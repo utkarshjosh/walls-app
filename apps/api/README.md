@@ -10,8 +10,9 @@ It is one program, `walls`, with a few commands:
 | Command | What it does |
 | --- | --- |
 | `walls serve` | Runs the HTTP API (default `:8787`). |
-| `walls seed` | Draws the 30 starter wallpapers, registers the live scenes in `seed/scenes/`, and creates the curated packs. Safe to re-run. |
-| `walls ingest <dir>` | Imports a folder of your own licensed images and videos. |
+| `walls seed` | Draws the 30 starter wallpapers, registers the live scenes in `seed/scenes/` that pass the scene check, and creates the curated packs. Safe to re-run. |
+| `walls ingest <dir>` | Imports a folder of your own licensed images, videos and live scenes. |
+| `walls scene check <dir>...` | Checks live scene folders against the scene standard. Reads files only. |
 | `walls rm <id>` | Removes one item and its stored files. |
 | `walls render` | Writes the starter artwork to a folder without touching the catalog (for tuning the generator). |
 
@@ -135,13 +136,76 @@ sidecar overrides the manifest entry, which overrides `defaults`. Without a
 title, the file name is used ("misty_ridge.jpg" → "Misty Ridge"). Without a
 category, images go in `other` and videos in `live`.
 
-Only files directly in the folder are read (no sub-folders). The command
-prints one line per file saying what happened and why. Running it again is
+Only files directly in the folder are read. The one exception is live scenes:
+a sub-folder that holds a `scene.html` is imported as a scene, if it passes the
+check described under "Live scenes" below. The command prints one line per
+file saying what happened and why. Running it again is
 harmless: an item's id is a fingerprint of its bytes, so unchanged files are
 recognised and skipped, and edited details are updated in place. The command
 only exits with an error when nothing at all could be imported.
 
 Remove something with `go run ./cmd/walls rm <id>`.
+
+## Live scenes
+
+A live scene is a wallpaper made of code: one web page, `scene.html`, that the
+app draws behind the desktop icons. Because it is running code, every scene
+must pass a check, "the gate", before this service will publish it. The rules
+are written down in [`docs/16-live-scene-standard.md`](../../docs/16-live-scene-standard.md).
+
+A scene is a folder with three files: `scene.html`, `poster.jpg` and
+`meta.json`. The gate reads them and refuses the scene unless:
+
+- **All three files are there.** `scene.html` is at most 512 KB, `poster.jpg`
+  is a real JPEG of exactly 1920×1200, and `meta.json` says `"standard": 1`
+  and gives a title, an author and a licence. Credits are never guessed.
+- **It carries the standard's content policy, where a browser is sure to
+  apply it.** That one line is what stops a scene from loading or sending
+  anything. There must be exactly one policy tag in the whole file, with
+  exactly the standard's text, and nothing may come before it except the
+  doctype, `<html>`, `<head>` and `<meta charset="utf-8">`. The Mac app applies
+  the same rule when a scene arrives, so a scene that passes here is not
+  refused there.
+- **It uses nothing on the standard's forbidden list**: outside scripts,
+  links, frames and forms, `http:`/`https:`/`ws:` addresses, `fetch` and the
+  other ways to talk to a server, `eval`, storage, cookies, leaving the page,
+  or reaching the window above. Each one found is reported with its line.
+  Words in comments do not count. The three fixed names needed to build SVG
+  from script (`http://www.w3.org/2000/svg`, `.../1999/xlink`,
+  `.../1999/xhtml`) are allowed, exactly as written and nothing longer.
+- **It reads `location.hash` and handles `paused`**, which is how the app tells
+  a scene its size and freezes it to save energy.
+
+To add a scene:
+
+```sh
+# 1. Make the scene folder. The kit (Python, in seed/scene-sources/) writes
+#    scene.html around a shader or a page you supply, and captures the poster.
+python3 seed/scene-sources/scenekit.py --help
+
+# 2. Check it. Every reason for a failure is listed; nothing is changed.
+go run ./cmd/walls scene check seed/scenes/<name>
+
+# 3. Publish it, with everything else in seed/scenes/.
+go run ./cmd/walls seed
+```
+
+`seed` (and `ingest`, for a scene kept in another folder) runs the same check
+itself. A scene that fails is skipped with its reasons and the rest of the run
+carries on. After `seed`, the published scenes are exactly the ones in
+`seed/scenes/` that pass: a scene that was removed from the folder, or was
+changed and no longer passes, is taken out of the catalog. A scene's title,
+tags, colour, author, licence and source link come from its `meta.json`, and
+its id is a fingerprint of `scene.html`, so an approved scene cannot change
+without becoming a different item.
+
+What the gate does not judge. It checks that a scene cannot reach anything and
+follows the layout contract. It does not check that a scene is calm, that it is
+cheap to run, that it really stops when paused, or that it is any good. It
+also reads the text as written: code that goes out of its way to disguise a
+forbidden call would pass the scan, and is stopped by the policy when it runs,
+not by the gate. So a person still opens each scene, watches it for a minute
+on a real display, and reads its code before it is published.
 
 ## Building for the server
 
@@ -188,6 +252,9 @@ GET /v1/packs                     curated packs with up to three cover thumbnail
 GET /v1/packs/{id}                a pack and its items
 GET /v1/files/{id}/{variant}      variant: thumb | preview | original | poster
 ```
+
+For a live scene, `original` is the scene's `scene.html` and `poster` its
+`poster.jpg`.
 
 Lists are ordered by a `rank` set when content is loaded, and paged with an
 opaque `cursor`: pass back the `nextCursor` from the previous page until it is

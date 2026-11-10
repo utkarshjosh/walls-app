@@ -4,13 +4,11 @@ package seed
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -23,13 +21,13 @@ import (
 )
 
 const (
+	// Author and License credit the artwork this program draws itself. Live
+	// scenes carry their own credits in meta.json.
 	Author  = "Still Originals"
 	License = "Still Original"
 
 	originArt   = "seed"
 	originScene = "scene"
-
-	sceneMaxBytes = 5 << 20
 )
 
 // Date is the creation date given to first-party items, fixed so that
@@ -47,13 +45,26 @@ type Options struct {
 type Stats struct {
 	Added, Updated, Unchanged, Removed int
 	Scenes                             int
-	ScenesSkipped                      []string // "folder: reason"
+	ScenesSkipped                      []SkippedScene
 	Elapsed                            time.Duration
+}
+
+// SkippedScene is a scene folder that failed the scene gate, with every
+// reason.
+type SkippedScene struct {
+	Name    string
+	Reasons []string
 }
 
 // Run seeds the catalog. It is safe to run repeatedly: unchanged artwork is
 // recognised by its content hash and left alone, and first-party items that
 // the current generator no longer produces are removed.
+//
+// Every live scene goes through the scene gate (internal/scenecheck). A
+// scene that fails is skipped with its reasons and does not stop the run.
+// Afterwards the catalog's seeded scenes are exactly the ones that passed: a
+// scene loaded by an earlier run that is gone from the folder, or no longer
+// passes, is removed.
 func Run(ctx context.Context, p *ingest.Pipeline, opt Options) (Stats, error) {
 	start := time.Now()
 	logf := opt.Logf
@@ -135,7 +146,7 @@ func Run(ctx context.Context, p *ingest.Pipeline, opt Options) (Stats, error) {
 	}
 
 	// --- Live scenes -------------------------------------------------------
-	sceneIDs, scenesComplete, err := seedScenes(ctx, p, opt.ScenesDir, &stats, count, logf)
+	sceneIDs, scenesRead, err := seedScenes(ctx, p, opt.ScenesDir, &stats, count, logf)
 	if err != nil {
 		return stats, err
 	}
@@ -148,9 +159,11 @@ func Run(ctx context.Context, p *ingest.Pipeline, opt Options) (Stats, error) {
 	if err := prune(ctx, p, originArt, keep, &stats, logf); err != nil {
 		return stats, err
 	}
-	// Scenes are only retired when the scenes folder was fully readable;
-	// a missing or half-written folder must not wipe scenes already loaded.
-	if scenesComplete {
+	// Scenes are only retired when the scenes folder itself could be read: a
+	// missing folder (seed run from the wrong place, say) must not wipe the
+	// scenes already loaded. A scene that is present but fails the gate is
+	// retired, because a published scene has to be one that passes.
+	if scenesRead {
 		keep = map[string]bool{}
 		for _, id := range sceneIDs {
 			keep[id] = true
@@ -231,28 +244,20 @@ func prune(ctx context.Context, p *ingest.Pipeline, origin string, keep map[stri
 	return nil
 }
 
-type sceneMeta struct {
-	Title string   `json:"title"`
-	Tags  []string `json:"tags"`
-	Color string   `json:"color"`
-}
-
-var hexColour = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-
-// seedScenes registers every complete scene folder. It returns the ids it
-// registered and whether the folder was read without skipping anything.
+// seedScenes registers every scene folder that passes the gate. It returns
+// the ids it registered and whether the scenes folder could be read at all.
 func seedScenes(ctx context.Context, p *ingest.Pipeline, dir string, stats *Stats, count func(string),
-	logf func(string, ...any)) (ids []string, complete bool, err error) {
+	logf func(string, ...any)) (ids []string, read bool, err error) {
 	if dir == "" {
 		return nil, false, nil
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			logf("no scenes folder at %s; continuing without live scenes", dir)
-			return nil, false, nil
+			logf("no scenes folder at %s; continuing without touching live scenes", dir)
+		} else {
+			logf("cannot read scenes folder %s (%v); continuing without touching live scenes", dir, err)
 		}
-		logf("cannot read scenes folder %s (%v); continuing without live scenes", dir, err)
 		return nil, false, nil
 	}
 	var names []string
@@ -263,109 +268,28 @@ func seedScenes(ctx context.Context, p *ingest.Pipeline, dir string, stats *Stat
 	}
 	sort.Strings(names)
 
-	complete = true
 	for n, name := range names {
-		asset, reason := loadScene(filepath.Join(dir, name), name)
-		if reason != "" {
-			complete = false
-			stats.ScenesSkipped = append(stats.ScenesSkipped, name+": "+reason)
-			logf("%-9s scene %s: %s", "skipped", name, reason)
+		asset, check := ingest.SceneAsset(filepath.Join(dir, name))
+		if !check.OK() {
+			stats.ScenesSkipped = append(stats.ScenesSkipped, SkippedScene{Name: name, Reasons: check.Reasons()})
+			logf("%-9s scene %s failed the scene check:", "skipped", name)
+			for _, reason := range check.Reasons() {
+				logf("            %s", reason)
+			}
 			continue
 		}
+		asset.Origin, asset.CreatedAt = originScene, Date
 		// Scenes are sprinkled through the feed: one after every sixth
 		// picture, starting after the fourth.
 		asset.Rank = int64(4+6*n)*100 + 50
 		res, err := p.Publish(ctx, asset)
 		if err != nil {
-			if errors.Is(err, ingest.ErrOverCap) {
-				return ids, false, err
-			}
-			complete = false
-			stats.ScenesSkipped = append(stats.ScenesSkipped, name+": "+err.Error())
-			logf("%-9s scene %s: %v", "skipped", name, err)
-			continue
+			return ids, true, fmt.Errorf("scene %s: %w", name, err)
 		}
 		ids = append(ids, res.ID)
 		stats.Scenes++
 		count(res.Status)
-		logf("%-9s %s  %-14s live scene", res.Status, res.ID, res.Item.Title)
+		logf("%-9s %s  %-14s live scene by %s", res.Status, res.ID, res.Item.Title, res.Item.Author)
 	}
-	return ids, complete, nil
-}
-
-// loadScene reads one scene folder. A non-empty reason means the folder is
-// incomplete or invalid and should be skipped for now.
-func loadScene(dir, name string) (ingest.Asset, string) {
-	read := func(file string, limit int64) ([]byte, string) {
-		path := filepath.Join(dir, file)
-		info, err := os.Stat(path)
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, file + " is missing"
-		}
-		if err != nil {
-			return nil, err.Error()
-		}
-		if info.Size() == 0 {
-			return nil, file + " is empty"
-		}
-		if info.Size() > limit {
-			return nil, fmt.Sprintf("%s is larger than %s", file, ingest.HumanBytes(limit))
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err.Error()
-		}
-		return data, ""
-	}
-
-	html, reason := read("scene.html", sceneMaxBytes)
-	if reason != "" {
-		return ingest.Asset{}, reason
-	}
-	posterData, reason := read("poster.jpg", imaging.MaxImageBytes)
-	if reason != "" {
-		return ingest.Asset{}, reason
-	}
-	metaData, reason := read("meta.json", 1<<20)
-	if reason != "" {
-		return ingest.Asset{}, reason
-	}
-
-	var meta sceneMeta
-	if err := json.Unmarshal(metaData, &meta); err != nil {
-		return ingest.Asset{}, "meta.json is not valid JSON yet"
-	}
-	// A scene being written may have a truncated file; a quick sanity check
-	// on the HTML avoids registering half a document.
-	lower := strings.ToLower(string(html))
-	if !strings.Contains(lower, "<html") || !strings.Contains(lower, "</html>") {
-		return ingest.Asset{}, "scene.html does not look like a complete HTML document yet"
-	}
-	poster, format, err := imaging.DecodeImage(posterData)
-	if err != nil {
-		return ingest.Asset{}, "poster.jpg: " + err.Error()
-	}
-
-	title := strings.TrimSpace(meta.Title)
-	if title == "" {
-		title = catalog.Humanize(name)
-	}
-	tags := []string{}
-	for _, t := range meta.Tags {
-		if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
-			tags = append(tags, t)
-		}
-	}
-	asset := ingest.Asset{
-		Data: html, Kind: catalog.KindScene, Ext: "html", ContentType: "text/html; charset=utf-8", Image: poster,
-		Meta:   ingest.Meta{Title: title, Category: "live", Tags: tags, Author: Author, License: License},
-		Origin: originScene, CreatedAt: Date,
-	}
-	if format == imaging.FormatJPEG && imaging.Upright(posterData) {
-		asset.PosterJPEG = posterData
-	}
-	if hexColour.MatchString(meta.Color) {
-		asset.Color = strings.ToLower(meta.Color)
-	}
-	return asset, ""
+	return ids, true, nil
 }

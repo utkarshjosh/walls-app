@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Monitor } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { canSpan, fitsDisplay, type FitItem } from "@/lib/fit";
 import { useLibrary, type WallpaperTarget } from "@/state/store";
 import { Button } from "./ui/button";
@@ -11,7 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/menu";
-import { DisplayPreview, ModeGlyph, orderedDisplays, type PreviewPicture } from "./DisplayPreview";
+import {
+  DisplayIcon,
+  DisplayPreview,
+  ModeGlyph,
+  orderedDisplays,
+  type PreviewPicture,
+} from "./DisplayPreview";
 
 /**
  * "Set as wallpaper". With one display it is a single button. A second display
@@ -74,8 +80,8 @@ export function SetWallpaperButton({
           <div className="px-3 pt-3 pb-2">
             <DisplayPreview
               displays={displays}
-              mode={hover.mode}
-              pictures={[picture]}
+              layout={hover.mode}
+              picture={picture}
               highlightId={hover.displayId ?? null}
             />
           </div>
@@ -106,7 +112,7 @@ export function SetWallpaperButton({
               onFocus={() => setHover({ mode: "same", displayId: display.id })}
               onPointerMove={() => setHover({ mode: "same", displayId: display.id })}
             >
-              <Monitor />
+              <DisplayIcon display={display} />
               {display.name}
               {!fitsDisplay(item, display) && tooSmall}
             </DropdownMenuItem>

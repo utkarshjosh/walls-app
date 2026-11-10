@@ -35,6 +35,16 @@ After using the first build on a 16-inch MacBook Pro beside a 24-inch 1080p moni
 
 Also from the same session: with the full-size viewer or a dialog open, the top strip must stay grabbable so the window can be moved (`data-tauri-drag-region`). Any new full-window overlay needs the same.
 
+### Rotation, live scenes and sharing — owner feedback, later on 2026-11-10
+
+- **Displays must be identifiable.** Wherever the arrangement is drawn, each display carries its name and a laptop or monitor icon.
+- **The display stage has one size.** The owner switched macOS to a top-and-bottom arrangement and the preview grew until the page had to scroll: "UI consistency is poor here". The stage is a fixed-height box and the arrangement is scaled to fit inside it in both directions (`DisplayPreview` with `contain`). Never let a drawing size itself from its content.
+- **In "different on each", the person chooses.** Each display in the stage has a Choose control that opens a picker for that display. Rotation still takes over at the next change.
+- **Rotation must scale and stay tight.** Collections are a grid of on/off cards, not a list that pushes everything else down; transport and timing share one row; explanatory sentences are kept to a few words. The owner's words: "less slop and scalability in rotation page".
+- **More motion and feedback, still calm.** Asked for: "motion graphics, feedback". In use now: wallpapers cross-fade in the stage, the selected display mode slides, controls dip when pressed, check marks pop in, tile pictures ease in under the pointer. Still not allowed: animating the gallery's layout, springs that overshoot, anything that loops by itself. No blur behind controls on tiles: it makes long grids stutter in the Mac app's web view.
+- **Live scenes follow a written standard** ([docs/16-live-scene-standard.md](../../docs/16-live-scene-standard.md)) so they can be made from web material with the kit instead of hand-coding, and every scene passes the same security gate because it is running code.
+- **No sharing, no community yet.** Owner decision: "we are prohibiting social sharing of these wallpapers, we don't have a community or userbase yet, we will deploy wallpapers and maintain quality, collections". Discover is published and curated by us only. Do not add share, export-to-social, submit or follow features.
+
 ## Wallpaper product direction
 
 Current direction, 2026-11-08: use the component-first foundation in [docs/14-component-foundation.md](../../docs/14-component-foundation.md) and its [component catalog](../../docs/design/component-catalog.json). The owner approved finding and reusing existing components instead of repeatedly inventing the UI through generated mocks. Use Shadcn Space's Radix variants for the common controls; trial Space UI's gallery with local assets. Planes Photo Lightbox remains optional and paid. Preserve licenses and distinguish shortlisted components from installed or validated ones.

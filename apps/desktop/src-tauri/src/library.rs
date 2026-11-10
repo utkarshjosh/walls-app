@@ -4,6 +4,9 @@
 //! before they ever become part of a path. Files appear atomically (written to
 //! a hidden temporary file, then renamed) so a crash or a failed download can
 //! never leave a half-written wallpaper under a real name.
+//!
+//! A scene (an `.html` file, which is running code) is checked as it arrives
+//! and kept only if it carries the standard content policy; see `scene.rs`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -13,6 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use crate::model::StoredFile;
+use crate::scene;
 
 pub const MAX_DOWNLOAD_BYTES: u64 = 300 * 1024 * 1024;
 const MAX_NAME_LENGTH: usize = 120;
@@ -46,6 +50,10 @@ impl Library {
     /// Keep `bytes` under `name`, replacing any file already stored under it.
     pub fn store(&self, name: &str, bytes: &[u8]) -> Result<StoredFile, String> {
         validate_name(name)?;
+        if scene::is_scene_name(name) && scene::check_scene(bytes).is_err() {
+            // Refused before anything is written.
+            return Err(scene::REFUSAL.to_string());
+        }
         let temp = self.temp_path(name);
         let written = fs::File::create(&temp).and_then(|mut file| file.write_all(bytes));
         if let Err(error) = written {
@@ -84,15 +92,23 @@ impl Library {
         };
         validate_name(&final_name)?;
 
-        if response.body().content_length().is_some_and(|length| length > MAX_DOWNLOAD_BYTES) {
-            return Err(too_large());
+        let is_scene = scene::is_scene_name(&final_name);
+        let cap = if is_scene { scene::MAX_SCENE_BYTES } else { MAX_DOWNLOAD_BYTES };
+        if response.body().content_length().is_some_and(|length| length > cap) {
+            return Err(if is_scene { scene::REFUSAL.to_string() } else { too_large() });
         }
 
         let temp = self.temp_path(&final_name);
-        let copied = copy_capped(response.body_mut().as_reader(), &temp, MAX_DOWNLOAD_BYTES);
+        let copied = copy_capped(response.body_mut().as_reader(), &temp, cap);
         if let Err(error) = copied {
             let _ = fs::remove_file(&temp);
-            return Err(error);
+            return Err(if is_scene && error == too_large() { scene::REFUSAL.to_string() } else { error });
+        }
+        // Checked while it is still a hidden temporary file: a scene that
+        // fails never exists in the library, not even for a moment.
+        if is_scene && !scene_file_is_acceptable(&temp) {
+            let _ = fs::remove_file(&temp);
+            return Err(scene::REFUSAL.to_string());
         }
         self.publish(&temp, &final_name)
     }
@@ -259,6 +275,12 @@ fn describe_download_error(error: ureq::Error) -> String {
     }
 }
 
+/// The downloaded scene at `path` passes `scene::check_scene`.
+fn scene_file_is_acceptable(path: &Path) -> bool {
+    let small_enough = fs::metadata(path).is_ok_and(|metadata| metadata.len() <= scene::MAX_SCENE_BYTES);
+    small_enough && fs::read(path).is_ok_and(|bytes| scene::check_scene(&bytes).is_ok())
+}
+
 /// Stream `reader` into `destination`, giving up (the caller deletes the file)
 /// as soon as more than `cap` bytes have arrived. Servers can lie about or
 /// omit Content-Length, so the count is what is trusted.
@@ -415,6 +437,101 @@ mod tests {
 
         library.remove(&["a1.jpg".into(), "never-there.jpg".into()]).unwrap();
         assert!(library.resolve(&["a1.jpg".into()]).is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    const GOOD_SCENE: &str = "<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'\">\n<title>Quiet Clock</title>\n</head>\n<body><script>draw()</script></body>\n</html>\n";
+    /// The policy text scenes carried before the standard: no longer accepted on arrival.
+    const OLD_SCENE: &str = "<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'\">\n</head>\n<body><script>draw()</script></body>\n</html>\n";
+
+    fn names_in(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> =
+            fs::read_dir(dir).unwrap().flatten().map(|entry| entry.file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        names
+    }
+
+    /// Answer the next request on a local port with `body`, then stop.
+    /// Returns the address to download from.
+    fn serve_once(content_type: &'static str, body: Vec<u8>) -> String {
+        use std::io::BufRead;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let Ok((stream, _)) = listener.accept() else { return };
+            let mut reader = std::io::BufReader::new(&stream);
+            let mut line = String::new();
+            // Read the request up to its blank line.
+            while reader.read_line(&mut line).is_ok_and(|read| read > 2) {
+                line.clear();
+            }
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let mut stream = &stream;
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.write_all(&body);
+        });
+        format!("http://{address}/file")
+    }
+
+    #[test]
+    fn a_stored_scene_must_carry_the_policy() {
+        let dir = scratch("scene-store");
+        let library = Library::open(dir.clone()).unwrap();
+
+        let kept = library.store("clock.html", GOOD_SCENE.as_bytes()).unwrap();
+        assert_eq!(kept.name, "clock.html");
+
+        for (name, body) in [
+            ("old.html", OLD_SCENE.as_bytes()),
+            ("bare.html", "<script>fetch('https://example.com')</script>".as_bytes()),
+            ("picture.html", &[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, b'J', b'F', b'I', b'F'][..]),
+            ("Shouting.HTML", OLD_SCENE.as_bytes()),
+            ("short.htm", OLD_SCENE.as_bytes()),
+        ] {
+            assert_eq!(library.store(name, body).unwrap_err(), scene::REFUSAL, "{name}");
+        }
+        // Nothing but the good scene exists: no refused file, no temporary file.
+        assert_eq!(names_in(&dir), ["clock.html"]);
+
+        // A refused replacement leaves the scene that was there untouched.
+        assert!(library.store("clock.html", OLD_SCENE.as_bytes()).is_err());
+        assert_eq!(fs::read(dir.join("clock.html")).unwrap(), GOOD_SCENE.as_bytes());
+
+        // Pictures and videos are not judged by this rule, whatever is in them.
+        library.store("poster.jpg", OLD_SCENE.as_bytes()).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_downloaded_scene_must_carry_the_policy() {
+        let dir = scratch("scene-download");
+        let library = Library::open(dir.clone()).unwrap();
+
+        // No extension given: the server's type makes it a scene, and it is checked.
+        let good = library.download("a1b2c3", &serve_once("text/html; charset=utf-8", GOOD_SCENE.into())).unwrap();
+        assert_eq!(good.name, "a1b2c3.html");
+        assert_eq!(fs::read(dir.join("a1b2c3.html")).unwrap(), GOOD_SCENE.as_bytes());
+
+        let refused = library.download("d4e5f6", &serve_once("text/html", OLD_SCENE.into())).unwrap_err();
+        assert_eq!(refused, scene::REFUSAL);
+        // The name decides too, whatever type the server claims.
+        let mislabelled = library.download("g7h8i9.html", &serve_once("image/jpeg", OLD_SCENE.into())).unwrap_err();
+        assert_eq!(mislabelled, scene::REFUSAL);
+        let not_html = library.download("j1k2l3.html", &serve_once("text/html", vec![0xFF, 0xD8, 0xFF, 0xE0])).unwrap_err();
+        assert_eq!(not_html, scene::REFUSAL);
+        let oversized = vec![b' '; scene::MAX_SCENE_BYTES as usize + 1];
+        let too_big = library.download("m4n5o6", &serve_once("text/html", oversized)).unwrap_err();
+        assert_eq!(too_big, scene::REFUSAL);
+
+        // Only the good scene is in the folder: nothing refused, nothing half-written.
+        assert_eq!(names_in(&dir), ["a1b2c3.html"]);
+
+        // An ordinary picture download is unaffected.
+        let picture = library.download("p7q8r9", &serve_once("image/jpeg", vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])).unwrap();
+        assert_eq!(picture.name, "p7q8r9.jpg");
         let _ = fs::remove_dir_all(&dir);
     }
 

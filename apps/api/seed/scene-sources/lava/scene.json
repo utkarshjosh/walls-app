@@ -1,0 +1,25 @@
+{
+  "kind": "shader",
+  "style": "web",
+  "title": "Lava",
+  "tags": [
+    "abstract",
+    "warm",
+    "dark"
+  ],
+  "color": "#84402b",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 480.0,
+  "fade": 0.0,
+  "maxSide": 1400,
+  "colors": [
+    "#0f090d",
+    "#130a0d",
+    "#271111",
+    "#4f2119",
+    "#9c4f33"
+  ],
+  "poster": 120.0
+}

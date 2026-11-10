@@ -3,7 +3,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { MotionConfig, motion } from "motion/react";
 import { Ellipsis, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isMac, isWebPlatform, platform } from "@/platform";
+import { isMac, isWebPlatform, platform, type SimulatedLayout } from "@/platform";
 import { LibraryProvider, useLibrary } from "@/state/store";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
@@ -195,7 +195,7 @@ function Shell() {
  */
 function PreviewTools() {
   const web = isWebPlatform(platform) ? platform : null;
-  const [count, setCount] = useState(() => web?.simulatedDisplayCount() ?? 1);
+  const [layout, setLayout] = useState<SimulatedLayout>(() => web?.simulatedLayout() ?? "1");
   const [accent, setAccent] = useState<string>(() => {
     try {
       return localStorage.getItem(ACCENT_KEY) ?? "champagne";
@@ -226,16 +226,23 @@ function PreviewTools() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Pretend displays connected</DropdownMenuLabel>
-        {[1, 2, 3].map((value) => (
+        {(
+          [
+            ["1", "One display"],
+            ["2", "Two, side by side"],
+            ["2v", "Two, one above the other"],
+            ["3", "Three displays"],
+          ] as const
+        ).map(([value, label]) => (
           <DropdownMenuCheckboxItem
             key={value}
-            checked={count === value}
+            checked={layout === value}
             onCheckedChange={() => {
-              web.setSimulatedDisplayCount(value);
-              setCount(value);
+              web.setSimulatedLayout(value);
+              setLayout(value);
             }}
           >
-            {value === 1 ? "One display" : value === 2 ? "Two displays" : "Three displays"}
+            {label}
           </DropdownMenuCheckboxItem>
         ))}
         <DropdownMenuSeparator />

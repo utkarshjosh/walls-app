@@ -35,7 +35,7 @@ use crate::model::{
     WallpaperKind,
 };
 use crate::tray::Tray;
-use crate::{power, schedule, wallpaper, MAIN_WINDOW};
+use crate::{power, scene, schedule, wallpaper, MAIN_WINDOW};
 
 /// The timer never sleeps longer than this, so a wake from sleep or a changed
 /// clock is noticed promptly even though no boundary was reached "on time".
@@ -989,6 +989,14 @@ impl Worker {
         for target in &targets {
             if !self.library.holds(&target.item.path) {
                 return Err(ShowError::about(&target.item.id, NOT_IN_LIBRARY));
+            }
+            // A scene is loaded as a web page. Only files stored under a scene
+            // name are checked for the content policy when they arrive, so
+            // only those may be played as one; a picture or video file handed
+            // over as a "scene" is not. (The name is all that is looked at
+            // here: scenes saved before the check existed keep playing.)
+            if target.item.kind == WallpaperKind::Scene && !scene::is_scene_name(&target.item.path) {
+                return Err(ShowError::about(&target.item.id, scene::REFUSAL));
             }
         }
 

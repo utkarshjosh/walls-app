@@ -1,0 +1,25 @@
+{
+  "kind": "shader",
+  "style": "web",
+  "title": "Starfield",
+  "tags": [
+    "night",
+    "space",
+    "cool"
+  ],
+  "color": "#161a35",
+  "author": "Still Originals",
+  "license": "Still Original",
+  "sourceUrl": null,
+  "loop": 480.0,
+  "fade": 0.0,
+  "maxSide": 1600,
+  "colors": [
+    "#0b0c19",
+    "#0d0e1d",
+    "#0b0d1c",
+    "#0a0d19",
+    "#070911"
+  ],
+  "poster": 40.0
+}
