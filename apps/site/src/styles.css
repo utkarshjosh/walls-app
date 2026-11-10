@@ -27,6 +27,18 @@
   color-scheme: dark;
 }
 
+/* The typeface is one file, fetched with the page (see the preload in
+   index.html) and never swapped in late: a headline that changes face after
+   it has appeared reads as a glitch. */
+@font-face {
+  font-family: "Archivo Variable";
+  src: url("/fonts/archivo.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: block;
+}
+
 *,
 *::before,
 *::after {
@@ -354,29 +366,8 @@ h2 {
   color: var(--fg);
 }
 
-/* The one entrance on the page: the headline arrives as the displays light up. */
-.js .hero .beat[data-beat="0"] h1,
-.js .hero .beat[data-beat="0"] .beat__row,
 .js .hero__steps {
-  opacity: 0;
-  transform: translateY(12px);
-}
-.js.ready .hero .beat[data-beat="0"] h1,
-.js.ready .hero .beat[data-beat="0"] .beat__row,
-.js.ready .hero__steps {
-  opacity: 1;
-  transform: none;
-  transition: opacity 0.9s var(--ease), transform 1.1s var(--ease);
-}
-.js.ready .hero .beat[data-beat="0"] .beat__row {
-  transition-delay: 0.18s;
-}
-.js.ready .hero__steps {
   transform: translateX(-50%);
-  transition-delay: 0.9s;
-}
-.js .hero__steps {
-  transform: translateX(-50%) translateY(12px);
 }
 
 /* ---- facts --------------------------------------------------------------- */
@@ -442,18 +433,13 @@ h2 {
   overflow: hidden;
   border-radius: 18px;
   background: #0c0c0b;
+  transition: background-color 0.4s var(--ease);
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 40px 90px -30px rgb(0 0 0 / 0.75);
 }
-.live__poster,
 .live__scene {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   border: 0;
-}
-.live__poster {
-  object-fit: cover;
 }
 .live__scene {
   /* One pixel over on the right and bottom: a scene sizes its canvas in whole
@@ -461,11 +447,12 @@ h2 {
   width: calc(100% + 1px);
   height: calc(100% + 1px);
   opacity: 0;
-  transition: opacity 0.7s var(--ease);
   pointer-events: none;
 }
+/* Fades in, but drops out at once when another scene is chosen. */
 .live__scene.is-on {
   opacity: 1;
+  transition: opacity 0.6s var(--ease);
 }
 
 .live__bar {

@@ -189,7 +189,7 @@
     {
       "slug": "night-glass",
       "title": "Night Glass",
-      "color": "#211b44",
+      "color": "#221b43",
       "width": 5120,
       "height": 3200
     },
@@ -217,7 +217,7 @@
     {
       "slug": "paper-glass",
       "title": "Paper Glass",
-      "color": "#dad6c9",
+      "color": "#ddd9cd",
       "width": 5120,
       "height": 3200
     },
@@ -231,7 +231,7 @@
     {
       "slug": "black-glass",
       "title": "Black Glass",
-      "color": "#151416",
+      "color": "#141416",
       "width": 5120,
       "height": 3200
     },
@@ -252,7 +252,7 @@
     {
       "slug": "glass-ribbon",
       "title": "Glass Ribbon",
-      "color": "#1d1638",
+      "color": "#1c1636",
       "width": 7680,
       "height": 2400
     }

@@ -98,6 +98,26 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
     return () => controller.abort();
   }, [attempt]);
 
+  // The catalog changes while the app stays open (wallpapers are replaced,
+  // and a replaced one has a new id). Coming back to the window after a while
+  // loads the list again, so nothing shown here points at an item that is gone.
+  const loadedAt = useRef(Date.now());
+  useEffect(() => {
+    loadedAt.current = Date.now();
+  }, [attempt]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.hidden || Date.now() - loadedAt.current < 60_000) return;
+      setAttempt((n) => n + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
   // First page for the current filter and search.
   useEffect(() => {
     const controller = new AbortController();
@@ -155,7 +175,15 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
     try {
       if (savedRemoteIds.has(item.id)) await library.unsaveItem(item.id);
       else await library.saveItem(item);
-    } catch {
+    } catch (cause) {
+      if (cause instanceof CatalogError && !cause.offline) {
+        // The catalog answered, but not with this item: the list here is out of date.
+        setAttempt((n) => n + 1);
+        notify(`“${item.title}” has been replaced in the catalog. Discover is up to date now.`, {
+          tone: "error",
+        });
+        return;
+      }
       notify(`“${item.title}” could not be saved. Check your connection and try again.`, {
         tone: "error",
       });

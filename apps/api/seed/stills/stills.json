@@ -75,7 +75,7 @@
         "violet",
         "dark"
       ],
-      "color": "#211b44",
+      "color": "#221b43",
       "dark": true,
       "pack": "still-life",
       "width": 5120,
@@ -153,7 +153,7 @@
         "light",
         "iridescent"
       ],
-      "color": "#dad6c9",
+      "color": "#ddd9cd",
       "dark": false,
       "pack": "still-life",
       "width": 5120,
@@ -193,7 +193,7 @@
         "black",
         "minimal"
       ],
-      "color": "#151416",
+      "color": "#141416",
       "dark": true,
       "pack": "still-life",
       "width": 5120,
@@ -253,7 +253,7 @@
         "violet",
         "wide"
       ],
-      "color": "#1d1638",
+      "color": "#1c1636",
       "dark": true,
       "pack": "still-life",
       "width": 7680,

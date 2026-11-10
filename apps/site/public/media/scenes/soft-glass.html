@@ -72,44 +72,40 @@ const vec3 W_TOP = vec3(.006, .007, .016), W_LOW = vec3(.020, .018, .050), W_POO
 const float LAMPS = 1., FILM = 1., BODY = 1., BOKEH = 1.;
 #endif
 
-// A still can afford to walk the ray in smaller steps than a live scene.
+// Each ribbon is found by looking along the ray for where it passes through the sheet,
+// sampling at SCAN places; a still can afford more of them than a live scene.
 #ifdef SK_STILL
-const int STEPS = 160;
-const float STRIDE = .34, SKIM = 1.;
+const int SCAN = 48;
 #else
-const int STEPS = 52;
-const float STRIDE = .62, SKIM = .45;
+const int SCAN = 18;
 #endif
+const float STRIDE = .5;                            // only for the soft shadow of the pale colourway
 
 vec4 warp;                                          // the slow motion of the two ribbons, set once per pixel
 
 mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 
-// A ribbon of glass along x: a flat band with rounded edges that turns about its own
-// axis as it goes. Returns the distance, and in `across` where q is across and through the band.
-float band(vec3 q, float turn, float ph, float wide, float thin, out vec2 across){
-  across = rot(q.x * turn + ph) * q.yz;
-  vec2 d = abs(across) - vec2(wide, thin);
-  return (length(max(d, 0.)) + min(max(d.x, d.y), 0.) - .020) * STRIDE;
+// A ribbon of glass runs along x and turns about its own axis as it goes. For ribbon
+// `which` (0 the near one, 1 the far one) this gives where q lies in the ribbon's own
+// cross-section: x across its width, y out of its face. The sheet is where y is 0.
+vec2 section(vec3 q, float which){
+  if (which < .5) {
+    q.xy = rot(.26) * q.xy;
+    q.y -= .10 * sin(q.x * .85 + warp.x) - .10;
+    q.z -= .16 * cos(q.x * .60 + warp.y);
+    return rot(q.x * 1.55 + warp.z) * q.yz;
+  }
+  q -= vec3(0., -.08, -1.1);
+  q.xy = rot(-.34) * q.xy;
+  q.y -= .14 * sin(q.x * .7 + 1.7 - warp.y);
+  return rot(q.x * -1.9 + 2.2 + warp.w) * q.yz;
 }
 
-float map(vec3 q, out vec2 across, out float which){
-  vec2 a2;
-  vec3 a = q;
-  a.xy = rot(.26) * a.xy;
-  a.y -= .10 * sin(a.x * .85 + warp.x) - .10;
-  a.z -= .16 * cos(a.x * .60 + warp.y);
-  float d1 = band(a, 1.55, warp.z, .36, .026, across);
-  vec3 b = q - vec3(0., -.08, -1.1);
-  b.xy = rot(-.34) * b.xy;
-  b.y -= .14 * sin(b.x * .7 + 1.7 - warp.y);
-  float d2 = band(b, -1.9, 2.2 + warp.w, .22, .020, a2);
-  which = d1 < d2 ? 0. : 1.;
-  if (d2 < d1) across = a2;
-  return min(d1, d2);
+// Distance to the two ribbons as solid bands, for the shadow they cast.
+float dist(vec3 q){
+  vec2 a = abs(section(q, 0.)) - vec2(.36, .026), b = abs(section(q, 1.)) - vec2(.22, .020);
+  return min(length(max(a, 0.)) + min(max(a.x, a.y), 0.), length(max(b, 0.)) + min(max(b.x, b.y), 0.)) * STRIDE - .020 * STRIDE;
 }
-
-float dist(vec3 q){ vec2 a; float w; return map(q, a, w); }
 
 // The room as the glass reflects it: broad soft light from above and from the left, a
 // long narrow lamp overhead and another low on the right for the sharp streaks.
@@ -152,55 +148,80 @@ vec3 film(float x){
   return mix(c, vec3(1., .74, .32), smoothstep(.72, 1., x));
 }
 
+vec3 lamps(vec3 d);
+vec3 film(float x);
+
+// One ribbon along the ray ro + rd * t, between ta and tb: every place the ray goes
+// through the sheet adds what the glass sends back to `acc` and takes from `tr` what it
+// keeps. `fw` is how wide a pixel is per unit of t, so edges can be feathered by how much
+// of the pixel the glass covers; a ray that only brushes past a fold gets the fold's shine.
+void ribbon(float which, float wide, vec3 ro, vec3 rd, float ta, float tb, float fw,
+            inout vec3 acc, inout vec3 tr, inout vec3 n1, inout float hits){
+  float dt = (tb - ta) / float(SCAN);
+  vec2 sp = section(ro + rd * ta, which);
+  float tp = ta, fpp = sp.y;
+  for (int i = 1; i <= SCAN; i++) {
+    float t = ta + dt * float(i);
+    vec2 sc = section(ro + rd * t, which);
+    if (sp.y * sc.y < 0.) {
+      // Through the sheet between the last sample and this one: close in on the place.
+      float a = tp, b = t, fa = sp.y, fb = sc.y;
+      for (int k = 0; k < 3; k++) {
+        float m = a - fa * (b - a) / (fb - fa), fm = section(ro + rd * m, which).y;
+        if (fa * fm < 0.) { b = m; fb = fm; } else { a = m; fa = fm; }
+      }
+      float th = a - fa * (b - a) / (fb - fa);
+      vec3 q = ro + rd * th;
+      vec2 at = section(q, which);
+      const float e = .002;
+      vec3 n = normalize(vec3(section(q + vec3(e, 0., 0.), which).y, section(q + vec3(0., e, 0.), which).y, section(q + vec3(0., 0., e), which).y) - at.y);
+      if (dot(n, rd) > 0.) n = -n;
+      float c = clamp(-dot(n, rd), 0., 1.);
+      float pixel = fw * th;
+      // How much of the pixel the ribbon covers at its two long edges.
+      float cover = smoothstep(wide + pixel, wide - pixel, abs(at.x));
+      if (cover > 0.) {
+        if (hits < .5) n1 = n * cover;
+        float rim = smoothstep(wide - .016, wide - .003, abs(at.x));        // the rounded edge of the glass
+        float fres = .05 + .95 * pow(1. - c, 5.);
+        float g = pow(1. - c, .85) + .12 * sin(q.x * 1.3 + which * 2.) + .08 + .012 * sin(at.x * 64.);
+        vec3 fc = film(g);
+        // The coating sends back the lamps in its own colour; the bare edge of the glass sends them back white.
+        vec3 back = lamps(reflect(rd, n)) * mix(fc, vec3(1.), fres * .6) * (.34 + .66 * fres) * FILM;
+        back += LAMPS * (mix(fc, vec3(1.), .75) * 1.1 * max(pow(1. - c, 7.), rim * .45) + fc * .045);
+        acc += tr * back * cover;
+        // The way through: longer at a glancing angle and at the edge, where the glass keeps more and its body glows.
+        float len = min(.075 / max(c, .05) + .22 * rim, .8);
+        vec3 bc = film(.34 + .30 * which);
+        vec3 keep = mix(vec3(1.), 1.04 - .80 * fc, .60) * (1. - .55 * fres) * exp(-len * (1.1 - bc) * 2.2 * BODY);
+        acc += tr * keep * bc * BODY * .9 * (1. - exp(-max(len - .09, 0.) * 3.5)) * cover;
+        tr *= mix(vec3(1.), keep, cover);
+        hits += 1.;
+      }
+    } else if (i > 1 && fpp * sp.y > 0. && abs(sp.y) <= abs(fpp) && abs(sp.y) < abs(sc.y)) {
+      // The ray came nearest the sheet here without going through: a fold seen edge on.
+      float y0 = abs(fpp), y1 = abs(sp.y), y2 = abs(sc.y);
+      float near = max(y1 - (y0 - y2) * (y0 - y2) / (8. * max(y0 - 2. * y1 + y2, 1e-6)), 0.);
+      float pixel = fw * tp;
+      float w = smoothstep(1.5 * pixel, 0., near) * smoothstep(wide + pixel, wide - pixel, abs(sp.x));
+      acc += tr * LAMPS * mix(film(.95), vec3(1.), .75) * 1.1 * w;
+      tr *= 1. - .5 * w;
+    }
+    fpp = sp.y; sp = sc; tp = t;
+  }
+}
+
 vec3 scene(vec2 p, vec2 uv, float asp, float px){
   warp = vec4(.5 * orbit(1., 0.).x, .5 * orbit(1., 1.9).y, .40 * orbit(1., .8).x + 1.25, .5 * orbit(1., 3.0).y);
 
   vec3 ro = vec3(0., 0., 3.4), rd = normalize(vec3(p, -2.3));
   vec3 acc = vec3(0.), tr = vec3(1.), n1 = vec3(0.);
-  float t = 1.9, hits = 0., skim = 1., within = -1.;            // within: which ribbon the ray is passing through, if any
-  bool outside = true;
-  vec2 across; float which;
-  for (int i = 0; i < STEPS; i++) {
-    vec3 q = ro + rd * t;
-    float d = map(q, across, which);
-    if (d >= .0024 * STRIDE) {
-      outside = true; within = -1.; skim = d;
-      t += d;
-      if (t > 6.2) break;
-    } else if (outside || which != within) {
-      const vec2 e = vec2(.0025, -.0025);
-      vec3 n = normalize(e.xyy * dist(q + e.xyy) + e.yyx * dist(q + e.yyx) + e.yxy * dist(q + e.yxy) + e.xxx * dist(q + e.xxx));
-      if (hits < .5) n1 = n;
-      float c = clamp(-dot(n, rd), 0., 1.);
-      float fres = .05 + .95 * pow(1. - c, 5.);
-      float g = pow(1. - c, .85) + .12 * sin(q.x * 1.3 + which * 2.) + .08 + .012 * sin(across.x * 64.);
-      vec3 fc = film(g);
-      // The coating sends back the lamps in its own colour; the bare edge of the glass sends them back white.
-      acc += tr * lamps(reflect(rd, n)) * mix(fc, vec3(1.), fres * .6) * (.34 + .66 * fres) * FILM;
-      acc += tr * LAMPS * (mix(fc, vec3(1.), .75) * 1.1 * pow(1. - c, 7.) + fc * .045);
-      // The way through: longer at a glancing angle, where the glass keeps more and its body glows.
-      float len = min(.075 / max(c, .05), .8);
-      tr *= mix(vec3(1.), 1.04 - .80 * fc, .60) * (1. - .55 * fres);
-      vec3 bc = film(.34 + .30 * which);
-      tr *= exp(-len * (1.1 - bc) * 2.2 * BODY);
-      acc += tr * bc * BODY * .9 * (1. - exp(-max(len - .09, 0.) * 3.5));
-      hits += 1.;
-      if (hits > 2.5) break;
-      outside = false; within = which;
-      t += min(len, .05) + .01;
-    } else {
-      t += max(-d / STRIDE, .03);
-    }
-  }
-  // A ray that ran out of steps skimming along a surface is looking at the very edge of
-  // the glass, which is where it shines: without this the edge would be ragged.
-  if (outside && t < 6.2) {
-    float w = smoothstep(.010, .002, skim / STRIDE) * SKIM;
-    acc += tr * LAMPS * mix(film(.95), vec3(1.), .75) * 1.1 * w;
-    tr *= 1. - .5 * w;
-  }
+  float hits = 0., fw = px / 2.3 / -rd.z;
+  // The near ribbon lies within .62 of z = 0 and the far one within .42 of z = -1.1, so the near one is always met first.
+  ribbon(0., .38, ro, rd, (ro.z - .62) / -rd.z, (ro.z + .62) / -rd.z, fw, acc, tr, n1, hits);
+  ribbon(1., .24, ro, rd, (ro.z + .68) / -rd.z, (ro.z + 1.52) / -rd.z, fw, acc, tr, n1, hits);
   // What is behind shows through, each colour bent a little differently by the first surface.
-  vec2 bend = n1.xy * (hits > .5 ? 1. : 0.);
+  vec2 bend = n1.xy;
   vec3 back = vec3(wall(p - bend * .085).r, wall(p - bend * .105).g, wall(p - bend * .128).b);
 #if defined(VARIANT_PAPER)
   // On the pale wall the glass also casts a soft shadow, tinted by what it lets through.

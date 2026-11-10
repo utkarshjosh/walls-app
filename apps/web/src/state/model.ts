@@ -110,11 +110,11 @@ const STARTERS: {
     id: "starter-glass",
     name: "Glass and light",
     items: [
-      ["e70f52435e95", "night-glass", "Night Glass", "#211b44"],
-      ["1c294b47de40", "paper-glass", "Paper Glass", "#dad6c9"],
-      ["cff97d7e6020", "black-glass", "Black Glass", "#151416"],
+      ["1649ef895c25", "night-glass", "Night Glass", "#211b44"],
+      ["2dea8a2211dc", "paper-glass", "Paper Glass", "#dad6c9"],
+      ["e8032177522b", "black-glass", "Black Glass", "#151416"],
       ["98e43e5a7ad6", "light-trails", "Light Trails", "#26222c"],
-      ["35a8589e7095", "glass-ribbon", "Glass Ribbon", "#1d1638", true],
+      ["bcb0e7f5bebc", "glass-ribbon", "Glass Ribbon", "#1d1638", true],
     ],
   },
   {

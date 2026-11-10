@@ -1,4 +1,3 @@
-import "@fontsource-variable/archivo/wdth.css";
 import "./styles.css";
 import media from "./media.json";
 import { EACH_DISPLAY, HERO_SCENE, LIVE_SCENES, STILLS } from "./content";
@@ -117,7 +116,6 @@ type Scene = (typeof media.scenes)[number];
 const scenes = LIVE_SCENES.map((slug) => media.scenes.find((s) => s.slug === slug)).filter((s): s is Scene => !!s);
 
 const liveFrame = $<HTMLElement>(".live__frame");
-const livePoster = $<HTMLImageElement>(".live__poster");
 const liveScene = $<HTMLIFrameElement>(".live__scene");
 const liveTitle = $<HTMLElement>(".live__title");
 const livePause = $<HTMLButtonElement>(".live__pause");
@@ -132,8 +130,16 @@ function applyLive() {
   const stopped = live.paused || !live.visible;
   if (!live.visible && live.loaded !== live.slug) return; // not on screen yet: do not load it
   if (live.loaded !== live.slug) {
+    // The frame shows the scene's own flat colour until the scene has drawn,
+    // then the scene fades in. A poster is not used as a stand-in: it shows a
+    // different moment, so swapping it for the running scene looks like a jump.
+    const slug = live.slug;
     liveScene.classList.remove("is-on");
-    liveScene.addEventListener("load", () => liveScene.classList.add("is-on"), { once: true });
+    liveScene.addEventListener(
+      "load",
+      () => window.setTimeout(() => live.slug === slug && liveScene.classList.add("is-on"), 220),
+      { once: true },
+    );
     live.loaded = live.slug;
   }
   liveScene.src = `/media/scenes/${live.slug}.html#paused=${stopped ? 1 : 0}`;
@@ -143,7 +149,7 @@ function applyLive() {
 
 function chooseLive(scene: Scene) {
   live.slug = scene.slug;
-  livePoster.src = `/media/posters/${scene.slug}.jpg`;
+  liveFrame.style.backgroundColor = scene.color ?? "";
   liveTitle.textContent = scene.title;
   for (const b of livePicker.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.slug === scene.slug));
   applyLive();
