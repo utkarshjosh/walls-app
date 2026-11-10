@@ -62,6 +62,11 @@ the live windows themselves rather than looked at.
 | Next / Previous / Pause | Desktop pictures followed; the next change was scheduled on the local clock hour |
 | Quit and relaunch | State restored; the live window came back on the right display; nothing else changed |
 | Real interface in the window | Copied its nine starter wallpapers to disk, synced a paused plan, did not touch the desktop, reported no page errors |
+| Resolution rule, "same on each" | With a 1672x941, a 3840x2400 and a 7680x2400 picture in rotation, the small one never appeared (it is too small for the Retina display) |
+| Resolution rule, "one across all" | Only the 7680-wide picture was stretched into two pieces; the 3840-wide one was shown on each display for its turn; the small one never appeared |
+| Resolution rule, "different on each" | The Retina display only received the two large pictures; the 1080p monitor also received the small one; frames alternated and did not freeze |
+| Stretching asked for by hand | The small picture was shown on each display instead of being stretched; the panorama was stretched |
+| Pictures with no recorded size | The app measured the files itself and applied the same rule |
 
 From the window itself, the owner started rotation, chose "one across all" and
 pressed Next several times during the same session; the saved state and the
@@ -95,6 +100,7 @@ src-tauri/
     model.rs      the contract's types
     engine.rs     which wallpaper comes next            (pure, tested)
     schedule.rs   when the next change is due           (pure, tested)
+    fit.rs        is a wallpaper large enough for a display (pure, tested)
     library.rs    the folder of wallpaper files
     displays.rs   attached displays, via AppKit
     wallpaper.rs  span geometry (pure, tested) and setting desktop pictures
@@ -105,6 +111,7 @@ src-tauri/
     commands.rs   what the UI can call
     lib.rs        app lifecycle
 scripts/make-icons.swift     draws the placeholder icons
+scripts/parity-traces.mjs    records the TypeScript rules' answers (see below)
 ```
 
 How the threads fit together: AppKit is only touched on the main thread. One
@@ -112,6 +119,36 @@ background thread, the rotation worker, owns all rotation state and is the only
 thing that changes wallpapers; commands, the tray and display notifications
 post messages to it. The worker hops to the main thread for AppKit calls, and
 the main thread never waits for the worker, so the two cannot deadlock.
+
+## Two copies of the rules
+
+Which wallpaper comes next (`engine.rs`) and whether a wallpaper is large
+enough for a display (`fit.rs`) are ports of `apps/web/src/lib/rotation.ts` and
+`fit.ts`, which drive the UI and the browser preview. The unit tests mirror the
+TypeScript tests case for case. After changing either copy, check that they
+still agree on a few thousand generated cases:
+
+```sh
+cd apps/desktop
+node --experimental-strip-types scripts/parity-traces.mjs ../web /tmp/still-traces.json
+cd src-tauri && STILL_PARITY_TRACES=/tmp/still-traces.json cargo test parity -- --nocapture
+```
+
+The script only reads `apps/web`. Without `STILL_PARITY_TRACES` the Rust test
+passes without checking anything, so plain `cargo test` needs no Node.
+
+How sizes are used: automatic changes (timer, Next, the first wallpaper after
+Resume) only draw from wallpapers large enough for where they would go, and a
+wallpaper is stretched across displays only when it has the pixels for it;
+otherwise it is shown on each display for its turn. If nothing is large enough,
+nothing changes. A wallpaper chosen by hand is shown regardless. A picture that
+arrives without a size has it read from the file.
+
+Changing the display mode or connecting a display never puts a wallpaper on a
+display it is too small for. Still keeps a showing wallpaper that can go
+everywhere; failing that it makes one automatic change; failing that it leaves
+every display as it is (the status then lists displays one by one, even in
+"same" or "span" mode). A wallpaper already on a display stays there.
 
 ## Icons
 

@@ -27,7 +27,16 @@ import {
 // as a menu behind a visible button. Nothing is reachable by right-click only.
 
 export type MenuEntry =
-  | { type: "item"; label: string; icon?: LucideIcon; danger?: boolean; onSelect: () => void }
+  | {
+      type: "item";
+      label: string;
+      icon?: LucideIcon;
+      danger?: boolean;
+      /** Shown but not selectable; `hint` says why in a word or two. */
+      disabled?: boolean;
+      hint?: string;
+      onSelect: () => void;
+    }
   | { type: "check"; label: string; checked: boolean; onChange: (checked: boolean) => void }
   | { type: "sub"; label: string; icon?: LucideIcon; entries: MenuEntry[] }
   | { type: "label"; label: string }
@@ -62,9 +71,15 @@ function contextEntries(entries: MenuEntry[]): ReactNode {
         );
       case "item":
         return (
-          <ContextMenuItem key={index} danger={entry.danger} onSelect={entry.onSelect}>
+          <ContextMenuItem
+            key={index}
+            danger={entry.danger}
+            disabled={entry.disabled}
+            onSelect={entry.onSelect}
+          >
             {entry.icon && <entry.icon />}
             {entry.label}
+            {entry.hint && <span className="ml-auto pl-4 text-xs text-fg-muted">{entry.hint}</span>}
           </ContextMenuItem>
         );
     }
@@ -100,9 +115,15 @@ function dropdownEntries(entries: MenuEntry[]): ReactNode {
         );
       case "item":
         return (
-          <DropdownMenuItem key={index} danger={entry.danger} onSelect={entry.onSelect}>
+          <DropdownMenuItem
+            key={index}
+            danger={entry.danger}
+            disabled={entry.disabled}
+            onSelect={entry.onSelect}
+          >
             {entry.icon && <entry.icon />}
             {entry.label}
+            {entry.hint && <span className="ml-auto pl-4 text-xs text-fg-muted">{entry.hint}</span>}
           </DropdownMenuItem>
         );
     }

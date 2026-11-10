@@ -9,6 +9,8 @@ import {
   type CatalogPack,
   type CatalogQuery,
 } from "@/api/client";
+import { canSpan, fitsAny } from "@/lib/fit";
+import { fitNote } from "@/lib/fitNote";
 import { cn, plural } from "@/lib/utils";
 import { useLibrary } from "@/state/store";
 import { WithContextMenu, type MenuEntry } from "@/components/ActionMenu";
@@ -197,6 +199,7 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
       item.kind === "scene"
         ? `Live scene by ${item.author}`
         : `${item.width} × ${item.height}, by ${item.author}`,
+    warning: fitNote(item, displays),
   }));
 
   const browsing = filter.id === "all" && !term;
@@ -339,10 +342,13 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
                     <WallpaperTile
                       title={item.title}
                       caption={
-                        displays.length > 1 && itemAspect(item) >= 2.6
+                        // Said only when the picture really has the pixels to
+                        // stretch across the displays connected right now.
+                        item.kind === "image" && canSpan(item, displays)
                           ? `Spans ${plural(displays.length, "display")}`
                           : item.author
                       }
+                      lowResolution={displays.length > 0 && !fitsAny(item, displays)}
                       thumb={fileUrl(item.files.thumb)}
                       color={item.color}
                       kind={item.kind}
@@ -381,6 +387,7 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
               <SetWallpaperButton
                 size="lg"
                 busy={setting}
+                item={item}
                 picture={{ src: fileUrl(item.files.thumb), color: item.color }}
                 // Setting a wallpaper keeps it: it is saved to the library first.
                 onSet={(target) => setWallpaper(() => library.saveItem(item), target)}

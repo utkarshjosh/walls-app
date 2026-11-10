@@ -15,8 +15,10 @@ export interface LightboxItem {
   live?: string;
   color?: string;
   aspect: number;
-  /** One quiet line under the title, e.g. "3840 × 2400 · Still Originals". */
+  /** One quiet line under the title, e.g. "3840 × 2400, by Still Originals". */
   detail: string;
+  /** Said after the detail when the picture is too small somewhere. */
+  warning?: string | null;
 }
 
 /**
@@ -72,7 +74,9 @@ export function Lightbox({
         >
           {item && (
             <>
-              <div className="flex h-[52px] shrink-0 items-center justify-end px-3">
+              {/* The viewer covers the app's top bar, so this strip takes over
+                  its job of being the place to grab and move the window. */}
+              <div data-tauri-drag-region className="flex h-[52px] shrink-0 items-center justify-end px-3">
                 <DialogPrimitive.Close asChild>
                   <Button variant="ghost" size="icon" aria-label="Close">
                     <X />
@@ -132,7 +136,15 @@ export function Lightbox({
                   <DialogPrimitive.Title className="truncate text-lg font-semibold tracking-[-0.01em]">
                     {item.title}
                   </DialogPrimitive.Title>
-                  <p className="mt-0.5 truncate text-sm text-fg-muted">{item.detail}</p>
+                  <p className="mt-0.5 truncate text-sm text-fg-muted">
+                    {item.detail}
+                    {item.warning && (
+                      <span className="text-danger">
+                        {item.detail ? ". " : ""}
+                        {item.warning}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">{actions(item)}</div>
               </div>

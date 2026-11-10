@@ -31,6 +31,7 @@ All architecture decisions are **proposed defaults** for implementation, not app
 | ADR-025 | Live wallpapers ship as first-party animated scenes plus the user's own videos | Scenes are kilobytes and resolution-independent; catalog video hosting would exhaust the 8 GB bucket |
 | ADR-026 | The native core owns rotation; the interface only describes the plan | Rotation must run with the window closed; rules are mirrored and tested on both sides |
 | ADR-027 | A fresh install is paused and never changes the desktop until Start | Avoids surprising a new user and keeps App Store review simple |
+| ADR-028 | Wallpapers are judged against the connected displays' real pixels; rotation skips what would look blurry and only stretches pictures that have the pixels | Owner feedback 2026-11-10 after small pictures were stretched across a Retina display and a 1080p monitor. A still picture may be enlarged by a quarter at most; video by 2.2x |
 
 ## Confirm before deployment
 

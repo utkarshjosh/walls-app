@@ -53,6 +53,8 @@ export interface LibraryState {
   settings: Settings;
   /** One-time hints the person has already seen. */
   hints: { multiDisplay?: boolean };
+  /** Which revision of the starter wallpapers this library has been offered. */
+  starterSet?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -69,6 +71,101 @@ export const DEFAULT_SETTINGS: Settings = {
 /** Name of the collection that plain "Save" in Discover adds to. */
 export const SAVED_COLLECTION = "Saved";
 
+/**
+ * Starter wallpapers, revision 2: first-party originals at 3840 x 2400, plus one
+ * 7680 x 2400 panorama per collection, so a new library has pictures that are
+ * sharp on a Retina display and can stretch across two displays.
+ * (Revision 1 was nine 1672 x 941 sample images, too small for most Macs; they
+ * are no longer offered to new installs but stay in libraries that have them.)
+ * The ids are the catalog's, so Discover shows these as already saved.
+ */
+export const STARTER_SET = 2;
+
+const STARTERS: {
+  id: string;
+  name: string;
+  items: [catalogId: string, slug: string, title: string, color: string, panorama?: true][];
+}[] = [
+  {
+    id: "starter-horizons",
+    name: "Horizons",
+    items: [
+      ["95ab0e48108a", "far-ridge", "Far Ridge", "#93707c"],
+      ["39da88054498", "last-light", "Last Light", "#985240"],
+      ["fa5bccddd60f", "moonrise", "Moonrise", "#2e3d55"],
+      ["a76194ed6e27", "long-dusk", "Long Dusk", "#888776", true],
+    ],
+  },
+  {
+    id: "starter-gradients",
+    name: "Gradients",
+    items: [
+      ["a57de2dd18c1", "low-tide", "Low Tide", "#c5d5bf"],
+      ["20f76d3d7bc4", "ember-field", "Ember Field", "#b8501e"],
+      ["4cbb8e2f9bcb", "rose-quartz", "Rose Quartz", "#e6b1ba"],
+      ["42c777e6adb4", "slow-dawn", "Slow Dawn", "#bf8083", true],
+    ],
+  },
+  {
+    id: "starter-dunes",
+    name: "Dunes",
+    items: [
+      ["f5c041af7fb0", "quiet-sands", "Quiet Sands", "#ddc0a9"],
+      ["1de95f4bc3a8", "rose-drift", "Rose Drift", "#ddb8b7"],
+      ["e5e75fca9c04", "black-sand", "Black Sand", "#2e2725"],
+      ["1dcfafc96917", "open-desert", "Open Desert", "#dbae83", true],
+    ],
+  },
+];
+
+function starterWallpaper(
+  catalogId: string,
+  slug: string,
+  title: string,
+  color: string,
+  panorama?: true,
+): Wallpaper {
+  return {
+    // Same id a save from Discover would produce, so the two never duplicate.
+    id: `d${catalogId}`,
+    title,
+    kind: "image",
+    width: panorama ? 7680 : 3840,
+    height: 2400,
+    origin: "discover",
+    full: { url: `/wallpapers/starter-${slug}.jpg` },
+    thumb: { url: `/wallpapers/starter-${slug}-thumb.jpg` },
+    color,
+    author: "Still Originals",
+    license: "Still Original",
+    remoteId: catalogId,
+    addedAt: 0,
+  };
+}
+
+/** Add the starter collections to a library, without duplicating anything it already has. */
+function withStarters(state: LibraryState): LibraryState {
+  const wallpapers = { ...state.wallpapers };
+  const collections = state.collections.map((collection) => ({ ...collection }));
+  for (const starter of STARTERS) {
+    const ids: string[] = [];
+    for (const item of starter.items) {
+      const wallpaper = starterWallpaper(...item);
+      wallpapers[wallpaper.id] ??= wallpaper;
+      ids.push(wallpaper.id);
+    }
+    const existing = collections.find(
+      (collection) => collection.name.trim().toLowerCase() === starter.name.toLowerCase(),
+    );
+    if (existing) {
+      existing.wallpaperIds = [...new Set([...existing.wallpaperIds, ...ids])];
+    } else {
+      collections.push({ id: starter.id, name: starter.name, inRotation: true, wallpaperIds: ids });
+    }
+  }
+  return { ...state, wallpapers, collections, starterSet: STARTER_SET };
+}
+
 const SAMPLE_SIZE = { width: 1672, height: 941 };
 /** Four of the bundled samples are 3:2 rather than 16:9. */
 const SAMPLE_SIZES: Record<string, { width: number; height: number }> = {
@@ -78,65 +175,14 @@ const SAMPLE_SIZES: Record<string, { width: number; height: number }> = {
   shadows: { width: 1536, height: 1024 },
 };
 
-const SAMPLES: { id: string; name: string; inRotation: boolean; images: [string, string][] }[] = [
-  {
-    id: "aviation",
-    name: "Aviation",
-    inRotation: true,
-    images: [
-      ["glider", "Above the clouds"],
-      ["wing", "Golden hour"],
-      ["coastal-flight", "Coastal flight"],
-    ],
-  },
-  {
-    id: "landscapes",
-    name: "Landscapes",
-    inRotation: true,
-    images: [
-      ["alpine", "Alpine light"],
-      ["coast", "Black sand coast"],
-      ["ridges", "Morning ridges"],
-    ],
-  },
-  {
-    id: "abstract",
-    name: "Abstract",
-    inRotation: false,
-    images: [
-      ["paper", "Paper forms"],
-      ["limestone", "Quiet stone"],
-      ["shadows", "Light and shadow"],
-    ],
-  },
-];
-
-function sampleWallpaper(id: string, title: string): Wallpaper {
-  const url = `/wallpapers/${id}.jpg`;
-  return {
-    id,
-    title,
-    kind: "image",
-    ...(SAMPLE_SIZES[id] ?? SAMPLE_SIZE),
-    origin: "sample",
-    full: { url },
-    thumb: { url },
-    addedAt: 0,
-  };
-}
-
 export function seedState(): LibraryState {
-  const wallpapers: Record<string, Wallpaper> = {};
-  const collections = SAMPLES.map((sample) => {
-    for (const [id, title] of sample.images) wallpapers[id] = sampleWallpaper(id, title);
-    return {
-      id: sample.id,
-      name: sample.name,
-      inRotation: sample.inRotation,
-      wallpaperIds: sample.images.map(([id]) => id),
-    };
+  return withStarters({
+    version: 2,
+    wallpapers: {},
+    collections: [],
+    settings: { ...DEFAULT_SETTINGS },
+    hints: {},
   });
-  return { version: 2, wallpapers, collections, settings: { ...DEFAULT_SETTINGS }, hints: {} };
 }
 
 // The first prototype stored collections with their images inline:
@@ -205,7 +251,7 @@ export function restore(saved: unknown): LibraryState | null {
   if (!saved || typeof saved !== "object") return null;
   const value = saved as Partial<LibraryState> & Partial<LegacyState>;
   if (value.version === 2 && value.wallpapers && Array.isArray(value.collections)) {
-    return {
+    return offerStarters({
       version: 2,
       wallpapers: Object.fromEntries(
         Object.entries(value.wallpapers).map(([id, wallpaper]) => [
@@ -218,10 +264,19 @@ export function restore(saved: unknown): LibraryState | null {
       collections: value.collections as Collection[],
       settings: { ...DEFAULT_SETTINGS, ...value.settings },
       hints: value.hints ?? {},
-    };
+      starterSet: value.starterSet,
+    });
   }
-  if (Array.isArray(value.collections)) return fromLegacy(value as LegacyState);
+  if (Array.isArray(value.collections)) return offerStarters(fromLegacy(value as LegacyState));
   return null;
+}
+
+/**
+ * A library made before the high-resolution starters existed gets them once.
+ * After that the person's choices stand: deleting them does not bring them back.
+ */
+function offerStarters(state: LibraryState): LibraryState {
+  return (state.starterSet ?? 1) >= STARTER_SET ? state : withStarters(state);
 }
 
 export function isLive(wallpaper: Pick<Wallpaper, "kind">): boolean {

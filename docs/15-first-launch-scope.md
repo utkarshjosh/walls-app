@@ -12,9 +12,10 @@ One Mac app with three sections and nothing else.
 | Discover | Wallpapers and ready-made collections served by our small catalog server. Save one, or save a whole collection. |
 | Rotation | Which collections take turns on the desktop, how often, shuffled or in order, with Previous / Pause / Next. Keeps running with the window closed, from the menu bar. |
 
-Two things make it worth paying for:
+Three things make it worth paying for:
 
 - **Multiple displays, with no setup.** With one display the app shows no display options at all. Connect a second and three choices appear: same on each, one wallpaper across all, different on each. "Across all" follows the real arrangement of the displays.
+- **Never a blurry desktop.** Every wallpaper is checked against the real pixel size of the displays connected. Rotation leaves out pictures that are too small, and only stretches a picture across displays when it has the pixels for the densest one.
 - **Live wallpapers.** Animated scenes from Discover (tiny files, any resolution, and they span displays seamlessly) and your own video files.
 
 The server's only job is the Discover catalog: a single Go program, a SQLite file, and the object storage bucket.

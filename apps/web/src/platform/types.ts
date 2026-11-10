@@ -51,6 +51,14 @@ export interface PlayItem {
   /** StoredFile.path of the full-resolution file (image, video, or scene .html). */
   path: string;
   /**
+   * Pixels of the original, 0 when unknown. The host uses them to judge whether
+   * the wallpaper is large enough for each display (rules in src/lib/fit.ts):
+   * automatic rotation never shows one that would look blurry, and nothing is
+   * stretched across displays unless it has the pixels for it.
+   */
+  width: number;
+  height: number;
+  /**
    * StoredFile.path of a still image. For video/scene wallpapers the host also
    * sets this as the ordinary desktop picture, so the lock screen and Mission
    * Control show a matching still. Absent for plain images.
@@ -63,12 +71,22 @@ export interface PlayItem {
  * with one display every mode behaves like "same".
  *  - same: one wallpaper, repeated on every display.
  *  - span: one wallpaper stretched across all displays as a single canvas,
- *          following the real arrangement.
- *  - each: a different wallpaper per display.
+ *          following the real arrangement. A wallpaper too small to stretch
+ *          sharply is shown on each display instead ("same") for its turn.
+ *  - each: a different wallpaper per display, each drawn from the wallpapers
+ *          large enough for that display.
+ *
+ * In every mode automatic rotation leaves out wallpapers that are too small
+ * for where they would be shown. If none qualifies, nothing changes.
  */
 export type DisplayMode = "same" | "span" | "each";
 
-/** Put something on the desktop right now. Command: `wallpaper_apply`. */
+/**
+ * Put something on the desktop right now. Command: `wallpaper_apply`.
+ * The person chose this by hand, so size is not checked for "same"/"each" or a
+ * single display. A "span" request for a wallpaper too small to stretch is
+ * shown on each display instead.
+ */
 export interface ApplyRequest {
   mode: DisplayMode;
   /**
@@ -107,7 +125,8 @@ export interface RotationStatus {
   paused: boolean;
   /**
    * What is on the desktop now. One entry with displayId null when every
-   * display shows the same thing (modes same/span); one entry per display for "each".
+   * display shows the same thing (modes same/span); one entry per display for "each",
+   * leaving out any display the app has put nothing on.
    * Empty when the app has not set a wallpaper yet.
    */
   current: { displayId: string | null; itemId: string }[];

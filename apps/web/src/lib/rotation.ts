@@ -5,7 +5,11 @@
 // browser preview and documents the behaviour both must follow:
 //
 //  - A "frame" is what is on the desktop: one wallpaper id normally, or one per
-//    display when each display shows something different.
+//    display when each display shows something different. Per-display frames
+//    are positional (entry i belongs to display i); "" means the app has put
+//    nothing on that display.
+//  - Callers pass only the wallpapers that are large enough for the displays
+//    (see fit.ts); the rules here never see the ones that are too small.
 //  - Shuffle draws from a bag holding every wallpaper once, so nothing repeats
 //    until all have been shown. A fresh bag never starts with what is showing.
 //  - In order walks the list and wraps.
@@ -26,10 +30,17 @@ export function emptyEngine(): EngineState {
   return { bag: [], current: [], history: [] };
 }
 
-/** After the library changes: forget wallpapers that are gone, keep everything else. */
+/**
+ * After the library changes: forget wallpapers that are gone, keep everything else.
+ * A frame keeps its positions (a gone wallpaper becomes ""), and a frame with
+ * nothing left in it is dropped.
+ */
 export function reconcile(state: EngineState, ids: readonly string[]): EngineState {
   const alive = new Set(ids);
-  const keep = (frame: string[]) => frame.filter((id) => alive.has(id));
+  const keep = (frame: string[]) => {
+    const kept = frame.map((id) => (alive.has(id) ? id : ""));
+    return kept.some((id) => id !== "") ? kept : [];
+  };
   return {
     bag: state.bag.filter((id) => alive.has(id)),
     current: keep(state.current),
@@ -47,7 +58,7 @@ function shuffled(ids: readonly string[], random: () => number): string[] {
 }
 
 function pushHistory(state: EngineState): string[][] {
-  if (state.current.length === 0) return state.history;
+  if (!state.current.some((id) => id !== "")) return state.history;
   return [...state.history, state.current].slice(-HISTORY_LIMIT);
 }
 
@@ -92,6 +103,74 @@ export function advance(
   return { bag: [], current: frame, history: pushHistory(state) };
 }
 
+/**
+ * Next frame for "different on each display", where a wallpaper may be large
+ * enough for some displays and not others.
+ *
+ * `allowed[i]` holds the ids display i may show. The result has one entry per
+ * display; "" means nothing is large enough for that display, so it is left as
+ * it is. Displays get different wallpapers whenever there is a choice.
+ * With every id allowed everywhere this behaves like `advance` with a count.
+ */
+export function advanceSlots(
+  state: EngineState,
+  ids: readonly string[],
+  allowed: ReadonlyArray<ReadonlySet<string>>,
+  options: { shuffle: boolean; random?: () => number },
+): EngineState {
+  const usable = ids.filter((id) => allowed.some((set) => set.has(id)));
+  if (usable.length === 0 || allowed.length === 0) return state;
+  const random = options.random ?? Math.random;
+  const frame: string[] = [];
+  let bag = options.shuffle ? state.bag.filter((id) => usable.includes(id)) : [];
+  // In order: one pointer walks the list, starting after the last wallpaper shown.
+  const shown = state.current.filter((id) => id !== "");
+  let pointer = shown.length ? ids.indexOf(shown[shown.length - 1]!) : -1;
+
+  for (let slot = 0; slot < allowed.length; slot++) {
+    const fits = usable.filter((id) => allowed[slot]!.has(id));
+    if (fits.length === 0) {
+      frame.push("");
+      continue;
+    }
+    // Repeat a wallpaper on a second display only when this display has no other choice.
+    const unused = fits.filter((id) => !frame.includes(id));
+    const pool = unused.length ? unused : fits;
+    let pick = pool[0]!;
+
+    if (options.shuffle) {
+      let index = bag.findIndex((id) => pool.includes(id));
+      if (index < 0) {
+        // This round has nothing left for this display: deal a new one behind it,
+        // and do not open with what the display is already showing.
+        bag = [...bag, ...shuffled(usable, random).filter((id) => !bag.includes(id))];
+        const showing = state.current[slot];
+        index = bag.findIndex((id) => pool.includes(id) && (pool.length === 1 || id !== showing));
+        if (index < 0) index = bag.findIndex((id) => pool.includes(id));
+      }
+      pick = bag[index]!;
+      bag.splice(index, 1);
+    } else {
+      // A display moves on from what it is showing whenever it has another
+      // choice; otherwise the shared pointer could land every display back on
+      // the same wallpapers and "Next" would appear to do nothing.
+      const showing = state.current[slot];
+      const choices = pool.length > 1 ? pool.filter((id) => id !== showing) : pool;
+      pick = choices[0]!;
+      for (let step = 1; step <= ids.length; step++) {
+        const index = (pointer + step + ids.length) % ids.length;
+        if (choices.includes(ids[index]!)) {
+          pick = ids[index]!;
+          pointer = index;
+          break;
+        }
+      }
+    }
+    frame.push(pick);
+  }
+  return { bag, current: frame, history: pushHistory(state) };
+}
+
 /** Step back to the previously shown frame, or null when there is no history. */
 export function back(state: EngineState): EngineState | null {
   if (state.history.length === 0) return null;
@@ -102,7 +181,7 @@ export function back(state: EngineState): EngineState | null {
 
 /** The person picked a wallpaper by hand: show it and remember what it replaced. */
 export function show(state: EngineState, frame: readonly string[]): EngineState {
-  if (frame.length === 0) return state;
+  if (!frame.some((id) => id !== "")) return state;
   return {
     bag: state.bag.filter((id) => !frame.includes(id)),
     current: [...frame],

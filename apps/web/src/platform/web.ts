@@ -8,7 +8,16 @@ import type {
   RotationStatus,
   StoredFile,
 } from "./types";
-import { advance, back, emptyEngine, reconcile, show, type EngineState } from "@/lib/rotation";
+import { fitsDisplay, placementFor } from "@/lib/fit";
+import {
+  advance,
+  advanceSlots,
+  back,
+  emptyEngine,
+  reconcile,
+  show,
+  type EngineState,
+} from "@/lib/rotation";
 import { nextChange } from "@/lib/schedule";
 
 // The browser host. A web page cannot change the real desktop, so everything
@@ -95,11 +104,14 @@ export function createWebPlatform(): WebPlatform {
     return {
       paused: plan?.paused ?? true,
       current: perDisplay
-        ? engine.current.map((itemId, index) => ({
-            displayId: ordered[index % ordered.length]!.id,
-            itemId,
-          }))
-        : engine.current.slice(0, 1).map((itemId) => ({ displayId: null, itemId })),
+        ? engine.current
+            .map((itemId, index) => ({ displayId: ordered[index % ordered.length]!.id, itemId }))
+            // "" marks a display the app has put nothing on.
+            .filter((entry) => entry.itemId !== "")
+        : engine.current
+            .filter((itemId) => itemId !== "")
+            .slice(0, 1)
+            .map((itemId) => ({ displayId: null, itemId })),
       nextChangeAt: nextAt,
       canGoPrevious: engine.history.length > 0,
     };
@@ -110,9 +122,30 @@ export function createWebPlatform(): WebPlatform {
     for (const listener of rotationListeners) listener(snapshot);
   }
 
+  /** For each display (left to right), the wallpapers large enough for it. */
+  function allowedPerDisplay(): Set<string>[] {
+    return leftToRight(displays()).map(
+      (display) =>
+        new Set(
+          (plan?.items ?? []).filter((item) => fitsDisplay(item, display)).map((item) => item.id),
+        ),
+    );
+  }
+
+  // Automatic changes only use wallpapers that are large enough for where they
+  // would be shown (src/lib/fit.ts), exactly as the Mac app's native core does.
   function step() {
     if (!plan) return;
-    engine = advance(engine, ids(), { shuffle: plan.shuffle, count: frameSize() });
+    const connected = displays();
+    const mode = connected.length > 1 ? plan.displayMode : "same";
+    if (mode === "each") {
+      engine = advanceSlots(engine, ids(), allowedPerDisplay(), { shuffle: plan.shuffle });
+      return;
+    }
+    const eligible = plan.items
+      .filter((item) => placementFor(item, connected, mode) !== "skip")
+      .map((item) => item.id);
+    engine = advance(engine, eligible, { shuffle: plan.shuffle });
   }
 
   function arm() {
@@ -141,11 +174,18 @@ export function createWebPlatform(): WebPlatform {
     if (!plan || engine.current.length === 0) return;
     const wanted = frameSize();
     if (engine.current.length > wanted) {
-      engine = { ...engine, current: engine.current.slice(0, wanted) };
+      const kept = engine.current.filter((id) => id !== "").slice(0, wanted);
+      engine = { ...engine, current: kept };
     } else if (engine.current.length < wanted) {
-      const pool = ids().filter((id) => !engine.current.includes(id));
-      const extra = [...pool, ...ids()].slice(0, wanted - engine.current.length);
-      engine = { ...engine, current: [...engine.current, ...extra] };
+      // Give the other displays wallpapers that are large enough for them;
+      // a display with none keeps what it has ("").
+      const allowed = allowedPerDisplay();
+      const frame = [...engine.current];
+      for (let slot = frame.length; slot < wanted; slot++) {
+        const choices = ids().filter((id) => allowed[slot]?.has(id));
+        frame.push(choices.find((id) => !frame.includes(id)) ?? choices[0] ?? "");
+      }
+      engine = { ...engine, current: frame };
     }
   }
 
@@ -230,11 +270,8 @@ export function createWebPlatform(): WebPlatform {
       if (slot >= 0 && plan?.displayMode === "each" && ordered.length > 1) {
         // Only one display changes; the others keep what they show.
         resizeFrame();
-        // Displays with nothing from the app yet get other wallpapers from the plan.
-        const spare = ids().filter((id) => id !== picked[0] && !engine.current.includes(id));
-        const frame = ordered.map(
-          (_, index) => engine.current[index] ?? spare.shift() ?? picked[0]!,
-        );
+        // A display the app has put nothing on stays a gap, as in the Mac app.
+        const frame = ordered.map((_, index) => engine.current[index] ?? "");
         frame[slot] = picked[0]!;
         engine = show(engine, frame);
       } else {

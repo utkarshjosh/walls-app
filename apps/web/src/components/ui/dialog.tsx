@@ -23,7 +23,14 @@ export function DialogContent({
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-scrim data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
+      {/* A dialog dims the app's top bar. Keep that strip grabbable so the
+          window can still be moved; pressing it must not dismiss the dialog. */}
+      <div data-tauri-drag-region className="pointer-events-auto fixed inset-x-0 top-0 z-40 h-[52px]" />
       <DialogPrimitive.Content
+        onPointerDownOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest?.("[data-tauri-drag-region]")) event.preventDefault();
+        }}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-48px)] w-[min(440px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-dialog bg-surface p-5 shadow-pop",
           "data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in",

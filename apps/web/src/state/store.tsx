@@ -20,6 +20,7 @@ import type {
   StoredFile,
 } from "@/platform/types";
 import { fileUrl, type CatalogItem, type CatalogPack } from "@/api/client";
+import { canSpan } from "@/lib/fit";
 import { prepareFile, thumbnailOf, titleFromFileName } from "@/lib/media";
 import { toSchedule } from "@/lib/schedule";
 import { newId } from "@/lib/utils";
@@ -90,6 +91,11 @@ interface Library {
 }
 
 const LibraryContext = createContext<Library | null>(null);
+
+// Development only: this context cannot be swapped under a mounted screen (the
+// provider and its readers would hold different copies and the screen would
+// fail), so an edit to this file reloads the page instead of hot-updating it.
+if (import.meta.hot) import.meta.hot.accept(() => window.location.reload());
 
 export function useLibrary(): Library {
   const value = useContext(LibraryContext);
@@ -276,11 +282,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         id: wallpaper.id,
         kind: wallpaper.kind,
         path: full.path,
+        width: wallpaper.width,
+        height: wallpaper.height,
         ...(poster ? { posterPath: poster.path } : {}),
       };
     }
     const url = "url" in wallpaper.full ? wallpaper.full.url : known[wallpaper.full.file]?.url;
-    return url ? { id: wallpaper.id, kind: wallpaper.kind, path: url } : null;
+    return url
+      ? {
+          id: wallpaper.id,
+          kind: wallpaper.kind,
+          path: url,
+          width: wallpaper.width,
+          height: wallpaper.height,
+        }
+      : null;
   }, []);
 
   // ── Keep the host's rotation plan current ───────────────────────────────
@@ -373,6 +389,35 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, [state.wallpapers, loaded, rememberFiles, copyRound]);
+
+  // ── Measure pictures whose size was never recorded ──────────────────────
+  // Size decides whether a wallpaper is sharp enough for a display, so data
+  // from the first prototype (which did not keep it) is measured once.
+  const measuring = useRef(new Set<string>());
+  useEffect(() => {
+    if (!loaded) return;
+    for (const wallpaper of Object.values(state.wallpapers)) {
+      if (wallpaper.kind !== "image" || wallpaper.width > 0 || measuring.current.has(wallpaper.id))
+        continue;
+      const url = urlOf(wallpaper.full);
+      if (!url) continue;
+      measuring.current.add(wallpaper.id);
+      const probe = new Image();
+      probe.onload = () => {
+        const { naturalWidth: width, naturalHeight: height } = probe;
+        if (!width || !height) return;
+        setState((current) => {
+          const existing = current.wallpapers[wallpaper.id];
+          if (!existing || existing.width > 0) return current;
+          return {
+            ...current,
+            wallpapers: { ...current.wallpapers, [wallpaper.id]: { ...existing, width, height } },
+          };
+        });
+      };
+      probe.src = url;
+    }
+  }, [state.wallpapers, loaded, urlOf]);
 
   // ── Collections ─────────────────────────────────────────────────────────
   const createCollection = useCallback((name: string) => {
@@ -699,6 +744,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       const item = playItem(stateRef.current.wallpapers[wallpaper.id] ?? wallpaper);
       if (!item) throw new Error("This wallpaper is still being prepared. Try again in a moment.");
       const multi = displays.length > 1;
+      // Never stretch a picture that is too small for it; show it on each display instead.
+      if (target?.mode === "span" && !canSpan(wallpaper, displays)) target = { mode: "same" };
       if (multi && target) {
         // Choosing where a wallpaper goes is also choosing how the displays are
         // used from now on: everywhere, across all, or one display on its own.
@@ -718,7 +765,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         }),
       );
     },
-    [displays.length, playItem, updateSettings],
+    [displays, playItem, updateSettings],
   );
 
   const exportBackup = useCallback(() => {

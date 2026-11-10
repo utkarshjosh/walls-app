@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyEngine, advance, back, show, reconcile, HISTORY_LIMIT } from "../src/lib/rotation.ts";
+import {
+  emptyEngine,
+  advance,
+  advanceSlots,
+  back,
+  show,
+  reconcile,
+  HISTORY_LIMIT,
+} from "../src/lib/rotation.ts";
 
 const ids = ["a", "b", "c", "d", "e"];
 
@@ -101,4 +109,95 @@ test("nothing to show leaves the state alone and history is capped", () => {
   let state = emptyEngine();
   for (let i = 0; i < HISTORY_LIMIT + 20; i++) state = advance(state, ids, { shuffle: false });
   assert.equal(state.history.length, HISTORY_LIMIT);
+});
+
+test("a per-display frame keeps its positions when a wallpaper is removed", () => {
+  const state = { bag: [], current: ["a", "b"], history: [["c", "d"], ["b", "b"]] };
+  const after = reconcile(state, ["a", "c", "d"]);
+  assert.deepEqual(after.current, ["a", ""]);
+  // A frame with nothing left is dropped; one with something left keeps its shape.
+  assert.deepEqual(after.history, [["c", "d"]]);
+  assert.deepEqual(reconcile(state, ["c"]).current, []);
+});
+
+test("each display only gets wallpapers that are allowed on it", () => {
+  // Display 0 is demanding (only a and b are large enough); display 1 takes anything.
+  const allowed = [new Set(["a", "b"]), new Set(ids)];
+  for (const shuffle of [true, false]) {
+    let state = emptyEngine();
+    const random = seeded(5);
+    for (let i = 0; i < 20; i++) {
+      state = advanceSlots(state, ids, allowed, { shuffle, random });
+      assert.ok(allowed[0].has(state.current[0]), `display 0 got ${state.current[0]}`);
+      assert.ok(allowed[1].has(state.current[1]));
+      assert.notEqual(state.current[0], state.current[1]);
+    }
+  }
+});
+
+test("a display with nothing large enough is left alone", () => {
+  const allowed = [new Set(), new Set(["c", "d"])];
+  let state = advanceSlots(emptyEngine(), ids, allowed, { shuffle: false });
+  assert.deepEqual(state.current, ["", "c"]);
+  state = advanceSlots(state, ids, allowed, { shuffle: false });
+  assert.deepEqual(state.current, ["", "d"]);
+  state = advanceSlots(state, ids, allowed, { shuffle: false });
+  assert.deepEqual(state.current, ["", "c"]);
+  // Nothing allowed anywhere: nothing happens.
+  const idle = emptyEngine();
+  assert.equal(advanceSlots(idle, ids, [new Set(), new Set()], { shuffle: true }), idle);
+});
+
+test("with everything allowed, per-display frames match the plain rules", () => {
+  const everything = [new Set(ids), new Set(ids)];
+  let state = emptyEngine();
+  const shown = [];
+  for (let i = 0; i < 3; i++) {
+    state = advanceSlots(state, ids, everything, { shuffle: false });
+    shown.push(state.current);
+  }
+  assert.deepEqual(shown, [["a", "b"], ["c", "d"], ["e", "a"]]);
+  // Shuffled: every wallpaper appears before any repeats.
+  state = emptyEngine();
+  const random = seeded(9);
+  const seen = [];
+  for (let i = 0; i < 2; i++) {
+    state = advanceSlots(state, ids, everything, { shuffle: true, random });
+    seen.push(...state.current);
+  }
+  assert.equal(new Set(seen).size, 4);
+});
+
+test("a display with one allowed wallpaper shares it rather than going empty", () => {
+  const allowed = [new Set(["a"]), new Set(["a"])];
+  const state = advanceSlots(emptyEngine(), ids, allowed, { shuffle: true, random: seeded(2) });
+  assert.deepEqual(state.current, ["a", "a"]);
+});
+
+test("in order, a demanding first display cannot freeze the rotation", () => {
+  // The real desk: the MacBook comes first and only takes the two largest
+  // pictures; the monitor takes those and a smaller one.
+  const plan = ["pano", "fourk", "sample", "hd"];
+  const allowed = [new Set(["pano", "fourk"]), new Set(["pano", "fourk", "sample"])];
+  let state = emptyEngine();
+  const frames = [];
+  for (let i = 0; i < 6; i++) {
+    state = advanceSlots(state, plan, allowed, { shuffle: false });
+    frames.push(state.current.join("+"));
+  }
+  assert.deepEqual(frames, [
+    "pano+fourk",
+    "fourk+sample",
+    "pano+fourk",
+    "fourk+sample",
+    "pano+fourk",
+    "fourk+sample",
+  ]);
+  // Every display with a choice shows something new each time.
+  for (let i = 1; i < frames.length; i++) {
+    const [before0, before1] = frames[i - 1].split("+");
+    const [after0, after1] = frames[i].split("+");
+    assert.notEqual(after0, before0);
+    assert.notEqual(after1, before1);
+  }
 });

@@ -3,7 +3,7 @@
 //! Mirrors `apps/web/src/platform/types.ts` field for field. Everything is
 //! camelCase on the wire; change the two files together.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,14 +45,26 @@ pub struct StoredFile {
     pub bytes: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayItem {
     pub id: String,
     pub kind: WallpaperKind,
     pub path: String,
+    /// Pixels of the original, 0 when unknown. Used to judge whether the
+    /// wallpaper is large enough for a display (see `fit.rs`). Floats because
+    /// the UI sends JavaScript numbers; absent in state saved by older builds.
+    #[serde(default, deserialize_with = "number_or_zero")]
+    pub width: f64,
+    #[serde(default, deserialize_with = "number_or_zero")]
+    pub height: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub poster_path: Option<String>,
+}
+
+/// A missing or `null` size means "unknown", not a malformed item.
+fn number_or_zero<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f64, D::Error> {
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(0.0))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,7 +75,7 @@ pub enum DisplayMode {
     Each,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyRequest {
     pub mode: DisplayMode,
@@ -144,9 +156,28 @@ mod tests {
         assert_eq!(plan.items[1].kind, WallpaperKind::Video);
         assert_eq!(plan.items[1].poster_path.as_deref(), Some("/lib/b.jpg"));
         assert_eq!(plan.items[0].poster_path, None);
+        // Items saved or sent without a size are "unknown", not an error.
+        assert_eq!((plan.items[0].width, plan.items[0].height), (0.0, 0.0));
         assert_eq!(plan.schedule, Schedule::Interval { minutes: 180.0 });
         assert_eq!(plan.display_mode, DisplayMode::Each);
         assert!(plan.pause_live_on_battery);
+    }
+
+    #[test]
+    fn items_carry_their_pixel_size() {
+        let item: PlayItem = serde_json::from_value(json!({
+            "id": "a", "kind": "image", "path": "/lib/a.jpg", "width": 3840, "height": 2400
+        }))
+        .unwrap();
+        assert_eq!((item.width, item.height), (3840.0, 2400.0));
+        let unknown: PlayItem = serde_json::from_value(json!({
+            "id": "a", "kind": "video", "path": "/lib/a.mp4", "width": null, "height": 0
+        }))
+        .unwrap();
+        assert_eq!((unknown.width, unknown.height), (0.0, 0.0));
+        let written = serde_json::to_value(&item).unwrap();
+        assert_eq!(written["width"], json!(3840.0));
+        assert_eq!(written["height"], json!(2400.0));
     }
 
     #[test]

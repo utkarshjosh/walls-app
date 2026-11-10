@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use image::codecs::jpeg::JpegEncoder;
-use image::imageops::{self, FilterType};
+use image::imageops::FilterType;
+use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageFormat, ImageReader, RgbImage};
 use objc2::runtime::AnyObject;
 use objc2_app_kit::{
@@ -178,13 +179,17 @@ pub fn render_span(
     let pieces = span_layout(picture.width(), picture.height(), displays);
     for (piece, (_, path)) in pieces.iter().zip(&targets) {
         let (x, y, width, height) = pixel_crop(&piece.crop, picture.width(), picture.height());
-        let cut = imageops::crop_imm(&picture, x, y, width, height).to_image();
+        // `DynamicImage`'s own crop and resize on purpose: they are compiled
+        // inside the `image` crate, which this project builds optimised even
+        // in debug builds. The generic `imageops` functions would be compiled
+        // here, unoptimised, and take seconds per display on a large picture.
+        let cut = picture.crop_imm(x, y, width, height);
         let sized = if (cut.width(), cut.height()) == (piece.out_width, piece.out_height) {
             cut
         } else {
-            imageops::resize(&cut, piece.out_width, piece.out_height, FilterType::Lanczos3)
+            cut.resize_exact(piece.out_width, piece.out_height, FilterType::Lanczos3)
         };
-        write_jpeg(&sized, color_profile.as_deref(), path)?;
+        write_jpeg(&sized.into_rgb8(), color_profile.as_deref(), path)?;
     }
     Ok(targets)
 }
@@ -207,7 +212,7 @@ pub fn prune_span_cache(cache_dir: &Path, keep: &[PathBuf]) {
 }
 
 /// Decode a JPEG, PNG or WebP into 8-bit RGB, upright, with its colour profile.
-fn decode(source: &Path) -> Result<(RgbImage, Option<Vec<u8>>), String> {
+fn decode(source: &Path) -> Result<(DynamicImage, Option<Vec<u8>>), String> {
     let unreadable = |error: &dyn std::fmt::Display| format!("That picture could not be read: {error}.");
     let reader = ImageReader::open(source)
         .and_then(|reader| reader.with_guessed_format())
@@ -225,7 +230,26 @@ fn decode(source: &Path) -> Result<(RgbImage, Option<Vec<u8>>), String> {
     if let Some(orientation) = orientation {
         picture.apply_orientation(orientation);
     }
-    Ok((picture.into_rgb8(), color_profile))
+    Ok((DynamicImage::ImageRgb8(picture.into_rgb8()), color_profile))
+}
+
+/// Width and height of a JPEG, PNG or WebP as it will appear on screen (turned
+/// upright), read from the file's header without decoding the picture.
+/// `None` for anything else or a file that cannot be read. Used to judge
+/// wallpapers whose size the UI did not supply.
+pub fn picture_size(source: &Path) -> Option<(u32, u32)> {
+    let reader = ImageReader::open(source).ok()?.with_guessed_format().ok()?;
+    if !matches!(reader.format(), Some(ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::WebP)) {
+        return None;
+    }
+    let mut decoder = reader.into_decoder().ok()?;
+    let (width, height) = decoder.dimensions();
+    // A photo stored sideways is shown turned, so its sides swap.
+    let sideways = matches!(
+        decoder.orientation(),
+        Ok(Orientation::Rotate90 | Orientation::Rotate270 | Orientation::Rotate90FlipH | Orientation::Rotate270FlipH)
+    );
+    Some(if sideways { (height, width) } else { (width, height) })
 }
 
 fn write_jpeg(picture: &RgbImage, color_profile: Option<&[u8]>, destination: &Path) -> Result<(), String> {
@@ -540,6 +564,28 @@ mod tests {
         let left_over = fs::read_dir(&cache).unwrap().count();
         assert_eq!(left_over, 2);
 
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn picture_sizes_are_read_from_the_file() {
+        let dir = std::env::temp_dir().join(format!("still-size-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        for name in ["wide.png", "wide.jpg", "wide.webp"] {
+            let path = dir.join(name);
+            RgbImage::from_pixel(320, 200, image::Rgb([40, 80, 120])).save(&path).unwrap();
+            assert_eq!(picture_size(&path), Some((320, 200)), "{name}");
+        }
+        // The content decides, not the file name.
+        let misnamed = dir.join("really-a-png.jpg");
+        fs::copy(dir.join("wide.png"), &misnamed).unwrap();
+        assert_eq!(picture_size(&misnamed), Some((320, 200)));
+
+        let not_a_picture = dir.join("clip.mp4");
+        fs::write(&not_a_picture, b"\0\0\0\x18ftypmp42").unwrap();
+        assert_eq!(picture_size(&not_a_picture), None);
+        assert_eq!(picture_size(&dir.join("missing.jpg")), None);
         let _ = fs::remove_dir_all(&dir);
     }
 

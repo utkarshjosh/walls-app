@@ -6,6 +6,7 @@
 //!   model      the contract's types
 //!   engine     which wallpaper comes next            (pure)
 //!   schedule   when the next change is due           (pure)
+//!   fit        is a wallpaper large enough for a display (pure)
 //!   library    the folder of wallpaper files
 //!   displays   the attached displays, via AppKit
 //!   wallpaper  span geometry (pure) and setting desktop pictures
@@ -18,10 +19,13 @@
 mod commands;
 mod displays;
 mod engine;
+mod fit;
 mod library;
 mod live;
 mod main_thread;
 mod model;
+#[cfg(test)]
+mod parity;
 mod power;
 mod rotation;
 mod schedule;

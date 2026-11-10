@@ -7,6 +7,7 @@ import {
   describeWait,
   type IntervalPreset,
 } from "@/lib/schedule";
+import { canSpan, fitsDisplay, placementFor, rotationUse } from "@/lib/fit";
 import { cn, plural } from "@/lib/utils";
 import type { DisplayMode } from "@/platform/types";
 import { useLibrary } from "@/state/store";
@@ -41,7 +42,13 @@ const MODES: { value: DisplayMode; label: string; hint: string }[] = [
   { value: "each", label: "Different on each", hint: "Each display gets its own wallpaper." },
 ];
 
-export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
+export function RotationPage({
+  onOpenLibrary,
+  onOpenDiscover,
+}: {
+  onOpenLibrary: () => void;
+  onOpenDiscover: () => void;
+}) {
   const library = useLibrary();
   const { state, status, displays, displayMode, urlOf, canSetWallpaper, rotationWallpapers } =
     library;
@@ -62,8 +69,26 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
     .map((entry) => state.wallpapers[entry.itemId])
     .filter((wallpaper): wallpaper is Wallpaper => Boolean(wallpaper));
   const started = current.length > 0;
+
+  // Only wallpapers large enough for these displays take part (src/lib/fit.ts).
+  const use = rotationUse(rotationWallpapers, displays, displayMode);
+  const usable = use.spanned + use.shown;
+  const ordered = orderedDisplays(displays);
   // Before anything has been shown, preview what starting would put up first.
-  const previewed = started ? current : rotationWallpapers.slice(0, displayMode === "each" ? displays.length : 1);
+  const firstUp =
+    displayMode === "each"
+      ? ordered
+          .map((display) => rotationWallpapers.find((wallpaper) => fitsDisplay(wallpaper, display)))
+          .filter((wallpaper): wallpaper is Wallpaper => Boolean(wallpaper))
+      : rotationWallpapers
+          .filter((wallpaper) => placementFor(wallpaper, displays, displayMode) !== "skip")
+          .slice(0, 1);
+  const previewed = started ? current : firstUp;
+  // In "one across all", a picture too small to stretch is shown on each display instead.
+  const previewMode =
+    displayMode === "span" && previewed[0] && !canSpan(previewed[0], displays)
+      ? "same"
+      : displayMode;
   const pictures = previewed.map((wallpaper) => ({
     src: urlOf(
       wallpaper.kind === "image" ? wallpaper.full : (wallpaper.poster ?? wallpaper.thumb),
@@ -71,7 +96,11 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
     color: wallpaper.color,
   }));
 
-  const empty = rotationWallpapers.length === 0;
+  const noneChosen = rotationWallpapers.length === 0;
+  // Nothing to rotate: either no collection is on, or every wallpaper is too small.
+  const empty = usable === 0;
+  const displayLabel =
+    displays.length > 1 ? "your displays" : (displays[0]?.name ?? "this display");
   const nextAt = status.nextChangeAt ? new Date(status.nextChangeAt) : null;
   const hasLive = rotationWallpapers.some(isLive) || current.some(isLive);
 
@@ -87,17 +116,28 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
               {displays.length > 0 && pictures.length > 0 ? (
                 <DisplayPreview
                   displays={displays}
-                  mode={displayMode}
+                  mode={previewMode}
                   pictures={pictures}
                   className={cn(
                     "max-w-[560px] transition-opacity duration-200",
                     !started && "opacity-40",
                   )}
                 />
-              ) : (
+              ) : noneChosen ? (
                 <p className="max-w-xs text-center text-sm text-fg-muted">
                   Turn on a collection and its wallpapers will take turns on your desktop.
                 </p>
+              ) : (
+                <div className="max-w-sm text-center">
+                  <p className="font-medium">Nothing here is large enough for {displayLabel}</p>
+                  <p className="mt-1 text-sm text-fg-muted">
+                    These wallpapers would look blurry, so they are not used. Larger ones are in
+                    Discover.
+                  </p>
+                  <Button className="mt-4" onClick={onOpenDiscover}>
+                    Open Discover
+                  </Button>
+                </div>
               )}
               {!started && !empty && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -157,9 +197,11 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
                   </p>
                 )}
                 <p className="text-fg-muted" aria-live="polite">
-                  {empty
+                  {noneChosen
                     ? "No collections are turned on."
-                    : settings.paused
+                    : empty
+                      ? "No wallpaper is large enough to show."
+                      : settings.paused
                       ? started
                         ? "Paused. This wallpaper stays until you resume."
                         : "Rotation is off."
@@ -226,6 +268,7 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
                   })}
                 </ul>
               )}
+              <FitSummary use={use} mode={displayMode} displayLabel={displayLabel} />
             </Group>
 
             <Group title="Timing">
@@ -335,6 +378,40 @@ export function RotationPage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One line that says what happens to the chosen wallpapers on these displays.
+ * Silent when everything is simply shown.
+ */
+function FitSummary({
+  use,
+  mode,
+  displayLabel,
+}: {
+  use: { spanned: number; shown: number; skipped: number };
+  mode: DisplayMode;
+  displayLabel: string;
+}) {
+  const parts: string[] = [];
+  if (mode === "span") {
+    if (use.spanned) parts.push(`${use.spanned} stretch across your displays`);
+    if (use.shown)
+      parts.push(
+        `${use.shown} ${use.shown === 1 ? "is" : "are"} too small to stretch and ${use.shown === 1 ? "appears" : "appear"} on each display`,
+      );
+  }
+  if (use.skipped)
+    parts.push(
+      `${use.skipped} ${use.skipped === 1 ? "is" : "are"} too small for ${displayLabel} and ${use.skipped === 1 ? "is" : "are"} skipped`,
+    );
+  if (parts.length === 0 || (mode === "span" && !use.shown && !use.skipped)) return null;
+  const sentence = parts.join("; ");
+  return (
+    <p className="mt-3 text-sm text-fg-muted">
+      {sentence.charAt(0).toUpperCase() + sentence.slice(1)}.
+    </p>
   );
 }
 

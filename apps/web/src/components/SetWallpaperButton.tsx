@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, Monitor } from "lucide-react";
+import { canSpan, fitsDisplay, type FitItem } from "@/lib/fit";
 import { useLibrary, type WallpaperTarget } from "@/state/store";
 import { Button } from "./ui/button";
 import {
@@ -19,11 +20,14 @@ import { DisplayPreview, ModeGlyph, orderedDisplays, type PreviewPicture } from 
  */
 export function SetWallpaperButton({
   onSet,
+  item,
   picture,
   busy,
   size = "md",
 }: {
   onSet: (target?: WallpaperTarget) => void;
+  /** Kind and pixel size, to tell which choices would look sharp. */
+  item: FitItem;
   /** Shown on the miniature displays inside the menu. */
   picture: PreviewPicture;
   busy?: boolean;
@@ -34,6 +38,9 @@ export function SetWallpaperButton({
     mode: "same",
   });
   const multi = displays.length > 1;
+  // A picture is only stretched across displays when it has the pixels for it.
+  const spannable = canSpan(item, displays);
+  const tooSmall = <span className="ml-auto pl-4 text-xs text-fg-muted">Too small</span>;
 
   const main = (
     <Button
@@ -81,12 +88,14 @@ export function SetWallpaperButton({
             On every display
           </DropdownMenuItem>
           <DropdownMenuItem
+            disabled={!spannable}
             onSelect={() => onSet({ mode: "span" })}
             onFocus={() => setHover({ mode: "span" })}
             onPointerMove={() => setHover({ mode: "span" })}
           >
             <ModeGlyph mode="span" className="text-fg-muted" />
             Across all displays
+            {!spannable && tooSmall}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuLabel>Only on</DropdownMenuLabel>
@@ -99,6 +108,7 @@ export function SetWallpaperButton({
             >
               <Monitor />
               {display.name}
+              {!fitsDisplay(item, display) && tooSmall}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

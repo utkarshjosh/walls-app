@@ -24,6 +24,17 @@ Implemented in this folder as of 2026-11-10 (TypeScript, Tailwind 4, Radix, Moti
 - A fresh install starts with rotation **paused** and never touches the desktop until the person presses Start. Keep it that way.
 - In the browser, wallpaper actions are labelled as a preview ("In preview", "Showing in the Rotation preview"). Never word them as if the real desktop changed.
 
+### Resolution — owner feedback, 2026-11-10
+
+After using the first build on a 16-inch MacBook Pro beside a 24-inch 1080p monitor, the owner called it "a blunder" that the app put small pictures on a Retina display and stretched them across both displays. The rule now, and it is not optional:
+
+- Every wallpaper keeps its pixel size. Whether it is large enough is always judged against the displays connected right now (`src/lib/fit.ts`, mirrored in the native core).
+- Automatic rotation never shows a wallpaper that would look blurry. In "one across all" a picture is stretched only if it has the pixels for the densest display; otherwise it is shown on each display for its turn, or skipped if too small even for that.
+- By hand a person may still set a small picture on a display, but the interface says "Too small" first, and stretching a too-small picture across displays is not offered.
+- Starter wallpapers must be sharp on a Retina display. The original nine 1672 x 941 samples are no longer given to new installs.
+
+Also from the same session: with the full-size viewer or a dialog open, the top strip must stay grabbable so the window can be moved (`data-tauri-drag-region`). Any new full-window overlay needs the same.
+
 ## Wallpaper product direction
 
 Current direction, 2026-11-08: use the component-first foundation in [docs/14-component-foundation.md](../../docs/14-component-foundation.md) and its [component catalog](../../docs/design/component-catalog.json). The owner approved finding and reusing existing components instead of repeatedly inventing the UI through generated mocks. Use Shadcn Space's Radix variants for the common controls; trial Space UI's gallery with local assets. Planes Photo Lightbox remains optional and paid. Preserve licenses and distinguish shortlisted components from installed or validated ones.

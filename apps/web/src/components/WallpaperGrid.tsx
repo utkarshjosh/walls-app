@@ -94,6 +94,7 @@ export function WallpaperTile({
   actions,
   pinnedActions,
   showing,
+  lowResolution,
 }: {
   title: string;
   caption?: string;
@@ -109,6 +110,8 @@ export function WallpaperTile({
   pinnedActions?: ReactNode;
   /** This wallpaper is on the desktop right now. */
   showing?: boolean;
+  /** Too small to look sharp on any connected display. */
+  lowResolution?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const [playing, setPlaying] = useState(false);
@@ -152,9 +155,10 @@ export function WallpaperTile({
         </span>
       </button>
 
-      {(live || showing) && (
+      {(live || showing || lowResolution) && (
         <span className="pointer-events-none absolute top-2.5 left-2.5 flex gap-1.5">
           {live && <Badge>Live</Badge>}
+          {lowResolution && <Badge>Low resolution</Badge>}
           {/* A browser tab only has the in-app preview; do not claim the real desktop. */}
           {showing && (
             <Badge tone="tint">{platform.canSetWallpaper ? "On your desktop" : "In preview"}</Badge>

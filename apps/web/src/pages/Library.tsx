@@ -11,6 +11,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { canSpan, fitsAny, fitsDisplay } from "@/lib/fit";
+import { fitNote } from "@/lib/fitNote";
 import { plural } from "@/lib/utils";
 import { platform } from "@/platform";
 import { useLibrary } from "@/state/store";
@@ -132,6 +134,9 @@ export function LibraryPage({
               {
                 type: "item",
                 label: "Across all displays",
+                // Only pictures with the pixels for it are stretched across displays.
+                disabled: !canSpan(wallpaper, displays),
+                hint: canSpan(wallpaper, displays) ? undefined : "Too small",
                 onSelect: () => setWallpaper(wallpaper, { mode: "span" }),
               },
               { type: "separator" },
@@ -140,6 +145,7 @@ export function LibraryPage({
                 (display): MenuEntry => ({
                   type: "item",
                   label: display.name,
+                  hint: fitsDisplay(wallpaper, display) ? undefined : "Too small",
                   onSelect: () => setWallpaper(wallpaper, { mode: "same", displayId: display.id }),
                 }),
               ),
@@ -240,6 +246,7 @@ export function LibraryPage({
     color: wallpaper.color,
     aspect: aspectOf(wallpaper),
     detail: describe(wallpaper),
+    warning: fitNote(wallpaper, displays),
   }));
 
   return (
@@ -394,6 +401,7 @@ export function LibraryPage({
                         kind={wallpaper.kind}
                         liveSrc={wallpaper.kind === "image" ? undefined : urlOf(wallpaper.full)}
                         showing={showingIds.has(wallpaper.id)}
+                        lowResolution={displays.length > 0 && !fitsAny(wallpaper, displays)}
                         onOpen={() => setViewing(index)}
                         actions={
                           <>
@@ -469,6 +477,7 @@ export function LibraryPage({
               <SetWallpaperButton
                 size="lg"
                 busy={setting}
+                item={wallpaper}
                 picture={{ src: item.image, color: item.color }}
                 onSet={(target) => setWallpaper(wallpaper, target)}
               />

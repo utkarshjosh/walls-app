@@ -22,7 +22,8 @@
         "hiddenTitle": true,
         "dragDropEnabled": false,
         "backgroundColor": "#151514",
-        "theme": "Dark"
+        "theme": "Dark",
+        "backgroundThrottling": "throttle"
       }
     ],
     "security": {

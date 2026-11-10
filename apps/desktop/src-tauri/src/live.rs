@@ -357,7 +357,7 @@ mod tests {
     use super::*;
 
     fn item(kind: WallpaperKind, path: &str) -> PlayItem {
-        PlayItem { id: "x".into(), kind, path: path.into(), poster_path: None }
+        PlayItem { id: "x".into(), kind, path: path.into(), width: 0.0, height: 0.0, poster_path: None }
     }
 
     const LIBRARY_FILE: &str = "/Users/me/Library/Application Support/com.utkarshjoshi.still/library/clip-1.mp4";

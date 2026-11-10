@@ -5,6 +5,7 @@ import { Ellipsis, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isMac, isWebPlatform, platform } from "@/platform";
 import { LibraryProvider, useLibrary } from "@/state/store";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,11 +39,13 @@ const ACCENT_KEY = "still.preview.accent";
 export function App() {
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}>
-      <ToastProvider>
-        <LibraryProvider>
-          <Shell />
-        </LibraryProvider>
-      </ToastProvider>
+      <ErrorBoundary>
+        <ToastProvider>
+          <LibraryProvider>
+            <Shell />
+          </LibraryProvider>
+        </ToastProvider>
+      </ErrorBoundary>
     </MotionConfig>
   );
 }
@@ -175,6 +178,7 @@ function Shell() {
                     setLibraryOpenId(null);
                     go("library");
                   }}
+                  onOpenDiscover={() => go("discover")}
                 />
               ))}
           </Tabs.Content>
