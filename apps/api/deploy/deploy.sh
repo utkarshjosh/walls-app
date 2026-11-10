@@ -60,6 +60,9 @@ ssh "$HOST" "set -e; cd '$DIR'
   rm -f data/catalog.db-wal data/catalog.db-shm
   mv bin/walls.new bin/walls && chmod 755 bin/walls
   sudo docker compose up -d --remove-orphans
+  # Caddy only reads its config when it starts, and an uploaded config is a new
+  # file the running container does not see: restart it so changes take effect.
+  sudo docker compose restart web >/dev/null
   sleep 3
   sudo docker compose ps --format 'table {{.Service}}\t{{.Status}}'"
 
