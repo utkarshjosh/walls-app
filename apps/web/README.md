@@ -37,7 +37,7 @@ A new install starts paused and never changes the desktop until Start is pressed
 ## How it is put together
 
 - `src/platform/` — the one boundary between interface and host. `types.ts` is the contract, `web.ts` the browser preview, `desktop.ts` the Mac app.
-- `src/state/` — the library: collections, wallpapers, settings. Saved locally (IndexedDB `walls-local`); data from the first prototype is migrated on load.
+- `src/state/` — the library: collections, wallpapers, settings. Saved through the host: in a browser, the page's own storage (IndexedDB `walls-local`); in the Mac app, a `library-state.json` file beside the wallpapers. Data from the first prototype is migrated on load.
 - `src/lib/schedule.ts`, `src/lib/rotation.ts`, `src/lib/fit.ts` — when the next change happens, which wallpaper comes next, and whether a wallpaper is large enough for a display. The Mac app's Rust core follows the same rules.
 - `src/components/ui/` — buttons, dialogs, menus, select, switch on Radix primitives, styled from shared tokens in `src/styles.css`. See [NOTICE.md](src/components/ui/NOTICE.md) for component sources.
 - `public/live.html` — the page that plays a video as a live wallpaper.

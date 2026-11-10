@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { localDb } from "./db";
 import type {
   ApplyRequest,
   DisplayInfo,
@@ -15,6 +16,9 @@ import type {
 // derived here.
 
 type NativeFile = Omit<StoredFile, "url">;
+
+/** The library list, kept as a file beside the wallpapers it describes. */
+const STATE_FILE = "library-state.json";
 
 const withUrl = (file: NativeFile): StoredFile => ({ ...file, url: convertFileSrc(file.path) });
 
@@ -55,6 +59,34 @@ export function createDesktopPlatform(): Platform {
     async resolveFiles(names) {
       const found = await invoke<Record<string, NativeFile>>("library_resolve", { names });
       return Object.fromEntries(Object.entries(found).map(([name, file]) => [name, withUrl(file)]));
+    },
+
+    async loadState() {
+      const found = await invoke<Record<string, NativeFile>>("library_resolve", {
+        names: [STATE_FILE],
+      });
+      const file = found[STATE_FILE];
+      if (file) {
+        // The timestamp keeps the web view from answering with an old copy.
+        const response = await fetch(`${convertFileSrc(file.path)}?t=${Date.now()}`);
+        // A list that exists but cannot be read must stop here: falling back
+        // would let an empty library be saved over it.
+        if (!response.ok) throw new Error("The saved library could not be read.");
+        return (await response.json()) as unknown;
+      }
+      // Before the file existed the list lived in the web view's own storage,
+      // which differs between a development run and a release build. Carry it over.
+      try {
+        return (await (await localDb()).get("state", "library")) ?? null;
+      } catch {
+        return null;
+      }
+    },
+    async saveState(state) {
+      const bytes = new TextEncoder().encode(JSON.stringify(state));
+      await invoke<NativeFile>("library_store", bytes, {
+        headers: { "x-file-name": encodeURIComponent(STATE_FILE) },
+      });
     },
 
     apply: (request: ApplyRequest) => invoke<RotationStatus>("wallpaper_apply", { request }),

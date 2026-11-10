@@ -266,6 +266,13 @@ export function createWebPlatform(): WebPlatform {
       return found;
     },
 
+    async loadState() {
+      return (await (await localDb()).get("state", "library")) ?? null;
+    },
+    async saveState(state) {
+      await (await localDb()).put("state", state, "library");
+    },
+
     async apply(request: ApplyRequest) {
       const picked = request.items.map((item) => item.id);
       if (picked.length === 0) return status();

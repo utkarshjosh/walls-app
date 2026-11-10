@@ -43,6 +43,16 @@ of starting a second one:
 npx tauri dev --config '{"build":{"beforeDevCommand":""}}'
 ```
 
+## A release copy
+
+```sh
+cd apps/desktop
+npx tauri build --bundles app
+open src-tauri/target/release/bundle/macos/Still.app
+```
+
+The result is unsigned (ad-hoc signature), so it runs on the Mac that built it but is not something to hand to other people; that needs the signing steps in the Mac App Store section. A release copy talks to the deployed catalog at `https://walls.utkarshjoshi.com`; a development run talks to `http://localhost:8787`. Both use the same library folder and library list, so quit one before opening the other.
+
 ## What has actually been run (2026-11-10)
 
 On macOS 27 with two displays attached (a built-in Retina display on the left
@@ -62,6 +72,7 @@ the live windows themselves rather than looked at.
 | Next / Previous / Pause | Desktop pictures followed; the next change was scheduled on the local clock hour |
 | Quit and relaunch | State restored; the live window came back on the right display; nothing else changed |
 | Real interface in the window | Copied its nine starter wallpapers to disk, synced a paused plan, did not touch the desktop, reported no page errors |
+| Release copy | Opened with the library the development copy had been using (8 collections, 28 wallpapers), kept the wallpaper, and its requests arrived at the deployed catalog |
 | Resolution rule, "same on each" | With a 1672x941, a 3840x2400 and a 7680x2400 picture in rotation, the small one never appeared (it is too small for the Retina display) |
 | Resolution rule, "one across all" | Only the 7680-wide picture was stretched into two pieces; the 3840-wide one was shown on each display for its turn; the small one never appeared |
 | Resolution rule, "different on each" | The Retina display only received the two large pictures; the 1080p monitor also received the small one; frames alternated and did not freeze |
@@ -81,6 +92,7 @@ Spaces, and anything inside the App Store sandbox.
 | What | Where |
 | --- | --- |
 | Library files | `~/Library/Application Support/com.utkarshjoshi.still/library/` |
+| The library list (collections, wallpapers, settings) | `library-state.json` in that same folder. Written by the interface; a development run and a release build share it |
 | Rotation state (plan, history, next change) | `~/Library/Application Support/com.utkarshjoshi.still/rotation.json` |
 | Pieces of a picture spread across displays | `~/Library/Caches/com.utkarshjoshi.still/span/` |
 

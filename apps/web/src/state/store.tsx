@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { localDb } from "@/platform/db";
 import { platform } from "@/platform";
 import type {
   DisplayInfo,
@@ -19,7 +18,14 @@ import type {
   RotationStatus,
   StoredFile,
 } from "@/platform/types";
-import { catalog, fileUrl, isPerDisplay, type CatalogItem, type CatalogPack } from "@/api/client";
+import {
+  CatalogError,
+  catalog,
+  fileUrl,
+  isPerDisplay,
+  type CatalogItem,
+  type CatalogPack,
+} from "@/api/client";
 import { canSpan } from "@/lib/fit";
 import { prepareFile, thumbnailOf, titleFromFileName } from "@/lib/media";
 import { toSchedule } from "@/lib/schedule";
@@ -134,6 +140,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const filesRef = useRef(files);
   filesRef.current = files;
   const synced = useRef(false);
+  /** False when the saved library could not be read; saving would destroy it. */
+  const canSave = useRef(true);
 
   const rememberFiles = useCallback((stored: (StoredFile | null | undefined)[]) => {
     const fresh = stored.filter((file): file is StoredFile => Boolean(file));
@@ -154,9 +162,13 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     (async () => {
       let restored: LibraryState | null = null;
       try {
-        restored = restore(await (await localDb()).get("state", "library"));
+        restored = restore(await platform.loadState());
       } catch {
-        if (alive) setStorageError("Changes can't be saved on this device right now.");
+        // The saved library exists but could not be read. Show the starter
+        // library for now and do not save, so the real one is not overwritten.
+        canSave.current = false;
+        if (alive)
+          setStorageError("Your saved library could not be read. Nothing will be changed; try reopening Still.");
       }
       const initial = restored ?? seedState();
       const names = Object.values(initial.wallpapers).flatMap(refNames);
@@ -178,10 +190,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   // ── Save ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !canSave.current) return;
     const timer = setTimeout(async () => {
       try {
-        await (await localDb()).put("state", state, "library");
+        await platform.saveState(state);
         setStorageError("");
       } catch {
         setStorageError("Changes can't be saved on this device right now.");
@@ -449,7 +461,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
             };
           });
         })
-        .catch(() => {});
+        .catch((cause: unknown) => {
+          // The catalog answered and no longer has this scene: settle it from
+          // what is known, so it is not asked about on every launch. If the
+          // catalog could not be reached at all, try again next time.
+          if (!(cause instanceof CatalogError) || cause.offline) return;
+          setState((current) => {
+            const existing = current.wallpapers[wallpaper.id];
+            if (!existing || existing.perDisplay !== undefined) return current;
+            const perDisplay = existing.tags?.includes("clock") ?? false;
+            return {
+              ...current,
+              wallpapers: { ...current.wallpapers, [wallpaper.id]: { ...existing, perDisplay } },
+            };
+          });
+        });
     }
   }, [state.wallpapers, loaded]);
 

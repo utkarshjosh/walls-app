@@ -168,6 +168,16 @@ export interface Platform {
   /** Turn a stored name back into a usable URL after a restart. Command: `library_resolve` { names }. */
   resolveFiles(names: string[]): Promise<Record<string, StoredFile>>;
 
+  /**
+   * The saved library (collections, wallpapers, settings), or null when there
+   * is none yet. In a browser this is the page's own storage. In the Mac app
+   * it is a file beside the wallpapers, so it survives the web view's storage
+   * being cleared and is the same for every build of the app.
+   */
+  loadState(): Promise<unknown | null>;
+  /** Save the library. Called often; must replace the previous copy whole. */
+  saveState(state: unknown): Promise<void>;
+
   /** Command: `wallpaper_apply` { request }. */
   apply(request: ApplyRequest): Promise<RotationStatus>;
   /** Command: `rotation_sync` { plan }. Safe to call often; does not change the wallpaper by itself. */
