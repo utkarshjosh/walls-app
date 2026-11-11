@@ -53,7 +53,7 @@
                 </p>
                 <div class="hero__actions">
                   <a class="store" href="#get">
-                    Coming to the Mac App Store
+                    Get the early build
                   </a>
                   <a class="quiet" href="#live">See the live scenes</a>
                 </div>
@@ -176,6 +176,28 @@
         <div class="get__body">
           <h2>Coming to the Mac App Store.</h2>
           <p>Pay once. No account, no subscription, and your library stays on your Mac. For macOS 12 or later.</p>
+        </div>
+
+        <!-- The form needs script (the page's policy does not let a form post by
+             itself), so it is only shown when script is running. -->
+        <div class="join">
+          <div>
+            <h3 id="join-title">Try it before it is in the store.</h3>
+            <p>Leave your email and we will send you an early build, then one note on the day it launches.</p>
+          </div>
+          <form class="join__form" aria-labelledby="join-title" novalidate>
+            <div class="join__row">
+              <label class="sr" for="join-email">Email address</label>
+              <input id="join-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required />
+              <!-- Not for people: left empty by a person, filled in by a script. -->
+              <div class="join__trap" aria-hidden="true">
+                <label for="join-website">Leave this empty</label>
+                <input id="join-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+              </div>
+              <button class="store" type="submit">Send me the build</button>
+            </div>
+            <p class="join__note" role="status" aria-live="polite">We keep your address for this and nothing else.</p>
+          </form>
         </div>
       </section>
     </main>

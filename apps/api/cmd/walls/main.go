@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/utkarshjoshi/walls/apps/api/internal/config"
 	"github.com/utkarshjoshi/walls/apps/api/internal/httpapi"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
+	"github.com/utkarshjoshi/walls/apps/api/internal/records"
 	"github.com/utkarshjoshi/walls/apps/api/internal/seed"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
 )
@@ -34,6 +36,7 @@ Usage:
   walls ingest <dir>           import a folder of your own images, videos and live scenes
   walls scene check <dir>...   check live scene folders against the scene standard
   walls rm <id>                remove an item and its stored files
+  walls signups                print the list of people who asked for the build, as CSV
   walls render [flags]         write the starter artwork to a folder (for tuning the generator)
 
 Settings come from WALLS_* environment variables, or a .env file in the
@@ -57,6 +60,8 @@ func main() {
 		err = cmdIngest(args)
 	case "rm":
 		err = cmdRemove(args)
+	case "signups":
+		err = cmdSignups(args)
 	case "scene":
 		err = cmdScene(args)
 	case "render":
@@ -139,10 +144,19 @@ func cmdServe(args []string) error {
 	}
 	defer e.close()
 
+	// Sign-ups, daily counts and admin sign-ins live in their own file, which
+	// a deploy never replaces (the catalog beside it is replaced every time).
+	rec, err := records.Open(filepath.Join(e.cfg.DataDir, "records.db"))
+	if err != nil {
+		return err
+	}
+	defer rec.Close()
+
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	api := &httpapi.Server{
 		DB: e.db, Store: e.store, StorageName: e.cfg.Storage, PublicURL: e.cfg.PublicURL,
 		CORSOrigins: e.cfg.CORSOrigins, Log: log,
+		Records: rec, AdminPassword: e.cfg.AdminPassword, StorageCap: e.cfg.StorageCapBytes,
 	}
 	srv := &http.Server{
 		Addr:              e.cfg.Addr,
@@ -161,7 +175,7 @@ func cmdServe(args []string) error {
 
 	items, _ := e.db.CountItems(ctx)
 	log.Info("listening", "addr", e.cfg.Addr, "storage", storageLabel(e.cfg), "items", items,
-		"corsOrigins", strings.Join(e.cfg.CORSOrigins, ","))
+		"corsOrigins", strings.Join(e.cfg.CORSOrigins, ","), "adminPortal", api.AdminEnabled())
 	if items == 0 {
 		log.Warn(`the catalog is empty; run "walls seed" to load the starter set`)
 	}
@@ -305,6 +319,40 @@ func cmdRemove(args []string) error {
 	}
 	fmt.Printf("Removed %s (%q, %s) and its stored files.\n", it.ID, it.Title, it.Kind)
 	return nil
+}
+
+// cmdSignups prints the list as CSV, oldest first. It reads the same file a
+// running server writes, so it is safe to use while the service is up; the
+// deploy script uses it to keep a copy of the list off the server.
+func cmdSignups(args []string) error {
+	fs := flag.NewFlagSet("signups", flag.ContinueOnError)
+	fs.Usage = func() { fmt.Fprintln(fs.Output(), "usage: walls signups > list.csv") }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := config.LoadDotEnv(".env"); err != nil {
+		return err
+	}
+	cfg, err := config.FromEnv()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(cfg.DataDir, "records.db")
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("no sign-ups here yet: %s does not exist", path)
+	}
+	rec, err := records.Open(path)
+	if err != nil {
+		return err
+	}
+	defer rec.Close()
+	ctx, stop := signalContext()
+	defer stop()
+	list, err := rec.ListSignups(ctx, records.SignupQuery{})
+	if err != nil {
+		return err
+	}
+	return httpapi.WriteSignupsCSV(csv.NewWriter(os.Stdout), list)
 }
 
 func plural(n int, word string) string {

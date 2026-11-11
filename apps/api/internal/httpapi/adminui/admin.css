@@ -1,0 +1,418 @@
+/* The admin portal. Colours match the landing page (apps/site/src/styles.css). */
+:root {
+  --bg: #151514;
+  --surface: #1c1c1a;
+  --raised: #262624;
+  --line: #30302d;
+  --line-strong: #4a4a45;
+  --fg: #ecebe6;
+  --muted: #a8a69e;
+  --faint: #76746d;
+  --tint: #cbb895;
+  --tint-ink: #1b1a15;
+  --bad: #e58a7b;
+  color-scheme: dark;
+}
+
+/* The landing page's typeface, when this page is served beside it. */
+@font-face {
+  font-family: "Archivo Variable";
+  src: url("/fonts/archivo.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 "Archivo Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1,
+h2 {
+  margin: 0;
+  font-weight: 400;
+  font-stretch: 114%;
+}
+h1 {
+  font-size: 1.6rem;
+}
+h2 {
+  margin: 36px 0 12px;
+  font-size: 1.05rem;
+}
+code {
+  font-size: 0.92em;
+  color: var(--fg);
+}
+:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 2px;
+}
+
+button,
+.button,
+input,
+select {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+button:hover:not(:disabled),
+.button:hover {
+  border-color: var(--tint);
+}
+button:disabled {
+  color: var(--faint);
+  border-color: var(--line);
+  cursor: default;
+}
+button.primary {
+  background: var(--tint);
+  border-color: var(--tint);
+  color: var(--tint-ink);
+  font-weight: 560;
+}
+button.plain {
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+}
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--tint);
+}
+
+.error {
+  margin: 0;
+  color: var(--bad);
+  min-height: 1.5em;
+}
+.banner {
+  margin: 16px 24px 0;
+}
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ---- sign in ---- */
+.gate {
+  max-width: 340px;
+  margin: 18vh auto 0;
+  padding: 0 20px;
+}
+.gate p {
+  color: var(--muted);
+}
+.gate form {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.gate label {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ---- frame ---- */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 24px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.mark {
+  font-stretch: 120%;
+  font-weight: 500;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+.tabs button {
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+}
+.tabs button[aria-selected="true"] {
+  background: var(--raised);
+  color: var(--fg);
+}
+section {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+}
+
+/* ---- activity ---- */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.tile {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.tile b {
+  display: block;
+  font-size: 2rem;
+  font-weight: 350;
+  font-stretch: 112%;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.tile span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.tile small {
+  display: block;
+  color: var(--faint);
+  font-size: 0.8125rem;
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.chart {
+  padding: 16px 18px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.chart h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 450;
+}
+.chart p {
+  min-height: 3em; /* two lines, so the charts in a row share a baseline */
+  margin: 0 0 12px;
+  color: var(--faint);
+  font-size: 0.8125rem;
+}
+/* One series per chart, each on its own scale: bars from a shared baseline. */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 96px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.bars i {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.bars i::after {
+  content: "";
+  width: 100%;
+  height: var(--h);
+  min-height: var(--min, 0);
+  border-radius: 3px 3px 0 0;
+  background: var(--tint);
+}
+.bars i:hover::after {
+  background: var(--fg);
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.tip {
+  position: fixed;
+  z-index: 10;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  font-size: 0.8125rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0 40px;
+}
+.top-list,
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.top-list li,
+.log li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.top-list img,
+td img {
+  width: 56px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: var(--raised);
+}
+.top-list span,
+.log span {
+  flex: 1;
+  min-width: 0;
+}
+.top-list b {
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+.log small,
+.top-list small {
+  color: var(--faint);
+}
+.log time {
+  color: var(--faint);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* ---- tables ---- */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.bar input[type="search"],
+.bar input[type="email"] {
+  flex: 1 1 260px;
+  max-width: 380px;
+}
+.bar input[type="text"] {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+.grow {
+  flex: 1;
+  color: var(--muted);
+}
+.scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9063rem;
+}
+th,
+td {
+  padding: 9px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-top: 1px solid var(--line);
+}
+thead th {
+  border-top: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 450;
+  font-size: 0.8125rem;
+}
+th button {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+}
+th button[aria-sort]::after {
+  content: " ↓";
+}
+th button[aria-sort="ascending"]::after {
+  content: " ↑";
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tick {
+  width: 36px;
+}
+td.note {
+  white-space: normal;
+  min-width: 180px;
+}
+td.note button {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+  white-space: normal;
+}
+td small {
+  color: var(--faint);
+}
+.pill {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.pill.sent {
+  border-color: var(--tint);
+  color: var(--tint);
+}
+td .plain {
+  height: 28px;
+  padding: 0 8px;
+}

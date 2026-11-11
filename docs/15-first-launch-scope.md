@@ -29,7 +29,7 @@ Each of these was either in the earlier plan or is a tempting next step. None is
 1. **Sign-in of any kind (Google, Apple, email).** The App Store already knows who paid. No login means no auth provider, no password resets, no account deletion flow, and no obligation to add Sign in with Apple.
 2. **Syncing a person's library between Macs, or uploading their files to our server.** The library is local files. This is also what keeps the bucket inside its 8 GB limit: it holds our catalog only, never customer uploads.
 3. **PostgreSQL, a job queue, a worker process, device pairing, seven-day plans.** All of that existed to support accounts and sync. The catalog needs none of it.
-4. **An admin website.** Content goes in with one command (`walls ingest <folder>`).
+4. **An admin website that changes the catalog.** Content goes in with one command (`walls ingest <folder>`). Changed by the owner on 2026-11-10: a small read-mostly admin portal now exists at `/admin` for the early-build list and daily totals (see "Decisions this changes"). It lists the catalog but does not edit it.
 
 ### Community and "smart" features
 
@@ -69,7 +69,7 @@ Each of these was either in the earlier plan or is a tempting next step. None is
 23. **A light theme, user-selectable themes, or an in-app accent picker.** One dark theme, one accent.
 24. **Languages other than English.**
 25. **An onboarding tour.** The first screen already shows starter collections and a Start button.
-26. **Analytics or third-party crash-reporting SDKs.** "No data collected" is the simplest App Store privacy label, and a selling point.
+26. **Analytics or third-party crash-reporting SDKs.** "No data collected" is the simplest App Store privacy label, and a selling point. The server does keep plain daily totals of requests it already receives (Discover opened, a wallpaper's file fetched), with no IP address or identifier; the app sends nothing extra. Before submitting, confirm the owner is comfortable that this still fits the "no data collected" label.
 27. **A CDN, multiple regions, or redundancy.** One small server and the bucket. Add a cache in front only if traffic demands it.
 
 ## What does have to happen before launch
@@ -101,3 +101,4 @@ Short, and mostly not code.
 | ADR-007: same image on every display | Replaced by three display modes that appear only with two or more displays. |
 | ADR-013: discovery deferred | A curated, read-only Discover ships in v1; user submissions stay deferred. |
 | Live wallpapers were not planned | In v1 as first-party scenes plus the user's own videos. |
+| No admin website; the server is read-only | 2026-11-10: the landing page collects email addresses for an early build, and the owner has a password-protected portal at `/admin` showing that list, daily totals and the catalog. Still no user accounts: one owner password, nothing for customers to sign in to. The privacy page (already on the launch list) now also has to cover the sign-up list. |

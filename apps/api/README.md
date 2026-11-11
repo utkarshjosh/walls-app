@@ -1,9 +1,14 @@
 # walls — the catalog service
 
 This is the small backend behind the app's **Discover** section. It answers
-"what wallpapers exist, and where are their files?" It is read-only over HTTP:
-there are no user accounts, uploads or sync. Content gets in through
+"what wallpapers exist, and where are their files?" The catalog is read-only
+over HTTP: there are no user accounts, uploads or sync. Content gets in through
 command-line tools that you, the operator, run.
+
+It also does two small jobs for the landing page and the owner, described under
+[Sign-ups and the admin portal](#sign-ups-and-the-admin-portal): it keeps the
+list of people who asked for the early build, and it shows that list, some
+daily totals and the catalog at `/admin`.
 
 It is one program, `walls`, with a few commands:
 
@@ -14,6 +19,7 @@ It is one program, `walls`, with a few commands:
 | `walls ingest <dir>` | Imports a folder of your own licensed images, videos and live scenes. |
 | `walls scene check <dir>...` | Checks live scene folders against the scene standard. Reads files only. |
 | `walls rm <id>` | Removes one item and its stored files. |
+| `walls signups` | Prints the sign-up list as CSV. Safe while the service is running. |
 | `walls render` | Writes the starter artwork to a folder without touching the catalog (for tuning the generator). |
 
 ## Run it
@@ -28,7 +34,8 @@ go run ./cmd/walls seed && go run ./cmd/walls serve
 <http://localhost:8787/v1/wallpapers>.
 
 Everything the program writes goes under `./data` (git-ignored): the catalog
-database `data/catalog.db` and, by default, the files in `data/objects/`.
+database `data/catalog.db`, by default the files in `data/objects/`, and
+`data/records.db` (sign-ups, daily totals, admin sign-ins).
 
 Run the tests with `go test ./...`.
 
@@ -73,6 +80,55 @@ Copy `.env.example` to `.env` to start.
 | `WALLS_CORS_ORIGINS` | Vite dev server and Tauri | Comma-separated browser origins allowed to call the API. |
 | `WALLS_PUBLIC_URL` | | If set, file links in responses are absolute, starting with this. |
 | `WALLS_STORAGE_CAP_BYTES` | `7000000000` | Storage budget. `seed` and `ingest` refuse to go over it. |
+| `WALLS_ADMIN_PASSWORD` | | The owner's password for `/admin`, at least 12 characters. Empty switches the portal off. |
+
+## Sign-ups and the admin portal
+
+**The form.** The landing page posts an address to `POST /v1/signups`. The
+server checks its shape, lower-cases it and stores it once; the answer is the
+same whether the address was new or already there. Nothing is emailed: there is
+no confirmation message and the server cannot send mail. To send people the
+build, copy the addresses out of the admin portal and write to them yourself.
+
+**What is kept.** `data/records.db` holds, per person: the address, when they
+signed up, whether it came from the page or was typed in by you, the country
+Cloudflare reported, whether you have marked them as sent the build, and your
+note. It also holds one number per day for each of: landing page visits, times
+the app opened Discover, and times each wallpaper's full file was fetched. No
+IP address, cookie or device identifier is stored anywhere, so the numbers
+cannot be traced to a person or a Mac.
+
+**The file is the only copy.** `catalog.db` is rebuilt from this repository and
+replaced on every deploy. `records.db` is the opposite: it exists only on the
+server and the deploy script never touches it. Each deploy saves the current
+list to `data/backups/signups-<time>.csv` on your machine; "Download CSV" in
+the portal does the same by hand.
+
+**The admin portal.** Open `/admin`. It is off until you set a password:
+
+```sh
+# On the server, in ~/walls/walls.env (create it; never commit it):
+WALLS_ADMIN_PASSWORD=<output of: openssl rand -base64 24>
+# then: cd ~/walls && sudo docker compose up -d api
+```
+
+Locally, put the same line in `apps/api/.env` and open
+<http://localhost:8787/admin>. There is one password and no user accounts.
+Signing in sets a cookie that script cannot read and that is only sent to
+`/v1/admin`; it lasts 14 days, and changing the password signs every browser
+out. Eight wrong passwords from one connection lock sign-in from it for
+fifteen minutes.
+
+| Tab | What it shows |
+| --- | --- |
+| Activity | Totals and a 30-day chart each for page visits, sign-ups, Discover opened and wallpapers fetched; the most fetched wallpapers; a log of what you did in the portal. |
+| People | The list. Search it, add someone by hand, mark people as sent the build, keep a note, remove someone, copy addresses, download CSV. |
+| Wallpapers | Everything in the catalog with size and how often it was fetched, and how often each collection was opened. Read-only: add and remove with `walls ingest` / `walls rm`, then deploy. |
+
+Limits on the public form: 8 sign-ups an hour from one connection and 300 an
+hour in total, after which it answers "try again later". If Cloudflare starts
+caching `/v1/files/` (see above), fetch counts will only include requests that
+reach this server.
 
 ## Storing files in the Oracle Cloud bucket
 
@@ -279,6 +335,10 @@ GET /v1/wallpapers/{id}           one item
 GET /v1/packs                     curated packs with up to three cover thumbnails
 GET /v1/packs/{id}                a pack and its items
 GET /v1/files/{id}/{variant}      variant: thumb | preview | original | poster
+
+POST /v1/signups                  {"email":"..."}  →  {"ok":true}
+POST /v1/visits                   no body; adds one to today's page visits
+/v1/admin/...                     the admin portal's own API; needs the sign-in cookie
 ```
 
 For a live scene, `original` is the scene's `scene.html` and `poster` its

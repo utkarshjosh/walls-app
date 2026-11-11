@@ -681,6 +681,90 @@ h2 {
   color: var(--muted);
 }
 
+/* The early-build form. Hidden without script: see index.html. */
+.join {
+  display: none;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px clamp(32px, 6vw, 110px);
+  max-width: var(--wide);
+  margin: clamp(40px, 5vw, 72px) auto 0;
+}
+.js .join {
+  display: grid;
+}
+.join h3 {
+  font-size: 1.375rem;
+  font-stretch: 114%;
+  font-weight: 430;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+}
+.join p {
+  max-width: 33rem;
+  margin-top: 10px;
+  color: var(--muted);
+}
+.join__row {
+  display: flex;
+  gap: 10px;
+}
+.join__row input[type="email"] {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  transition: border-color 0.2s var(--ease);
+}
+.join__row input[type="email"]::placeholder {
+  color: var(--faint);
+}
+.join__row input[type="email"]:hover,
+.join__row input[type="email"]:focus {
+  border-color: var(--tint);
+}
+.join__row button {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.join__row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.join .join__note {
+  margin-top: 12px;
+  font-size: 0.875rem;
+  color: var(--faint);
+}
+.join .join__note.is-error {
+  color: #e58a7b;
+}
+.join .join__note.is-done {
+  color: var(--tint);
+}
+/* Out of sight for people, still in the page for a script to find. */
+.join__trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .foot {
   display: flex;
   justify-content: space-between;
@@ -712,7 +796,8 @@ h2 {
     row-gap: 36px;
   }
   .section__head,
-  .get__body {
+  .get__body,
+  .join {
     grid-template-columns: 1fr;
     align-items: start;
   }
@@ -770,6 +855,12 @@ h2 {
   }
   .app__tabs button[aria-selected="true"] span {
     display: block;
+  }
+  .join__row {
+    flex-direction: column;
+  }
+  .join__row button {
+    justify-content: center;
   }
 }
 

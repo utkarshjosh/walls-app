@@ -253,3 +253,60 @@ tabs.forEach((tab, i) => {
     selectTab(tabs[(i + step + tabs.length) % tabs.length], true);
   });
 });
+
+// ---- the early build --------------------------------------------------------
+
+const joinForm = $<HTMLFormElement>(".join__form");
+const joinEmail = $<HTMLInputElement>("#join-email");
+const joinTrap = $<HTMLInputElement>("#join-website");
+const joinButton = $<HTMLButtonElement>("button", joinForm);
+const joinNote = $<HTMLElement>(".join__note");
+
+function say(text: string, state: "" | "is-error" | "is-done" = "") {
+  joinNote.textContent = text;
+  joinNote.className = `join__note ${state}`.trim();
+}
+
+joinForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (joinButton.disabled) return;
+  const email = joinEmail.value.trim();
+  if (!email || !joinEmail.checkValidity()) {
+    say("That does not look like an email address.", "is-error");
+    joinEmail.focus();
+    return;
+  }
+  joinButton.disabled = true;
+  say("Sending…");
+  try {
+    const response = await fetch("/v1/signups", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, website: joinTrap.value }),
+    });
+    if (response.ok) {
+      joinEmail.value = "";
+      say("You are on the list. We will write when the build is ready.", "is-done");
+      return; // the button stays off: one address per visit is enough
+    }
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    say(body?.message ?? "That did not go through. Try again in a moment.", "is-error");
+  } catch {
+    say("That did not go through. Check your connection and try again.", "is-error");
+  }
+  joinButton.disabled = false;
+});
+
+// ---- one tick per visit -----------------------------------------------------
+
+// Tells the server the page was opened, so the owner can see how many people
+// came by. It carries nothing: no cookie, no identifier, no address of the page
+// they came from. Once per tab, so reloading does not count twice.
+try {
+  if (!sessionStorage.getItem("still:seen")) {
+    sessionStorage.setItem("still:seen", "1");
+    navigator.sendBeacon("/v1/visits");
+  }
+} catch {
+  // Storage is switched off in this browser: skip the count rather than guess.
+}

@@ -31,7 +31,14 @@ type Config struct {
 	CORSOrigins     []string
 	PublicURL       string // optional absolute base for file URLs, no trailing slash
 	StorageCapBytes int64
+	// AdminPassword is the owner's password for the admin portal at /admin.
+	// Empty leaves the portal switched off.
+	AdminPassword string
 }
+
+// MinAdminPassword is the shortest admin password accepted. The portal is on
+// the public internet, so a short password is refused rather than trusted.
+const MinAdminPassword = 12
 
 // LoadDotEnv reads KEY=VALUE lines from path into the process environment.
 // Variables that are already set win, so real environment values override the
@@ -91,6 +98,11 @@ func FromEnv() (Config, error) {
 		S3AccessKey: env("WALLS_S3_ACCESS_KEY", ""),
 		S3SecretKey: env("WALLS_S3_SECRET_KEY", ""),
 		PublicURL:   strings.TrimRight(env("WALLS_PUBLIC_URL", ""), "/"),
+		// Not trimmed or defaulted: a password is used exactly as written.
+		AdminPassword: os.Getenv("WALLS_ADMIN_PASSWORD"),
+	}
+	if n := len(c.AdminPassword); n > 0 && n < MinAdminPassword {
+		return c, fmt.Errorf("WALLS_ADMIN_PASSWORD must be at least %d characters (or left out, which switches the admin portal off)", MinAdminPassword)
 	}
 	for _, o := range strings.Split(env("WALLS_CORS_ORIGINS", DefaultCORSOrigins), ",") {
 		if o = strings.TrimRight(strings.TrimSpace(o), "/"); o != "" {

@@ -17,7 +17,7 @@ npm run build      # writes dist/
 | Live scenes | A real scene from the catalog running in a sandboxed frame, with a row to choose others. Only one runs at a time, and it pauses when scrolled away. | `src/main.ts` |
 | Wallpapers | A strip of stills from the catalog. | `src/main.ts` |
 | The app | Screenshots of the three tabs. | `public/media/app/` |
-| Closing | Where to get it. | `index.html` |
+| Closing | Where to get it, and a form to ask for the early build. | `index.html`, `src/main.ts` |
 
 All the wording is in `index.html`. The product name appears there and in `<title>`; it is still a working name, so changing it is a find-and-replace in that one file. The Mac App Store link does not exist yet: the three places that will point to it are the links with `href="#get"`.
 
@@ -43,6 +43,10 @@ Which scenes and stills appear, and in what order, is chosen by hand in `src/con
 ## Why three.js is in the page but not in the wallpapers
 
 A live scene is one self-contained file of at most 512 KB that may load nothing ([the scene standard](../../docs/16-live-scene-standard.md)); three.js alone is larger than that. Scenes are written as shaders through the kit instead, which is also cheaper to run all day behind a desktop. The page has no such limit, so the hero uses three.js, loaded as its own file after the text is on screen.
+
+## The early-build form and the visit count
+
+The form at the bottom posts the address to the catalog service (`POST /v1/signups`); the list is read in the service's admin portal at `/admin` ([apps/api](../api/README.md#sign-ups-and-the-admin-portal)). The page also tells the service once per browser tab that it was opened (`POST /v1/visits`), which carries no cookie or identifier. On the server the page and the service share an address. In development they do not, so `vite.config.mjs` passes `/v1` and `/admin` on to a service on `localhost:8787`: start it (`cd ../api && go run ./cmd/walls serve`) to try the form.
 
 ## Serving it
 

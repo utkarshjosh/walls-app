@@ -15,6 +15,13 @@
 		reverse_proxy api:8787
 	}
 
+	# The owner's admin portal. Its pages come from the service too; they are
+	# empty shells, and everything they show is behind the sign-in under /v1/admin.
+	@admin path /admin /admin/*
+	handle @admin {
+		reverse_proxy api:8787
+	}
+
 	# Everything else is the product page (apps/site, built and uploaded by
 	# deploy.sh). Until it has been uploaded, these addresses answer 404.
 	handle {

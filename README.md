@@ -7,7 +7,7 @@ A Mac app that keeps your desktop fresh: collect wallpapers, pick which collecti
 | Part | Where | State |
 | --- | --- | --- |
 | Interface (React, TypeScript) | [apps/web](apps/web/README.md) | Library, Discover and Rotation work; runs in the Mac app and as a browser preview |
-| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover; 30 original wallpapers and 10 live scenes. **Deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare), serving from the server's disk |
+| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover; 30 original wallpapers and 10 live scenes. Also keeps the early-build sign-up list and serves the owner's admin portal at `/admin` (not deployed yet). **Deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare), serving from the server's disk |
 | Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar |
 | Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes. Built and previewed locally; **not deployed yet** |
 

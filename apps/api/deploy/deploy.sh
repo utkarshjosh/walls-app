@@ -52,6 +52,18 @@ rsync -az "$work/catalog.db" "$HOST:$DIR/data/catalog.db.new"
 rsync -az "$work/walls" "$HOST:$DIR/bin/walls.new"
 rsync -az deploy/compose.yaml deploy/Caddyfile "$HOST:$DIR/"
 
+# The list of people who asked for the build exists only on the server
+# (data/records.db there; nothing here replaces it). Keep a copy on this machine
+# each time, so losing the server does not lose the list.
+mkdir -p data/backups
+backup="data/backups/signups-$(date +%Y%m%d-%H%M%S).csv"
+if ssh "$HOST" "cd '$DIR' && sudo docker compose exec -T api /app/walls signups" > "$backup" 2>/dev/null && [ -s "$backup" ]; then
+  echo "     Saved the sign-up list ($(($(wc -l < "$backup") - 1)) people) to apps/api/$backup"
+else
+  rm -f "$backup"
+  echo "     No sign-up list saved (normal on the first deploy that has sign-ups)"
+fi
+
 echo "5/5  Starting the service"
 ssh "$HOST" "set -e; cd '$DIR'
   printf 'WALLS_DOMAIN=%s\nWALLS_UID=%s\nWALLS_GID=%s\n' '$DOMAIN' \"\$(id -u)\" \"\$(id -g)\" > .env

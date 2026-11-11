@@ -1,5 +1,7 @@
-// Package httpapi is the read-only JSON API the app's Discover section calls,
-// plus the endpoint that serves (or redirects to) the image and video files.
+// Package httpapi is the JSON API. Most of it is the read-only catalog the
+// app's Discover section calls, plus the endpoint that serves (or redirects
+// to) the image and video files. The rest is the two things the landing page
+// writes (public.go) and the owner's admin portal (admin.go, adminui.go).
 package httpapi
 
 import (
@@ -15,6 +17,7 @@ import (
 
 	"github.com/utkarshjoshi/walls/apps/api/internal/catalog"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
+	"github.com/utkarshjoshi/walls/apps/api/internal/records"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
 )
 
@@ -42,6 +45,17 @@ type Server struct {
 	PublicURL   string   // optional absolute prefix for file URLs, no trailing slash
 	CORSOrigins []string // allowed browser origins; "*" allows any
 	Log         *slog.Logger
+
+	// Records holds sign-ups, daily counts and admin sessions. Nil switches
+	// all three off and leaves the catalog working as before.
+	Records *records.DB
+	// AdminPassword is the owner's password for the admin portal. Empty
+	// switches the portal off.
+	AdminPassword string
+	StorageCap    int64            // the storage budget, shown in the admin portal
+	Now           func() time.Time // the clock; nil means time.Now
+
+	signupByIP, signupAll, visitByIP, loginByIP, loginAll *limiter
 }
 
 // Handler returns the full HTTP handler: routes wrapped in CORS, request
@@ -50,6 +64,12 @@ func (s *Server) Handler() http.Handler {
 	if s.Log == nil {
 		s.Log = slog.New(slog.DiscardHandler)
 	}
+	s.signupByIP = newLimiter(signupsPerIPPerHour, time.Hour)
+	s.signupAll = newLimiter(signupsPerHour, time.Hour)
+	s.visitByIP = newLimiter(visitsPerIPPerHour, time.Hour)
+	s.loginByIP = newLimiter(loginFailuresPerIP, loginWindow)
+	s.loginAll = newLimiter(loginFailuresOverall, loginWindow)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", s.handleHealth)
 	mux.HandleFunc("GET /v1/categories", s.handleCategories)
@@ -58,12 +78,32 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/packs", s.handlePacks)
 	mux.HandleFunc("GET /v1/packs/{id}", s.handlePack)
 	mux.HandleFunc("GET /v1/files/{id}/{variant}", s.handleFile)
+
+	// What the landing page writes.
+	mux.HandleFunc("POST /v1/signups", s.handleSignup)
+	mux.HandleFunc("POST /v1/visits", s.handleVisit)
+
+	// The admin portal: its pages, then its API.
+	mux.HandleFunc("GET /admin", s.handleAdminPage)
+	mux.HandleFunc("GET /admin/{file...}", s.handleAdminPage)
+	mux.HandleFunc("GET /v1/admin/session", s.handleAdminSession)
+	mux.HandleFunc("POST /v1/admin/login", s.handleAdminLogin)
+	mux.HandleFunc("POST /v1/admin/logout", s.guard(s.handleAdminLogout))
+	mux.HandleFunc("GET /v1/admin/overview", s.guard(s.handleAdminOverview))
+	mux.HandleFunc("GET /v1/admin/signups", s.guard(s.handleAdminPeople))
+	mux.HandleFunc("POST /v1/admin/signups", s.guard(s.handleAdminAddPerson))
+	mux.HandleFunc("GET /v1/admin/signups.csv", s.guard(s.handleAdminPeopleCSV))
+	mux.HandleFunc("POST /v1/admin/signups/status", s.guard(s.handleAdminMark))
+	mux.HandleFunc("PATCH /v1/admin/signups/{id}", s.guard(s.handleAdminNote))
+	mux.HandleFunc("DELETE /v1/admin/signups/{id}", s.guard(s.handleAdminRemovePerson))
+	mux.HandleFunc("GET /v1/admin/wallpapers", s.guard(s.handleAdminWallpapers))
+
 	// Everything else, including wrong methods on the routes above (the mux
 	// falls through to this pattern rather than answering in plain text).
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD, OPTIONS")
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "This API is read-only; use GET or HEAD.")
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Nothing at this address accepts that method.")
 			return
 		}
 		writeError(w, http.StatusNotFound, "not_found", "There is nothing at this address.")
@@ -313,6 +353,8 @@ func (s *Server) handlePacks(w http.ResponseWriter, r *http.Request) {
 	for i, p := range packs {
 		out[i] = s.pack(p)
 	}
+	// The app asks for this list once each time Discover is opened.
+	s.count(r, records.CountDiscover, "")
 	w.Header().Set("Cache-Control", cacheLists)
 	writeJSON(w, http.StatusOK, map[string]any{"packs": out})
 }
@@ -330,6 +372,7 @@ func (s *Server) handlePack(w http.ResponseWriter, r *http.Request) {
 	out := s.pack(p)
 	list := s.items(items)
 	out.Items = &list
+	s.count(r, records.CountPack, p.ID)
 	w.Header().Set("Cache-Control", cacheLists)
 	writeJSON(w, http.StatusOK, out)
 }
@@ -362,6 +405,15 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+
+	// Count the full file being fetched: a picture being saved or set, a live
+	// wallpaper being previewed or saved. A video player asking for a later
+	// part of the same file is not another fetch.
+	if r.PathValue("variant") == "original" && r.Method == http.MethodGet {
+		if rng := r.Header.Get("Range"); rng == "" || strings.HasPrefix(rng, "bytes=0-") {
+			s.count(r, records.CountFile, it.ID)
+		}
+	}
 
 	url, err := s.Store.GrantDownload(ctx, key, grantTTL)
 	if err != nil {

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="dark" />
+    <title>Still admin</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <!-- Shown until the page knows whether this browser is signed in. -->
+    <main class="gate" id="gate" hidden>
+      <h1>Still admin</h1>
+      <p id="gate-off" hidden>
+        The admin portal is switched off on this server. Set <code>WALLS_ADMIN_PASSWORD</code> (twelve characters or
+        more) and restart it.
+      </p>
+      <form id="login" hidden>
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required />
+        <button class="primary" type="submit">Sign in</button>
+        <p class="error" id="login-error" role="alert"></p>
+      </form>
+    </main>
+
+    <div id="app" hidden>
+      <header class="top">
+        <strong class="mark">Still admin</strong>
+        <nav class="tabs" role="tablist" aria-label="Sections">
+          <button role="tab" type="button" data-tab="activity" aria-selected="true">Activity</button>
+          <button role="tab" type="button" data-tab="people" aria-selected="false">People</button>
+          <button role="tab" type="button" data-tab="wallpapers" aria-selected="false">Wallpapers</button>
+        </nav>
+        <button class="plain" type="button" id="logout">Sign out</button>
+      </header>
+
+      <p class="error banner" id="error" role="alert" hidden></p>
+
+      <section id="tab-activity">
+        <div class="tiles" id="tiles"></div>
+        <p class="hint">
+          Last 30 days, by day in UTC. These are plain totals: nothing about who visited or which Mac asked is kept.
+        </p>
+        <div class="charts" id="charts"></div>
+        <div class="split">
+          <div>
+            <h2>Most fetched wallpapers, last 30 days</h2>
+            <ol class="top-list" id="top"></ol>
+          </div>
+          <div>
+            <h2>What you did here</h2>
+            <ul class="log" id="log"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-people" hidden>
+        <div class="bar">
+          <input id="search" type="search" placeholder="Search addresses and notes" aria-label="Search addresses and notes" />
+          <select id="status" aria-label="Show">
+            <option value="">Everyone</option>
+            <option value="new">Not sent the build</option>
+            <option value="invited">Sent the build</option>
+          </select>
+          <span class="grow" id="people-count"></span>
+          <button type="button" id="copy">Copy addresses</button>
+          <a class="button" id="csv" href="/v1/admin/signups.csv">Download CSV</a>
+        </div>
+        <div class="bar">
+          <button type="button" id="mark-sent" disabled>Mark as sent</button>
+          <button type="button" id="mark-new" disabled>Mark as not sent</button>
+          <span class="grow hint" id="selection">Tick people to mark them. Copy takes the ticked people, or everyone shown. Download is the whole list.</span>
+        </div>
+        <form class="bar" id="add">
+          <input id="add-email" type="email" placeholder="Add someone by hand: friend@example.com" aria-label="Address to add" required />
+          <input id="add-note" type="text" maxlength="500" placeholder="Note (optional)" aria-label="Note" />
+          <button type="submit">Add</button>
+        </form>
+        <div class="scroll">
+          <table id="people">
+            <thead>
+              <tr>
+                <th class="tick"><input type="checkbox" id="all" aria-label="Tick everyone shown" /></th>
+                <th>Address</th>
+                <th>Signed up</th>
+                <th>From</th>
+                <th>Build</th>
+                <th>Note</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="people-empty" hidden>Nobody here yet.</p>
+      </section>
+
+      <section id="tab-wallpapers" hidden>
+        <p class="hint" id="storage"></p>
+        <p class="hint">
+          "Fetched" counts the full file being downloaded: a picture being saved or set, a live wallpaper being
+          previewed or saved. This list only reads the catalog. To add or remove wallpapers, use
+          <code>walls ingest</code> / <code>walls rm</code> and deploy.
+        </p>
+        <h2>Collections</h2>
+        <div class="scroll">
+          <table id="packs">
+            <thead>
+              <tr>
+                <th>Collection</th>
+                <th class="num">Wallpapers</th>
+                <th class="num">Opened, 30 days</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h2>Wallpapers</h2>
+        <div class="scroll">
+          <table id="items">
+            <thead>
+              <tr>
+                <th></th>
+                <th><button type="button" data-sort="title">Title</button></th>
+                <th><button type="button" data-sort="kind">Kind</button></th>
+                <th><button type="button" data-sort="category">Category</button></th>
+                <th class="num"><button type="button" data-sort="storedBytes">Size</button></th>
+                <th class="num"><button type="button" data-sort="fetches7">Fetched, 7 days</button></th>
+                <th class="num"><button type="button" data-sort="fetches30">30 days</button></th>
+                <th class="num"><button type="button" data-sort="fetchesAll">All time</button></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="tip" id="tip" hidden></div>
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>
