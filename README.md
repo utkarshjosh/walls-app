@@ -4,14 +4,14 @@ A Mac app that keeps your desktop fresh: collect wallpapers, pick which collecti
 
 **Direction, changed by the owner on 2026-11-12:** the app is free, in beta (0.x), and downloaded straight from the website. Signing in is optional, by a code sent to an email address; what signed-in people save and set is recorded so Discover can suggest wallpapers later. The earlier target was a paid app on the Mac App Store with no accounts; [the first-launch scope](docs/15-first-launch-scope.md) lists what that changes. How to announce it is in the [launch kit](docs/17-launch-kit.md).
 
-**Status, 2026-11-12:** a working beta exists in four parts. None of the 2026-11-12 work is deployed yet.
+**Status, 2026-11-12:** a working beta exists in four parts, and all of it is deployed at https://walls.utkarshjoshi.com. Two things there wait on the owner: the page offers a download only once a release is published in the admin portal, and signing in stays off until a mail relay is set on the server.
 
 | Part | Where | State |
 | --- | --- | --- |
 | Interface (React, TypeScript) | [apps/web](apps/web/README.md) | Library, Discover and Rotation work; runs in the Mac app and as a browser preview |
-| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover. Also: sign-in by emailed code, per-user activity records, the app's downloadable builds, and the owner's admin portal at `/admin` (users, releases, activity, wallpapers). **The catalog is deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare); sign-in, downloads and the portal are **not deployed yet**, and sign-in needs a mail relay configured first |
+| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover. Also: sign-in by emailed code, per-user activity records, the app's downloadable builds, and the owner's admin portal at `/admin` (users, releases, activity, wallpapers). **Deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare). Sign-in is off there until a mail relay is configured |
 | Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar. Builds for Apple silicon on this machine; an Intel or universal build needs the GitHub workflow or `rustup`. Not signed with an Apple Developer ID |
-| Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes, a download button that picks the build for the visitor's computer, and a privacy page. Built and previewed locally; **not deployed yet** |
+| Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes, a download button that picks the build for the visitor's computer, and a privacy page. **Deployed** at the same address as the catalog |
 
 What is deliberately **not** being built before launch, and what still blocks launch, is in [docs/15-first-launch-scope.md](docs/15-first-launch-scope.md). Read that before adding features.
 

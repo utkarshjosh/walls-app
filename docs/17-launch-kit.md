@@ -8,8 +8,8 @@ A launch post sends a few hundred to a few thousand people to the download butto
 
 | Item | Why it matters on launch day | State |
 | --- | --- | --- |
-| Deploy the landing page and the new server | The download button, sign-in and the admin portal exist only on this machine | Not deployed |
-| Publish a build in the admin portal | Until then the page says "The first build is being prepared" | Done locally only |
+| Deploy the landing page and the new server | The download button, sign-in and the admin portal have to be live | Done 2026-11-12 |
+| Publish a build in the admin portal | Until then the page says "The first build is being prepared" | Not done on the live site |
 | Sign and notarise the app (Apple Developer Program, US$99 a year) | Without it every Mac refuses to open the app until its owner approves it in System Settings, and some managed Macs never allow it. On a launch thread this is the first comment and it crowds out everything else | Not done |
 | An Intel or universal build | The only build today is for Apple silicon. Either make one (see [the desktop README](../apps/desktop/README.md#releasing-a-beta)) or say "Apple silicon only" in every post | Not done |
 | Decide the name | "Still" is a working name. A rename after launch throws away every link and search result the launch earned, and the bundle identifier cannot change once people have installed it | Open |
