@@ -557,7 +557,7 @@ func TestCORS(t *testing.T) {
 		"Access-Control-Request-Method", "GET", "Access-Control-Request-Headers", "range")
 	h := rec.Header()
 	if rec.Code != http.StatusNoContent || h.Get("Access-Control-Allow-Origin") != "http://localhost:5173" ||
-		h.Get("Access-Control-Allow-Methods") != "GET, HEAD, OPTIONS" || h.Get("Access-Control-Allow-Headers") != "range" ||
+		h.Get("Access-Control-Allow-Methods") != "GET, HEAD, POST, DELETE, OPTIONS" || h.Get("Access-Control-Allow-Headers") != "range" ||
 		h.Get("Access-Control-Max-Age") == "" || !strings.Contains(strings.Join(h.Values("Vary"), ","), "Origin") {
 		t.Errorf("preflight: %d %v", rec.Code, h)
 	}

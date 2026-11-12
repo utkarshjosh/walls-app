@@ -21,8 +21,9 @@ import (
 )
 
 // The admin portal's API, under /v1/admin. One person uses it: the owner,
-// with one password set on the server (WALLS_ADMIN_PASSWORD). There are no
-// user accounts. With no password set, every address here answers 404.
+// with one password set on the server (WALLS_ADMIN_PASSWORD). It has nothing
+// to do with the accounts people make in the app (auth.go): those cannot
+// reach anything here. With no password set, every address here answers 404.
 
 const (
 	sessionCookie = "walls_admin"
@@ -211,11 +212,14 @@ func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 // --- activity -----------------------------------------------------------------
 
 type dayJSON struct {
-	Day      string `json:"day"`
-	Visits   int64  `json:"visits"`
-	Signups  int64  `json:"signups"`
-	Discover int64  `json:"discover"`
-	Files    int64  `json:"files"`
+	Day         string `json:"day"`
+	Visits      int64  `json:"visits"`
+	Downloads   int64  `json:"downloads"`
+	NewUsers    int64  `json:"newUsers"`
+	ActiveUsers int64  `json:"activeUsers"`
+	Signups     int64  `json:"signups"`
+	Discover    int64  `json:"discover"`
+	Files       int64  `json:"files"`
 }
 
 type topJSON struct {
@@ -224,6 +228,26 @@ type topJSON struct {
 	Kind  string `json:"kind"`
 	Thumb string `json:"thumb"`
 	Count int64  `json:"count"`
+}
+
+// topItems turns the first few counted ids into wallpapers the page can show,
+// skipping any that are no longer in the catalog.
+func (s *Server) topItems(r *http.Request, ids []string, count func(i int) int64) ([]topJSON, error) {
+	top := []topJSON{}
+	for i, id := range ids {
+		if len(top) == 8 {
+			break
+		}
+		it, err := s.DB.GetItem(r.Context(), id)
+		if errors.Is(err, catalog.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		top = append(top, topJSON{ID: it.ID, Title: it.Title, Kind: it.Kind, Thumb: s.fileURL(it.ID, "thumb"), Count: count(i)})
+	}
+	return top, nil
 }
 
 type eventJSON struct {
@@ -239,7 +263,7 @@ func (s *Server) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
 	from := records.Day(now.AddDate(0, 0, -(activityDays - 1)))
 
 	series := map[string]map[string]int64{}
-	for _, kind := range []string{records.CountVisit, records.CountDiscover, records.CountFile} {
+	for _, kind := range []string{records.CountVisit, records.CountDiscover, records.CountFile, records.CountDownload} {
 		m, err := s.Records.CountsByDay(ctx, kind, from)
 		if err != nil {
 			s.fail(w, r, err)
@@ -252,11 +276,35 @@ func (s *Server) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	newUsers, err := s.Records.UsersByDay(ctx, from)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	activeUsers, err := s.Records.ActiveUsersByDay(ctx, from)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	days := make([]dayJSON, 0, activityDays)
 	for i := activityDays - 1; i >= 0; i-- {
 		d := records.Day(now.AddDate(0, 0, -i))
-		days = append(days, dayJSON{Day: d, Visits: series[records.CountVisit][d], Signups: signups[d],
+		days = append(days, dayJSON{Day: d, Visits: series[records.CountVisit][d], Downloads: series[records.CountDownload][d],
+			NewUsers: newUsers[d], ActiveUsers: activeUsers[d], Signups: signups[d],
 			Discover: series[records.CountDiscover][d], Files: series[records.CountFile][d]})
+	}
+	userTotals, err := s.Records.UserTotals(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	// "Active" is anyone signed in who did something the app reports.
+	var active [2]int64
+	for i, back := range []int{6, activityDays - 1} {
+		if active[i], err = s.Records.ActiveUsersSince(ctx, records.Day(now.AddDate(0, 0, -back))); err != nil {
+			s.fail(w, r, err)
+			return
+		}
 	}
 
 	totals, err := s.Records.SignupTotals(ctx)
@@ -269,20 +317,30 @@ func (s *Server) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	top := []topJSON{}
-	for _, c := range counts {
-		if len(top) == 8 {
-			break
-		}
-		it, err := s.DB.GetItem(ctx, c.Subject)
-		if errors.Is(err, catalog.ErrNotFound) {
-			continue // no longer in the catalog
-		}
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		top = append(top, topJSON{ID: it.ID, Title: it.Title, Kind: it.Kind, Thumb: s.fileURL(it.ID, "thumb"), Count: c.N})
+	ids := make([]string, len(counts))
+	for i, c := range counts {
+		ids[i] = c.Subject
+	}
+	top, err := s.topItems(r, ids, func(i int) int64 { return counts[i].N })
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	// What signed-in people saved, counted by people rather than by saves, so
+	// one person saving a lot does not decide the list.
+	saved, err := s.Records.EventReach(ctx, records.EventSave, from)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ids = make([]string, len(saved))
+	for i, c := range saved {
+		ids[i] = c.Subject
+	}
+	topSaved, err := s.topItems(r, ids, func(i int) int64 { return saved[i].People })
+	if err != nil {
+		s.fail(w, r, err)
+		return
 	}
 	events, err := s.Records.RecentEvents(ctx, 20)
 	if err != nil {
@@ -294,9 +352,12 @@ func (s *Server) handleAdminOverview(w http.ResponseWriter, r *http.Request) {
 		log[i] = eventJSON{At: iso(e.At), Action: e.Action, Detail: e.Detail}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"days":          days,
-		"signups":       map[string]int{"total": totals.Total, "invited": totals.Invited},
+		"days":    days,
+		"signups": map[string]int{"total": totals.Total, "invited": totals.Invited},
+		"users": map[string]any{"total": userTotals.Total, "blocked": userTotals.Blocked,
+			"active7": active[0], "active30": active[1], "signIn": s.SignInEnabled()},
 		"topWallpapers": top,
+		"topSaved":      topSaved,
 		"events":        log,
 	})
 }
@@ -552,6 +613,8 @@ type adminItemJSON struct {
 	Week      int64  `json:"fetches7"`
 	Month     int64  `json:"fetches30"`
 	AllTime   int64  `json:"fetchesAll"`
+	SavedBy   int64  `json:"savedBy"` // signed-in people who saved it, all time
+	SetBy     int64  `json:"setBy"`   // signed-in people who put it on their desktop, all time
 }
 
 type adminPackJSON struct {
@@ -595,6 +658,18 @@ func (s *Server) handleAdminWallpapers(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	var reach [2]map[string]int64
+	for i, kind := range []string{records.EventSave, records.EventSet} {
+		list, err := s.Records.EventReach(ctx, kind, "")
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		reach[i] = make(map[string]int64, len(list))
+		for _, c := range list {
+			reach[i][c.Subject] = c.People
+		}
+	}
 
 	items := []adminItemJSON{}
 	var stored int64
@@ -610,6 +685,7 @@ func (s *Server) handleAdminWallpapers(w http.ResponseWriter, r *http.Request) {
 				ID: it.ID, Title: it.Title, Kind: it.Kind, Category: it.Category, Width: it.Width, Height: it.Height,
 				Bytes: it.StoredBytes, Author: it.Author, License: it.License, Origin: it.Origin, CreatedAt: iso(it.CreatedAt),
 				Thumb: s.fileURL(it.ID, "thumb"), Week: counts[0][it.ID], Month: counts[1][it.ID], AllTime: counts[2][it.ID],
+				SavedBy: reach[0][it.ID], SetBy: reach[1][it.ID],
 			})
 		}
 		if cursor = page.NextCursor; cursor == "" {

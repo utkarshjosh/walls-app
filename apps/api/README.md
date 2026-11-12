@@ -2,13 +2,19 @@
 
 This is the small backend behind the app's **Discover** section. It answers
 "what wallpapers exist, and where are their files?" The catalog is read-only
-over HTTP: there are no user accounts, uploads or sync. Content gets in through
-command-line tools that you, the operator, run.
+over HTTP. Content gets in through command-line tools that you, the operator,
+run.
 
-It also does two small jobs for the landing page and the owner, described under
-[Sign-ups and the admin portal](#sign-ups-and-the-admin-portal): it keeps the
-list of people who asked for the early build, and it shows that list, some
-daily totals and the catalog at `/admin`.
+It also does four jobs around the catalog, described under
+[Accounts, downloads and the admin portal](#accounts-downloads-and-the-admin-portal):
+
+- it lets people sign in to the app with a code sent to their email address
+  (no passwords), and records what a signed-in person does with catalog
+  wallpapers;
+- it keeps the builds of the app and hands them to the website's download
+  buttons;
+- it counts page visits, downloads and fetches as plain daily totals;
+- it shows all of that to the owner at `/admin`.
 
 It is one program, `walls`, with a few commands:
 
@@ -19,7 +25,9 @@ It is one program, `walls`, with a few commands:
 | `walls ingest <dir>` | Imports a folder of your own licensed images, videos and live scenes. |
 | `walls scene check <dir>...` | Checks live scene folders against the scene standard. Reads files only. |
 | `walls rm <id>` | Removes one item and its stored files. |
-| `walls signups` | Prints the sign-up list as CSV. Safe while the service is running. |
+| `walls users` | Prints the people who have signed in to the app as CSV. Safe while the service is running. |
+| `walls backup <file>` | Writes a complete copy of `records.db` to a new file. Safe while the service is running; the deploy script uses it. |
+| `walls signups` | Prints the earlier list of people who asked for a build (from the form the landing page used to have) as CSV. |
 | `walls render` | Writes the starter artwork to a folder without touching the catalog (for tuning the generator). |
 
 ## Run it
@@ -34,8 +42,9 @@ go run ./cmd/walls seed && go run ./cmd/walls serve
 <http://localhost:8787/v1/wallpapers>.
 
 Everything the program writes goes under `./data` (git-ignored): the catalog
-database `data/catalog.db`, by default the files in `data/objects/`, and
-`data/records.db` (sign-ups, daily totals, admin sign-ins).
+database `data/catalog.db`, by default the files in `data/objects/`,
+`data/records.db` (users, what they did, the list of builds, daily totals,
+admin sign-ins) and `data/releases/` (the builds themselves).
 
 Run the tests with `go test ./...`.
 
@@ -81,30 +90,108 @@ Copy `.env.example` to `.env` to start.
 | `WALLS_PUBLIC_URL` | | If set, file links in responses are absolute, starting with this. |
 | `WALLS_STORAGE_CAP_BYTES` | `7000000000` | Storage budget. `seed` and `ingest` refuse to go over it. |
 | `WALLS_ADMIN_PASSWORD` | | The owner's password for `/admin`, at least 12 characters. Empty switches the portal off. |
+| `WALLS_SMTP_HOST` | | The mail relay that sends sign-in codes. Empty switches signing in off. |
+| `WALLS_SMTP_PORT` | `587` | `587` upgrades the connection with STARTTLS; `465` is encrypted from the start. |
+| `WALLS_SMTP_USER` / `WALLS_SMTP_PASSWORD` | | The relay's sign-in. Both or neither. |
+| `WALLS_MAIL_FROM` | | The address codes come from, e.g. `Still <hello@example.com>`. Needed with a relay. |
+| `WALLS_MAIL_TO_LOG` | | `1` writes each message to the server log instead of sending it. Development only. |
 
-## Sign-ups and the admin portal
+## Accounts, downloads and the admin portal
 
-**The form.** The landing page posts an address to `POST /v1/signups`. The
-server checks its shape, lower-cases it and stores it once; the answer is the
-same whether the address was new or already there. Nothing is emailed: there is
-no confirmation message and the server cannot send mail. To send people the
-build, copy the addresses out of the admin portal and write to them yourself.
+### Signing in
 
-**What is kept.** `data/records.db` holds, per person: the address, when they
-signed up, whether it came from the page or was typed in by you, the country
-Cloudflare reported, whether you have marked them as sent the build, and your
-note. It also holds one number per day for each of: landing page visits, times
-the app opened Discover, and times each wallpaper's full file was fetched. No
-IP address, cookie or device identifier is stored anywhere, so the numbers
-cannot be traced to a person or a Mac.
+Signing in is optional for the people who use the app, and has no password.
+There is no separate auth service: it is about 400 lines in this program
+(`internal/httpapi/auth.go`) plus a mail relay you rent to send the code.
+
+1. The app posts an address to `POST /v1/auth/start`. The server emails it a
+   six-digit code that works once, for ten minutes.
+2. The app posts the address and the code to `POST /v1/auth/verify` and gets a
+   token back. The first time an address does this it becomes a user, so
+   signing up and signing in are the same thing.
+3. The app sends the token as `Authorization: Bearer <token>`. It lasts 180
+   days from its last use. It is not a cookie, so a page on another site
+   cannot make a signed-in request.
+
+The server stores a hash of each code and each token, never the thing itself.
+Guessing is bounded: five wrong tries use a code up, and codes are limited to
+one every 45 seconds and five an hour for one address, twelve an hour from one
+connection, and 200 an hour in total (each code is an email, which costs money
+and can be used to pester someone).
+
+**The mail relay.** Any provider that gives you an SMTP host, a user name and
+a password works; set the `WALLS_SMTP_*` variables and `WALLS_MAIL_FROM` in
+`~/walls/walls.env` on the server and restart `api`. Most providers make you
+prove you own the sending domain first (a few DNS records). Nothing is ever
+sent over an unencrypted connection: without TLS the message is refused.
+Sending straight from the server is not practical on Oracle Cloud, which
+blocks outgoing mail on port 25 unless Oracle grants an exemption. With no
+relay set, `GET /v1/auth/status`
+answers `{"signIn":false}` and the app does not offer signing in.
+
+Locally, put `WALLS_MAIL_TO_LOG=1` in `apps/api/.env`: the code is written to
+the server's log instead of being sent.
+
+### What is kept
+
+`data/records.db` holds, per user: the address, the country Cloudflare
+reported, when they first signed in and were last seen, whether you have
+blocked them, and your note. For each thing a signed-in app reports
+(`POST /v1/events`) it holds the time, the kind, and what it happened to:
+
+| Kind | Meaning | Kept with it |
+| --- | --- | --- |
+| `app_open` | The app was opened | its version, and whether it is the Mac app |
+| `discover_open` | Discover was opened | |
+| `search` | A search in Discover | the words |
+| `view` | A catalog wallpaper was opened full size | its id |
+| `save` / `remove` | A catalog wallpaper was saved to, or removed from, the library | its id |
+| `set` | A catalog wallpaper was put on the desktop by hand | its id |
+| `pack_open` / `pack_save` | A collection was opened or saved | its id |
+
+Only catalog ids are accepted; a person's own pictures and videos are never
+reported. Kinds this server does not know are dropped, so a newer app can talk
+to an older server. A person can delete their account, and everything recorded
+with it, from the app (`DELETE /v1/me`); you can do the same from the portal.
+
+For people who are not signed in, the file holds only one number per day for
+each of: landing page visits, downloads of each build, times the app opened
+Discover, and times each wallpaper's full file was fetched. No IP address,
+cookie or device identifier is stored anywhere.
+
+The landing page's privacy page (`apps/site/privacy.html`) says all of this to
+visitors. If what is kept changes, change that page in the same commit.
 
 **The file is the only copy.** `catalog.db` is rebuilt from this repository and
-replaced on every deploy. `records.db` is the opposite: it exists only on the
-server and the deploy script never touches it. Each deploy saves the current
-list to `data/backups/signups-<time>.csv` on your machine; "Download CSV" in
-the portal does the same by hand.
+replaced on every deploy. `records.db` and `data/releases/` are the opposite:
+they exist only on the server and the deploy script never touches them. Each
+deploy brings a complete copy of `records.db` back to
+`data/backups/records-<time>.db` on your machine (it holds people's addresses;
+`data/` is git-ignored). `walls backup <file>` does the same by hand.
 
-**The admin portal.** Open `/admin`. It is off until you set a password:
+### Downloads
+
+The website's download buttons are fed from here. A **release** is one
+version of the app with one **build** (file) per system. A release is a draft
+until you publish it; the newest published release is the one the website
+offers. The files are kept on the server's disk in `data/releases/`.
+
+To put a build on the website: open `/admin`, **Releases**, start a release
+with its version, choose the file and the system it is for, upload, publish.
+Uploading again for the same system replaces the file. Cloudflare's free plan
+refuses uploads over 100 MB.
+
+How the website uses it: `GET /v1/releases/latest` lists the builds, and each
+button links to `GET /v1/download/<platform>`, which adds one to that build's
+count for the day and sends the browser to the file. `<platform>` is
+`mac-universal`, `mac-arm64`, `mac-x64`, or just `mac` for whichever of those
+exists, in that order. Windows and Linux names are accepted too
+(`windows-x64`, `linux-x64`, ...), so offering one later is an upload, not a
+code change; today the app itself only runs on macOS.
+
+### The admin portal
+
+Open `/admin`. It is off until you set a password:
 
 ```sh
 # On the server, in ~/walls/walls.env (create it; never commit it):
@@ -113,22 +200,24 @@ WALLS_ADMIN_PASSWORD=<output of: openssl rand -base64 24>
 ```
 
 Locally, put the same line in `apps/api/.env` and open
-<http://localhost:8787/admin>. There is one password and no user accounts.
-Signing in sets a cookie that script cannot read and that is only sent to
-`/v1/admin`; it lasts 14 days, and changing the password signs every browser
-out. Eight wrong passwords from one connection lock sign-in from it for
-fifteen minutes.
+<http://localhost:8787/admin>. There is one password, for you. It has nothing
+to do with the accounts people make in the app: those cannot reach anything
+under `/v1/admin`. Signing in sets a cookie that script cannot read and that
+is only sent to `/v1/admin`; it lasts 14 days, and changing the password signs
+every browser out. Eight wrong passwords from one connection lock sign-in from
+it for fifteen minutes.
 
-| Tab | What it shows |
+| Tab | What it shows, and what you can do |
 | --- | --- |
-| Activity | Totals and a 30-day chart each for page visits, sign-ups, Discover opened and wallpapers fetched; the most fetched wallpapers; a log of what you did in the portal. |
-| People | The list. Search it, add someone by hand, mark people as sent the build, keep a note, remove someone, copy addresses, download CSV. |
-| Wallpapers | Everything in the catalog with size and how often it was fetched, and how often each collection was opened. Read-only: add and remove with `walls ingest` / `walls rm`, then deploy. |
+| Activity | Totals and a 30-day chart each for page visits, downloads, new users, active users, Discover opened and wallpapers fetched; the most fetched wallpapers; the wallpapers saved by the most signed-in people; a log of what you did in the portal. |
+| Users | Everyone who has signed in. Search, open one person to see what they did, keep a note, block (signs them out and keeps them out), remove (deletes them and everything recorded about them), download CSV. |
+| Releases | Every release and its builds, with download counts. Start a release, upload and remove files, edit the notes shown on the website, publish or take back, delete. |
+| Wallpapers | Everything in the catalog with size, how often it was fetched, and how many signed-in people saved it and set it; how often each collection was opened. Read-only: add and remove with `walls ingest` / `walls rm`, then deploy. |
+| Early list | The people who left an address when the landing page had a form asking for one. The form is gone; the list is kept so you can still write to them. |
 
-Limits on the public form: 8 sign-ups an hour from one connection and 300 an
-hour in total, after which it answers "try again later". If Cloudflare starts
-caching `/v1/files/` (see above), fetch counts will only include requests that
-reach this server.
+If Cloudflare starts caching `/v1/files/` (see above), fetch counts will only
+include requests that reach this server. Download counts are not affected: the
+counting address is never cached.
 
 ## Storing files in the Oracle Cloud bucket
 
@@ -336,9 +425,21 @@ GET /v1/packs                     curated packs with up to three cover thumbnail
 GET /v1/packs/{id}                a pack and its items
 GET /v1/files/{id}/{variant}      variant: thumb | preview | original | poster
 
-POST /v1/signups                  {"email":"..."}  →  {"ok":true}
 POST /v1/visits                   no body; adds one to today's page visits
-/v1/admin/...                     the admin portal's own API; needs the sign-in cookie
+
+GET /v1/releases/latest           the newest published release and its builds; 404 when there is none
+GET /v1/download/{platform}       counts the download, then redirects to the file
+GET /v1/releases/files/{id}/{name}  one build's file
+
+GET  /v1/auth/status              {"signIn":true} when signing in is available
+POST /v1/auth/start               {"email":"..."}  →  emails a code
+POST /v1/auth/verify              {"email":"...","code":"123456"}  →  {"token":"...","user":{...}}
+POST /v1/auth/signout             ends this sign-in                 (needs the token)
+GET  /v1/me                       {"email":"...","createdAt":"..."} (needs the token)
+DELETE /v1/me                     deletes the account and its records (needs the token)
+POST /v1/events                   {"events":[{"kind":"save","subject":"<id>"}]}  (needs the token)
+
+/v1/admin/...                     the admin portal's own API; needs the admin cookie
 ```
 
 For a live scene, `original` is the scene's `scene.html` and `poster` its

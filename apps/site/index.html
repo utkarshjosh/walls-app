@@ -6,21 +6,42 @@
     <title>Still: wallpapers for every display on your Mac</title>
     <meta
       name="description"
-      content="Still is a wallpaper app for the Mac. It changes your desktop on a schedule, runs one picture across all your displays, and plays live scenes behind your icons."
+      content="Still is a free wallpaper app for the Mac. It changes your desktop on a schedule, runs one picture across all your displays, and plays live scenes behind your icons."
     />
+    <link rel="canonical" href="https://walls.utkarshjoshi.com/" />
     <meta name="theme-color" content="#151514" />
     <meta name="color-scheme" content="dark" />
     <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin />
     <script src="/boot.js"></script>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <!-- What a link to this page looks like when it is shared. Sites that
+         draw these cards need full addresses, so the public address is
+         written out here (and in robots.txt and sitemap.xml). -->
+    <meta property="og:site_name" content="Still" />
     <meta property="og:title" content="Still: wallpapers for every display on your Mac" />
     <meta
       property="og:description"
-      content="One picture across all your displays, live scenes behind your icons, and a catalog drawn for Retina. Coming to the Mac App Store."
+      content="One picture across all your displays, live scenes behind your icons, and a catalog drawn for Retina. Free for the Mac while it is in beta."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/media/og.jpg" />
+    <meta property="og:url" content="https://walls.utkarshjoshi.com/" />
+    <meta property="og:image" content="https://walls.utkarshjoshi.com/media/og.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://walls.utkarshjoshi.com/media/og.jpg" />
+    <!-- The same facts in the form search engines read. It is data, not script. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Still",
+        "applicationCategory": "DesktopEnhancementApplication",
+        "operatingSystem": "macOS 12 or later",
+        "description": "A wallpaper app for the Mac. It changes your desktop on a schedule, runs one picture across all your displays, and plays live scenes behind your icons.",
+        "url": "https://walls.utkarshjoshi.com/",
+        "image": "https://walls.utkarshjoshi.com/media/og.jpg",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
   </head>
   <body>
     <a class="skip" href="#live">Skip to content</a>
@@ -33,7 +54,7 @@
         <a href="#wallpapers">Wallpapers</a>
         <a href="#app">The app</a>
       </nav>
-      <a class="nav__store" href="#get">Coming to the Mac App Store</a>
+      <a class="nav__store" href="#get">Download</a>
     </header>
 
     <main id="top">
@@ -52,9 +73,10 @@
                   every display you own, and plays live scenes behind your icons.
                 </p>
                 <div class="hero__actions">
-                  <a class="store" href="#get">
-                    Get the early build
-                  </a>
+                  <!-- Without script this asks the server for the build that
+                       suits most Macs. With it, the page picks the build for
+                       this computer (src/main.ts). -->
+                  <a class="store" href="/v1/download/mac" data-download>Download for Mac</a>
                   <a class="quiet" href="#live">See the live scenes</a>
                 </div>
               </div>
@@ -148,7 +170,7 @@
       <section class="app" id="app">
         <div class="section__head">
           <h2>Three tabs. That is the whole app.</h2>
-          <p>Nothing to sign in to and nothing to configure before it is useful.</p>
+          <p>No account needed and nothing to configure before it is useful. Signing in is there if you want it.</p>
         </div>
 
         <div class="app__tabs" role="tablist" aria-label="App screens">
@@ -174,37 +196,53 @@
       <section class="get" id="get">
         <p class="get__mark" aria-hidden="true">Still</p>
         <div class="get__body">
-          <h2>Coming to the Mac App Store.</h2>
-          <p>Pay once. No account, no subscription, and your library stays on your Mac. For macOS 12 or later.</p>
+          <h2>Download Still for Mac.</h2>
+          <div class="get__action">
+            <p>
+              Free while it is in beta. No account needed, and your library stays on your Mac. For macOS 12 or later.
+            </p>
+            <div class="get__row">
+              <a class="store" href="/v1/download/mac" data-download>Download for Mac</a>
+              <!-- Which build the button fetches: version, chip, size. Filled in by script. -->
+              <span class="get__meta" id="get-meta">Beta</span>
+            </div>
+            <!-- Said when the button is not the right thing for this computer. -->
+            <p class="get__note" id="get-note" role="status" hidden></p>
+          </div>
         </div>
 
-        <!-- The form needs script (the page's policy does not let a form post by
-             itself), so it is only shown when script is running. -->
-        <div class="join">
+        <div class="more">
           <div>
-            <h3 id="join-title">Try it before it is in the store.</h3>
-            <p>Leave your email and we will send you an early build, then one note on the day it launches.</p>
+            <h3>Opening it the first time</h3>
+            <!-- True while builds are not signed with an Apple Developer ID.
+                 Remove this block once they are signed and notarised. -->
+            <p>
+              This beta is not yet signed with an Apple developer certificate, so macOS asks before it opens. Open
+              Still once, then go to System Settings, Privacy &amp; Security, and choose Open Anyway. You only do this
+              once.
+            </p>
+            <p>
+              Still runs from any folder. If your Mac does not let you add to Applications, drag it to the Applications
+              folder inside your home folder instead.
+            </p>
           </div>
-          <form class="join__form" aria-labelledby="join-title" novalidate>
-            <div class="join__row">
-              <label class="sr" for="join-email">Email address</label>
-              <input id="join-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required />
-              <!-- Not for people: left empty by a person, filled in by a script. -->
-              <div class="join__trap" aria-hidden="true">
-                <label for="join-website">Leave this empty</label>
-                <input id="join-website" name="website" type="text" tabindex="-1" autocomplete="off" />
-              </div>
-              <button class="store" type="submit">Send me the build</button>
+          <details class="builds">
+            <summary>All downloads</summary>
+            <div class="builds__list" id="builds">
+              <p><a class="quiet" href="/v1/download/mac">The latest build for Mac</a></p>
             </div>
-            <p class="join__note" role="status" aria-live="polite">We keep your address for this and nothing else.</p>
-          </form>
+            <p class="builds__other">Still is a Mac app. There is no Windows or Linux version yet.</p>
+          </details>
         </div>
       </section>
     </main>
 
     <footer class="foot">
       <span>© 2026 Still</span>
-      <a href="#top">Back to top</a>
+      <span class="foot__links">
+        <a href="/privacy.html">Privacy</a>
+        <a href="#top">Back to top</a>
+      </span>
     </footer>
 
     <script type="module" src="/src/main.ts"></script>

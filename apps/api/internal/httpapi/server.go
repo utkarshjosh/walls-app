@@ -1,7 +1,9 @@
 // Package httpapi is the JSON API. Most of it is the read-only catalog the
 // app's Discover section calls, plus the endpoint that serves (or redirects
-// to) the image and video files. The rest is the two things the landing page
-// writes (public.go) and the owner's admin portal (admin.go, adminui.go).
+// to) the image and video files. The rest is signing in to the app and what a
+// signed-in app reports (auth.go), the builds the website offers for download
+// (releases.go), the visit count the landing page sends (public.go) and the
+// owner's admin portal (admin.go, admin_users.go, releases.go, adminui.go).
 package httpapi
 
 import (
@@ -17,6 +19,7 @@ import (
 
 	"github.com/utkarshjoshi/walls/apps/api/internal/catalog"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
+	"github.com/utkarshjoshi/walls/apps/api/internal/mail"
 	"github.com/utkarshjoshi/walls/apps/api/internal/records"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
 )
@@ -25,7 +28,7 @@ const (
 	// grantTTL is how long a presigned download link stays valid.
 	grantTTL = 15 * time.Minute
 
-	cacheLists     = "public, max-age=60"
+	cacheLists = "public, max-age=60"
 	// Files never change (their id is a hash of their bytes). "no-transform"
 	// tells a proxy in front, such as Cloudflare, not to rewrite them: a scene
 	// must arrive byte for byte, or the app's check on it would rightly fail,
@@ -46,16 +49,22 @@ type Server struct {
 	CORSOrigins []string // allowed browser origins; "*" allows any
 	Log         *slog.Logger
 
-	// Records holds sign-ups, daily counts and admin sessions. Nil switches
-	// all three off and leaves the catalog working as before.
+	// Records holds users, what they did, builds, daily counts and admin
+	// sessions. Nil switches all of those off and leaves the catalog working.
 	Records *records.DB
+	// Mail sends sign-in codes. Nil switches signing in off.
+	Mail mail.Sender
+	// ReleasesDir is the folder the app's builds are kept in. Empty switches
+	// downloads off.
+	ReleasesDir string
 	// AdminPassword is the owner's password for the admin portal. Empty
 	// switches the portal off.
 	AdminPassword string
 	StorageCap    int64            // the storage budget, shown in the admin portal
 	Now           func() time.Time // the clock; nil means time.Now
 
-	signupByIP, signupAll, visitByIP, loginByIP, loginAll *limiter
+	visitByIP, loginByIP, loginAll, downloadByIP                       *limiter
+	codeByIP, codeWait, codeByEmail, codeAll, verifyByIP, eventsByUser *limiter
 }
 
 // Handler returns the full HTTP handler: routes wrapped in CORS, request
@@ -64,11 +73,16 @@ func (s *Server) Handler() http.Handler {
 	if s.Log == nil {
 		s.Log = slog.New(slog.DiscardHandler)
 	}
-	s.signupByIP = newLimiter(signupsPerIPPerHour, time.Hour)
-	s.signupAll = newLimiter(signupsPerHour, time.Hour)
 	s.visitByIP = newLimiter(visitsPerIPPerHour, time.Hour)
 	s.loginByIP = newLimiter(loginFailuresPerIP, loginWindow)
 	s.loginAll = newLimiter(loginFailuresOverall, loginWindow)
+	s.downloadByIP = newLimiter(downloadsCountedPerIPPerHour, time.Hour)
+	s.codeByIP = newLimiter(codesPerIPPerHour, time.Hour)
+	s.codeWait = newLimiter(1, codeResendWait)
+	s.codeByEmail = newLimiter(codesPerEmailPerHour, time.Hour)
+	s.codeAll = newLimiter(codesPerHour, time.Hour)
+	s.verifyByIP = newLimiter(verifiesPerIP, loginWindow)
+	s.eventsByUser = newLimiter(eventPostsPerUserPerHour, time.Hour)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", s.handleHealth)
@@ -79,9 +93,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/packs/{id}", s.handlePack)
 	mux.HandleFunc("GET /v1/files/{id}/{variant}", s.handleFile)
 
-	// What the landing page writes.
-	mux.HandleFunc("POST /v1/signups", s.handleSignup)
+	// What the landing page writes, and the builds it offers.
 	mux.HandleFunc("POST /v1/visits", s.handleVisit)
+	mux.HandleFunc("GET /v1/releases/latest", s.handleLatestRelease)
+	mux.HandleFunc("GET /v1/download/{platform}", s.handleDownload)
+	mux.HandleFunc("GET /v1/releases/files/{id}/{name}", s.handleBuildFile)
+
+	// Signing in to the app, and what a signed-in app reports.
+	mux.HandleFunc("GET /v1/auth/status", s.handleAuthStatus)
+	mux.HandleFunc("POST /v1/auth/start", s.handleAuthStart)
+	mux.HandleFunc("POST /v1/auth/verify", s.handleAuthVerify)
+	mux.HandleFunc("POST /v1/auth/signout", s.withUser(s.handleSignOut))
+	mux.HandleFunc("GET /v1/me", s.withUser(s.handleMe))
+	mux.HandleFunc("DELETE /v1/me", s.withUser(s.handleDeleteMe))
+	mux.HandleFunc("POST /v1/events", s.withUser(s.handleEvents))
 
 	// The admin portal: its pages, then its API.
 	mux.HandleFunc("GET /admin", s.handleAdminPage)
@@ -97,6 +122,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/admin/signups/{id}", s.guard(s.handleAdminNote))
 	mux.HandleFunc("DELETE /v1/admin/signups/{id}", s.guard(s.handleAdminRemovePerson))
 	mux.HandleFunc("GET /v1/admin/wallpapers", s.guard(s.handleAdminWallpapers))
+	mux.HandleFunc("GET /v1/admin/users", s.guard(s.handleAdminUsers))
+	mux.HandleFunc("GET /v1/admin/users.csv", s.guard(s.handleAdminUsersCSV))
+	mux.HandleFunc("GET /v1/admin/users/{id}", s.guard(s.handleAdminUser))
+	mux.HandleFunc("PATCH /v1/admin/users/{id}", s.guard(s.handleAdminUpdateUser))
+	mux.HandleFunc("DELETE /v1/admin/users/{id}", s.guard(s.handleAdminRemoveUser))
+	mux.HandleFunc("GET /v1/admin/releases", s.guard(s.handleAdminReleases))
+	mux.HandleFunc("POST /v1/admin/releases", s.guard(s.handleAdminCreateRelease))
+	mux.HandleFunc("PATCH /v1/admin/releases/{id}", s.guard(s.handleAdminUpdateRelease))
+	mux.HandleFunc("DELETE /v1/admin/releases/{id}", s.guard(s.handleAdminDeleteRelease))
+	mux.HandleFunc("POST /v1/admin/releases/{id}/builds", s.guard(s.handleAdminUploadBuild))
+	mux.HandleFunc("DELETE /v1/admin/builds/{id}", s.guard(s.handleAdminDeleteBuild))
 
 	// Everything else, including wrong methods on the routes above (the mux
 	// falls through to this pattern rather than answering in plain text).

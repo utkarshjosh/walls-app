@@ -65,85 +65,11 @@ func signIn(t *testing.T, f *fixture) string {
 	return c.Name + "=" + c.Value
 }
 
-func TestSignup(t *testing.T) {
-	f, _ := withRecords(t)
-
-	rec := f.send("POST", "/v1/signups", `{"email":"  Ana@Example.com "}`, "CF-IPCountry", "in")
-	if rec.Code != 200 || decode(t, rec)["ok"] != true || rec.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("sign-up = %d %s", rec.Code, rec.Body)
-	}
-	// The same address again gets the same answer and adds nothing.
-	if again := f.send("POST", "/v1/signups", `{"email":"ana@example.com"}`); again.Code != 200 || again.Body.String() != rec.Body.String() {
-		t.Errorf("repeat sign-up = %d %s", again.Code, again.Body)
-	}
-	// A script that fills in the hidden field is told it worked and is not stored.
-	if bot := f.send("POST", "/v1/signups", `{"email":"bot@example.com","website":"http://spam.example"}`); bot.Code != 200 {
-		t.Errorf("honeypot = %d", bot.Code)
-	}
-	list, _ := f.srv.Records.ListSignups(t.Context(), records.SignupQuery{})
-	if len(list) != 1 || list[0].Email != "ana@example.com" || list[0].Country != "IN" || list[0].Source != records.SourceSite {
-		t.Fatalf("stored = %+v", list)
-	}
-
-	for body, want := range map[string]int{
-		`{"email":"not an address"}`: 400,
-		`{"email":""}`:               400,
-		`{}`:                         400,
-		`not json`:                   400,
-		`{"email":"` + strings.Repeat("a", 5000) + `@example.com"}`: 413,
-	} {
-		if rec := f.send("POST", "/v1/signups", body); rec.Code != want {
-			t.Errorf("sign-up %.40s = %d, want %d", body, rec.Code, want)
-		}
-	}
-	// A form on another site cannot post here: it cannot send JSON.
-	req := httptest.NewRequest("POST", "/v1/signups", strings.NewReader("email=x@example.com"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	out := httptest.NewRecorder()
-	f.handler.ServeHTTP(out, req)
-	if out.Code != 415 {
-		t.Errorf("form post = %d, want 415", out.Code)
-	}
-}
-
-func TestSignupLimits(t *testing.T) {
-	f, now := withRecords(t)
-	post := func(email, ip string) int {
-		return f.send("POST", "/v1/signups", `{"email":"`+email+`"}`, "CF-Connecting-IP", ip).Code
-	}
-	for i := range signupsPerIPPerHour {
-		if code := post("p"+string(rune('a'+i))+"@example.com", "203.0.113.5"); code != 200 {
-			t.Fatalf("sign-up %d from one connection = %d", i+1, code)
-		}
-	}
-	if code := post("extra@example.com", "203.0.113.5"); code != 429 {
-		t.Errorf("past the per-connection allowance = %d, want 429", code)
-	}
-	if code := post("other@example.com", "203.0.113.6"); code != 200 {
-		t.Errorf("another connection = %d, want 200", code)
-	}
-	*now = now.Add(time.Hour)
-	if code := post("later@example.com", "203.0.113.5"); code != 200 {
-		t.Errorf("an hour later = %d, want 200", code)
-	}
-
-	// The total across everyone holds even when every request claims a new address.
-	g, _ := withRecords(t)
-	for i := range signupsPerHour {
-		ip := "198.51.100." + string(rune('0'+i%10)) + string(rune('a'+i/10%26)) + string(rune('a'+i/260))
-		if rec := g.send("POST", "/v1/signups", `{"email":"u`+ip[11:]+`@example.com"}`, "CF-Connecting-IP", ip); rec.Code != 200 {
-			t.Fatalf("sign-up %d = %d %s", i+1, rec.Code, rec.Body)
-		}
-	}
-	if rec := g.send("POST", "/v1/signups", `{"email":"last@example.com"}`, "CF-Connecting-IP", "192.0.2.99"); rec.Code != 503 {
-		t.Errorf("past the hourly total = %d, want 503", rec.Code)
-	}
-}
-
-func TestSignupsOffWithoutRecords(t *testing.T) {
+func TestCatalogWorksWithoutRecords(t *testing.T) {
 	f := newFixture(t)
-	if rec := f.send("POST", "/v1/signups", `{"email":"ana@example.com"}`); rec.Code != 503 {
-		t.Errorf("sign-up with no records file = %d, want 503", rec.Code)
+	// The form that used to post here is gone, and so is the address.
+	if rec := f.send("POST", "/v1/signups", `{"email":"ana@example.com"}`); rec.Code != 405 {
+		t.Errorf("the removed sign-up address = %d, want 405", rec.Code)
 	}
 	if rec := f.send("POST", "/v1/visits", ""); rec.Code != 204 {
 		t.Errorf("visit with no records file = %d, want 204", rec.Code)
@@ -296,9 +222,8 @@ func TestAdminOffWithoutPassword(t *testing.T) {
 	if rec := f.do("GET", "/v1/admin/signups"); rec.Code != 404 {
 		t.Errorf("list with the portal off = %d", rec.Code)
 	}
-	// Sign-ups still work: the list is collected whether or not anyone can read it yet.
-	if rec := f.send("POST", "/v1/signups", `{"email":"ana@example.com"}`); rec.Code != 200 {
-		t.Errorf("sign-up with the portal off = %d", rec.Code)
+	if rec := f.do("GET", "/v1/admin/users"); rec.Code != 404 {
+		t.Errorf("users with the portal off = %d", rec.Code)
 	}
 }
 
@@ -332,9 +257,10 @@ func TestAdminPeople(t *testing.T) {
 		return f.send(method, target, body, "Cookie", cookie)
 	}
 
-	f.send("POST", "/v1/signups", `{"email":"ana@example.com"}`, "CF-IPCountry", "IN")
+	// Two people from the form the landing page used to have.
+	f.srv.Records.AddSignup(t.Context(), "ana@example.com", records.SourceSite, "IN", "", *now)
 	*now = now.Add(time.Hour)
-	f.send("POST", "/v1/signups", `{"email":"=cmd@example.com"}`)
+	f.srv.Records.AddSignup(t.Context(), "=cmd@example.com", records.SourceSite, "", "", *now)
 	if rec := admin("POST", "/v1/admin/signups", `{"email":"Friend@Example.com","note":"from college"}`); rec.Code != 201 {
 		t.Fatalf("add by hand = %d %s", rec.Code, rec.Body)
 	}

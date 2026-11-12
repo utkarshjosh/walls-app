@@ -1,6 +1,22 @@
 # First launch: what ships, and what must not be built yet
 
-Written 2026-11-10 alongside the first working build. Target: a paid Mac app on the Mac App Store. This page supersedes earlier documents wherever they disagree; the changed decisions are listed at the end.
+Written 2026-11-10 alongside the first working build. Target then: a paid Mac app on the Mac App Store. This page supersedes earlier documents wherever they disagree; the changed decisions are listed at the end.
+
+## Changed on 2026-11-12
+
+The owner changed the direction two days after this page was written. Read the rest of the page with these in mind; where they disagree, this section wins.
+
+| This page says | Now |
+| --- | --- |
+| A paid app on the Mac App Store | Free, in beta (versions stay below 1.0), downloaded straight from the landing page. Not being sold for now. |
+| Item 1: no sign-in of any kind | Optional sign-in by a six-digit code sent to an email address. No passwords, no outside auth service: the catalog server does it and rents a mail relay to send the code. The app works the same signed out. |
+| Item 26: no analytics; "no data collected" | For people who sign in, the server records which catalog wallpapers they open, save, set and remove, and what they search for, to drive discovery and suggestions later. Nothing is recorded about anyone signed out beyond the plain daily totals. The landing page has a privacy page that says exactly this. |
+| Items 10 and 11: no direct-download build, no updater of our own | Direct download is the only channel. Builds are uploaded in the admin portal and offered by the landing page. There is still no updater: a new version is a new download. |
+| Item 4: the admin portal is read-mostly | It now also manages users (see what they did, block, remove) and releases (upload builds, publish, take back). It still does not edit the catalog. |
+| Item 12: no other platforms | Unchanged: the app runs on macOS only. The download pages and the server accept Windows and Linux builds, so adding one later needs no change there, but no such build exists. |
+| The landing page collects addresses for an early build | The form is gone. The list it made is kept in the portal ("Early list"). |
+
+What this adds to "What does have to happen before launch": a mail relay account and a verified sending domain (sign-in is off until then); an Apple Developer ID and notarisation, or accepting that every Mac asks its owner to approve the app by hand the first time; an Intel or universal build if Intel Macs are to be supported; a contact address on the privacy page.
 
 ## What the first version is
 

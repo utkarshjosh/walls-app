@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { track } from "@/api/account";
 import { platform } from "@/platform";
 import type {
   DisplayInfo,
@@ -549,6 +550,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     const doomed = new Set(ids);
     const names = ids.flatMap((id) => {
       const wallpaper = stateRef.current.wallpapers[id];
+      // Removing a catalog wallpaper says something about taste; removing
+      // one's own picture is nobody's business and is not reported.
+      if (wallpaper?.remoteId) track("remove", wallpaper.remoteId);
       return wallpaper ? refNames(wallpaper) : [];
     });
     setState((current) => {
@@ -711,8 +715,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const saveItem = useCallback<Library["saveItem"]>(
-    async (item, collectionId) => {
+  /** Saves one catalog item. `report` is false when it arrives as part of a whole collection. */
+  const saveOne = useCallback(
+    async (item: CatalogItem, collectionId: string | undefined, report: boolean) => {
       const target = collectionId ?? savedCollectionId();
       const existing = Object.values(stateRef.current.wallpapers).find(
         (wallpaper) => wallpaper.remoteId === item.id,
@@ -725,12 +730,18 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       try {
         const wallpaper = await fetchItem(item);
         insert(wallpaper, target);
+        if (report) track("save", item.id);
         return wallpaper;
       } finally {
         markBusy(item.id, false);
       }
     },
     [addToCollection, fetchItem, insert, markBusy, savedCollectionId],
+  );
+
+  const saveItem = useCallback<Library["saveItem"]>(
+    (item, collectionId) => saveOne(item, collectionId, true),
+    [saveOne],
   );
 
   const unsaveItem = useCallback(
@@ -764,17 +775,20 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         setState((current) => ({ ...current, collections: [...current.collections, fresh] }));
       }
       const targetId = collection.id;
+      // One report for the collection, not one for each wallpaper in it:
+      // choosing a collection is a different signal from choosing a picture.
+      track("pack_save", pack.id);
       // A few at a time: quick, without hammering the connection.
       const queue = [...items];
       const worker = async () => {
         for (let item = queue.shift(); item; item = queue.shift()) {
-          await saveItem(item, targetId).catch(() => {});
+          await saveOne(item, targetId, false).catch(() => {});
         }
       };
       await Promise.all([worker(), worker(), worker()]);
       return targetId;
     },
-    [saveItem],
+    [saveOne],
   );
 
   // ── Settings and rotation ───────────────────────────────────────────────
@@ -826,6 +840,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           ...(target?.displayId ? { displayId: target.displayId } : {}),
         }),
       );
+      // Chosen by hand, which is the point: the rotation's own changes are
+      // not reported.
+      if (wallpaper.remoteId) track("set", wallpaper.remoteId);
     },
     [displays, playItem, updateSettings],
   );

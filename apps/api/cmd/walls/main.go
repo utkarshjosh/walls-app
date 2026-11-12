@@ -22,6 +22,7 @@ import (
 	"github.com/utkarshjoshi/walls/apps/api/internal/config"
 	"github.com/utkarshjoshi/walls/apps/api/internal/httpapi"
 	"github.com/utkarshjoshi/walls/apps/api/internal/ingest"
+	"github.com/utkarshjoshi/walls/apps/api/internal/mail"
 	"github.com/utkarshjoshi/walls/apps/api/internal/records"
 	"github.com/utkarshjoshi/walls/apps/api/internal/seed"
 	"github.com/utkarshjoshi/walls/apps/api/internal/storage"
@@ -36,7 +37,9 @@ Usage:
   walls ingest <dir>           import a folder of your own images, videos and live scenes
   walls scene check <dir>...   check live scene folders against the scene standard
   walls rm <id>                remove an item and its stored files
-  walls signups                print the list of people who asked for the build, as CSV
+  walls signups                print the earlier list of people who asked for a build, as CSV
+  walls users                  print the people who have signed in to the app, as CSV
+  walls backup <file>          write a complete copy of records.db (users, activity, builds list)
   walls render [flags]         write the starter artwork to a folder (for tuning the generator)
 
 Settings come from WALLS_* environment variables, or a .env file in the
@@ -62,6 +65,10 @@ func main() {
 		err = cmdRemove(args)
 	case "signups":
 		err = cmdSignups(args)
+	case "users":
+		err = cmdUsers(args)
+	case "backup":
+		err = cmdBackup(args)
 	case "scene":
 		err = cmdScene(args)
 	case "render":
@@ -144,8 +151,9 @@ func cmdServe(args []string) error {
 	}
 	defer e.close()
 
-	// Sign-ups, daily counts and admin sign-ins live in their own file, which
-	// a deploy never replaces (the catalog beside it is replaced every time).
+	// Users, what they did, daily counts and admin sign-ins live in their own
+	// file, which a deploy never replaces (the catalog beside it is replaced
+	// every time). The app's builds are kept in a folder next to it.
 	rec, err := records.Open(filepath.Join(e.cfg.DataDir, "records.db"))
 	if err != nil {
 		return err
@@ -157,6 +165,17 @@ func cmdServe(args []string) error {
 		DB: e.db, Store: e.store, StorageName: e.cfg.Storage, PublicURL: e.cfg.PublicURL,
 		CORSOrigins: e.cfg.CORSOrigins, Log: log,
 		Records: rec, AdminPassword: e.cfg.AdminPassword, StorageCap: e.cfg.StorageCapBytes,
+		ReleasesDir: filepath.Join(e.cfg.DataDir, "releases"),
+	}
+	// Sign-in codes go out through the mail relay. Without one, signing in is
+	// off and everything else works as before.
+	switch {
+	case e.cfg.SMTPHost != "":
+		api.Mail = &mail.SMTP{Host: e.cfg.SMTPHost, Port: e.cfg.SMTPPort, User: e.cfg.SMTPUser,
+			Password: e.cfg.SMTPPassword, From: e.cfg.MailFrom}
+	case e.cfg.MailToLog:
+		api.Mail = mail.Log{Log: log}
+		log.Warn("WALLS_MAIL_TO_LOG is on: sign-in codes are written to this log instead of being emailed. Development only.")
 	}
 	srv := &http.Server{
 		Addr:              e.cfg.Addr,
@@ -175,7 +194,7 @@ func cmdServe(args []string) error {
 
 	items, _ := e.db.CountItems(ctx)
 	log.Info("listening", "addr", e.cfg.Addr, "storage", storageLabel(e.cfg), "items", items,
-		"corsOrigins", strings.Join(e.cfg.CORSOrigins, ","), "adminPortal", api.AdminEnabled())
+		"corsOrigins", strings.Join(e.cfg.CORSOrigins, ","), "adminPortal", api.AdminEnabled(), "signIn", api.SignInEnabled())
 	if items == 0 {
 		log.Warn(`the catalog is empty; run "walls seed" to load the starter set`)
 	}
@@ -353,6 +372,70 @@ func cmdSignups(args []string) error {
 		return err
 	}
 	return httpapi.WriteSignupsCSV(csv.NewWriter(os.Stdout), list)
+}
+
+// openRecords opens records.db for a command that only reads it. The file
+// must already exist: these commands report on a service, they do not start one.
+func openRecords() (*records.DB, error) {
+	if err := config.LoadDotEnv(".env"); err != nil {
+		return nil, err
+	}
+	cfg, err := config.FromEnv()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(cfg.DataDir, "records.db")
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("nothing recorded here yet: %s does not exist", path)
+	}
+	return records.Open(path)
+}
+
+// cmdUsers prints the people who have signed in to the app as CSV, oldest first.
+func cmdUsers(args []string) error {
+	fs := flag.NewFlagSet("users", flag.ContinueOnError)
+	fs.Usage = func() { fmt.Fprintln(fs.Output(), "usage: walls users > users.csv") }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rec, err := openRecords()
+	if err != nil {
+		return err
+	}
+	defer rec.Close()
+	ctx, stop := signalContext()
+	defer stop()
+	list, err := rec.ListUsers(ctx, records.UserQuery{})
+	if err != nil {
+		return err
+	}
+	return httpapi.WriteUsersCSV(csv.NewWriter(os.Stdout), list)
+}
+
+// cmdBackup writes a complete copy of records.db to a new file. Everything in
+// it exists only where the service runs, so the deploy script uses this to
+// keep a copy off the server. Safe while the service is running.
+func cmdBackup(args []string) error {
+	fs := flag.NewFlagSet("backup", flag.ContinueOnError)
+	fs.Usage = func() { fmt.Fprintln(fs.Output(), "usage: walls backup <file>") }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("usage: walls backup <file>")
+	}
+	rec, err := openRecords()
+	if err != nil {
+		return err
+	}
+	defer rec.Close()
+	ctx, stop := signalContext()
+	defer stop()
+	if err := rec.Backup(ctx, fs.Arg(0)); err != nil {
+		return err
+	}
+	fmt.Printf("Wrote a copy of the records to %s\n", fs.Arg(0))
+	return nil
 }
 
 func plural(n int, word string) string {

@@ -10,6 +10,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/utkarshjoshi/walls/apps/api/internal/mail"
 )
 
 // DefaultCORSOrigins covers the Vite dev server and the Tauri desktop shell.
@@ -34,7 +36,21 @@ type Config struct {
 	// AdminPassword is the owner's password for the admin portal at /admin.
 	// Empty leaves the portal switched off.
 	AdminPassword string
+
+	// The mail relay that sends sign-in codes. An empty SMTPHost leaves
+	// sign-in switched off (unless MailToLog is set).
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
+	SMTPPassword string
+	MailFrom     string // "Still <hello@example.com>" or a bare address
+	// MailToLog writes messages to the server log instead of sending them.
+	// For development only: whoever can read the log can sign in as anyone.
+	MailToLog bool
 }
+
+// MailEnabled reports whether sign-in codes can go out, by relay or to the log.
+func (c Config) MailEnabled() bool { return c.SMTPHost != "" || c.MailToLog }
 
 // MinAdminPassword is the shortest admin password accepted. The portal is on
 // the public internet, so a short password is refused rather than trusted.
@@ -100,6 +116,36 @@ func FromEnv() (Config, error) {
 		PublicURL:   strings.TrimRight(env("WALLS_PUBLIC_URL", ""), "/"),
 		// Not trimmed or defaulted: a password is used exactly as written.
 		AdminPassword: os.Getenv("WALLS_ADMIN_PASSWORD"),
+		SMTPHost:      env("WALLS_SMTP_HOST", ""),
+		SMTPUser:      env("WALLS_SMTP_USER", ""),
+		SMTPPassword:  os.Getenv("WALLS_SMTP_PASSWORD"),
+		MailFrom:      env("WALLS_MAIL_FROM", ""),
+		SMTPPort:      587,
+	}
+	switch strings.ToLower(env("WALLS_MAIL_TO_LOG", "")) {
+	case "", "0", "false", "no":
+	case "1", "true", "yes":
+		c.MailToLog = true
+	default:
+		return c, fmt.Errorf("WALLS_MAIL_TO_LOG must be 1 or left out")
+	}
+	if v := env("WALLS_SMTP_PORT", ""); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 65535 {
+			return c, fmt.Errorf("WALLS_SMTP_PORT must be a port number, got %q", v)
+		}
+		c.SMTPPort = n
+	}
+	if c.SMTPHost != "" {
+		if c.MailFrom == "" {
+			return c, fmt.Errorf("WALLS_SMTP_HOST is set, so WALLS_MAIL_FROM is needed too: the address sign-in codes come from")
+		}
+		if _, err := mail.ParseFrom(c.MailFrom); err != nil {
+			return c, fmt.Errorf("WALLS_MAIL_FROM: %v", err)
+		}
+		if (c.SMTPUser == "") != (c.SMTPPassword == "") {
+			return c, fmt.Errorf("set both WALLS_SMTP_USER and WALLS_SMTP_PASSWORD, or neither")
+		}
 	}
 	if n := len(c.AdminPassword); n > 0 && n < MinAdminPassword {
 		return c, fmt.Errorf("WALLS_ADMIN_PASSWORD must be at least %d characters (or left out, which switches the admin portal off)", MinAdminPassword)

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -5,6 +6,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+
+// The app's version is the Mac app's: one number, kept in its Tauri config.
+const appVersion = JSON.parse(readFileSync(path.join(root, "../desktop/src-tauri/tauri.conf.json"), "utf8")).version;
 
 /**
  * Development only: prints errors from the running page in this terminal.
@@ -33,6 +37,7 @@ export default defineConfig({
   // The desktop shell (apps/desktop) loads this dev server on a fixed port.
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_ENV_"],
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   resolve: {
     alias: { "@": path.join(root, "src") },
   },

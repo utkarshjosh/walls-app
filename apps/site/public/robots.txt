@@ -1,0 +1,8 @@
+# The landing page is for everyone. The owner's admin portal and the catalog
+# service's own addresses are not pages and are not worth crawling.
+User-agent: *
+Disallow: /admin
+Disallow: /v1/
+Allow: /
+
+Sitemap: https://walls.utkarshjoshi.com/sitemap.xml

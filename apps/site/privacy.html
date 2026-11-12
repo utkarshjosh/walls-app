@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Still: what is recorded</title>
+    <meta name="description" content="What the Still app and its website record about you, in plain words, and how to have it removed." />
+    <meta name="theme-color" content="#151514" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://walls.utkarshjoshi.com/privacy.html" />
+  </head>
+  <body>
+    <header class="nav is-solid">
+      <a class="wordmark" href="/" aria-label="Still, home">Still</a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="/#live">Live scenes</a>
+        <a href="/#wallpapers">Wallpapers</a>
+        <a href="/#app">The app</a>
+      </nav>
+      <a class="nav__store" href="/#get">Download</a>
+    </header>
+
+    <!-- Every statement here describes what apps/api stores (see its README,
+         "What is kept"). If the service starts keeping something else, this
+         page changes in the same commit. -->
+    <main class="doc">
+      <h1>What is recorded</h1>
+      <p class="doc__lead">
+        Still works without an account, and your own pictures and videos never leave your Mac. If you choose to sign
+        in, we record what you do with the wallpapers in our catalog, so that Discover can later suggest ones you might
+        like.
+      </p>
+
+      <h2>If you do not sign in</h2>
+      <p>Nothing is recorded about you. The server keeps a few plain daily totals, with nothing to say who added to them:</p>
+      <ul>
+        <li>how many times this website was opened;</li>
+        <li>how many times the app was downloaded, by version and by kind of Mac;</li>
+        <li>how many times the app opened Discover, and how many times each wallpaper's file was fetched.</li>
+      </ul>
+      <p>No cookie is set, and no IP address or device identifier is stored.</p>
+
+      <h2>If you sign in</h2>
+      <p>
+        Signing in is optional. You give an email address, we send it a six-digit code, and you type the code into the
+        app. There is no password. From then on, while you are signed in, the app reports the following and the server
+        keeps it with your account:
+      </p>
+      <ul>
+        <li><strong>Your email address</strong>, the country your connection appears to come from, when you first signed in and when you were last seen.</li>
+        <li><strong>Opening the app</strong>: its version and the kind of system it is running on.</li>
+        <li><strong>What you do in Discover</strong>: opening it, the words you search for, the wallpapers you open, and the collections you open or save.</li>
+        <li><strong>What you do with catalog wallpapers</strong>: saving one to your library, putting one on your desktop, removing one.</li>
+      </ul>
+      <p>
+        That is the whole list. Pictures and videos you add yourself are not reported, by name or otherwise, and
+        neither is what is on your screen, which displays you have, or your schedule.
+      </p>
+
+      <h2>What it is used for</h2>
+      <p>
+        To see which wallpapers people keep and which they pass over, so we know what to make more of, and to suggest
+        wallpapers to you in Discover. We write to your address only to send a sign-in code you asked for. Nothing is
+        sold or passed to advertisers, and no outside analytics service is involved: it all stays on our one server.
+      </p>
+
+      <h2>Removing it</h2>
+      <p>
+        In the app, open the menu at the top right, choose your account, then <strong>Delete account</strong>. Your
+        account and everything recorded with it are deleted straight away. Signing out stops any further reporting but
+        keeps what was already recorded.
+      </p>
+    </main>
+
+    <footer class="foot">
+      <span>© 2026 Still</span>
+      <span class="foot__links"><a href="/">Home</a></span>
+    </footer>
+
+    <script type="module" src="/src/plain.ts"></script>
+  </body>
+</html>

@@ -19,7 +19,11 @@ function showError(message) {
 // One place talks to the server. A 401 anywhere means the sign-in ran out.
 async function api(path, options = {}) {
   const init = { method: options.method || "GET", credentials: "same-origin", headers: { accept: "application/json" } };
-  if (options.body !== undefined) {
+  if (options.file) {
+    // A build being uploaded: the file itself is the request.
+    init.headers["content-type"] = "application/octet-stream";
+    init.body = options.file;
+  } else if (options.body !== undefined) {
     init.headers["content-type"] = "application/json";
     init.body = JSON.stringify(options.body);
   }
@@ -100,7 +104,7 @@ $("logout").addEventListener(
 
 // ---- tabs ---------------------------------------------------------------------
 
-const loaders = { activity: loadActivity, people: loadPeople, wallpapers: loadWallpapers };
+const loaders = { activity: loadActivity, users: loadUsers, releases: loadReleases, wallpapers: loadWallpapers, people: loadPeople };
 const tabButtons = [...document.querySelectorAll(".tabs button")];
 
 function selectTab(name) {
@@ -156,27 +160,32 @@ async function loadActivity() {
   const days = data.days;
   const sum = (key, last) => days.slice(-last).reduce((total, d) => total + d[key], 0);
 
+  $("signin-off").hidden = data.users.signIn;
   $("tiles").replaceChildren(
-    tile(data.signups.total, "people on the list", `${number.format(data.signups.total - data.signups.invited)} not sent the build yet`),
-    tile(sum("signups", 7), "sign-ups, 7 days", `${number.format(sum("signups", 30))} in 30 days`),
+    tile(data.users.total, "users", `${number.format(data.users.active7)} did something in 7 days, ${number.format(data.users.active30)} in 30`),
+    tile(sum("newUsers", 7), "new users, 7 days", `${number.format(sum("newUsers", 30))} in 30 days`),
+    tile(sum("downloads", 7), "downloads, 7 days", `${number.format(sum("downloads", 30))} in 30 days`),
     tile(sum("visits", 7), "page visits, 7 days", `${number.format(sum("visits", 30))} in 30 days`),
     tile(sum("discover", 7), "Discover opened, 7 days", `${number.format(sum("discover", 30))} in 30 days`),
     tile(sum("files", 7), "wallpapers fetched, 7 days", `${number.format(sum("files", 30))} in 30 days`),
   );
   $("charts").replaceChildren(
     chart("Page visits", "The landing page was opened, once per browser tab.", days, "visits"),
-    chart("Sign-ups", "People who left an address, or were added by hand.", days, "signups"),
+    chart("Downloads", "A build of the app was downloaded from the website.", days, "downloads"),
+    chart("New users", "People who signed in to the app for the first time.", days, "newUsers"),
+    chart("Active users", "Signed-in people who did something in the app that day.", days, "activeUsers"),
     chart("Discover opened", "The app asked for the list of collections.", days, "discover"),
     chart("Wallpapers fetched", "A full file was downloaded by the app.", days, "files"),
   );
 
-  $("top").replaceChildren(
-    ...(data.topWallpapers.length
-      ? data.topWallpapers.map((w) =>
-          el("li", {}, el("img", { src: w.thumb, alt: "", loading: "lazy" }), el("span", {}, w.title, " ", el("small", { textContent: w.kind === "image" ? "" : "live" })), el("b", { textContent: number.format(w.count) })),
+  const topList = (list, empty, unit) =>
+    list.length
+      ? list.map((w) =>
+          el("li", {}, el("img", { src: w.thumb, alt: "", loading: "lazy" }), el("span", {}, w.title, " ", el("small", { textContent: w.kind === "image" ? "" : "live" })), el("b", { textContent: number.format(w.count) + unit })),
         )
-      : [el("li", { className: "hint", textContent: "Nothing fetched yet." })]),
-  );
+      : [el("li", { className: "hint", textContent: empty })];
+  $("top").replaceChildren(...topList(data.topWallpapers, "Nothing fetched yet.", ""));
+  $("top-saved").replaceChildren(...topList(data.topSaved, "Nobody signed in has saved anything yet.", ""));
   $("log").replaceChildren(
     ...(data.events.length
       ? data.events.map((e) => el("li", {}, el("span", {}, e.action, " ", el("small", { textContent: e.detail })), el("time", { textContent: whenLabel(e.at) })))
@@ -304,6 +313,268 @@ $("add").addEventListener(
   }),
 );
 
+// ---- users --------------------------------------------------------------------
+
+const EVENT_WORDS = {
+  app_open: "Opened the app",
+  discover_open: "Opened Discover",
+  search: "Searched for",
+  view: "Looked at",
+  save: "Saved",
+  set: "Put on the desktop",
+  remove: "Removed from the library",
+  pack_open: "Opened the collection",
+  pack_save: "Saved the collection",
+};
+const userDialog = $("user-dialog");
+$("user-close").addEventListener("click", () => userDialog.close());
+
+async function showUser(u) {
+  const data = await api("/users/" + u.id);
+  $("user-title").textContent = data.user.email;
+  const c = data.counts;
+  const part = (word, n) => `${word} ${number.format(n || 0)}`;
+  $("user-summary").textContent =
+    `Joined ${whenLabel(data.user.createdAt)}, last seen ${whenLabel(data.user.lastSeenAt)}. ` +
+    `${part("Saved", c.save)}, ${part("set", c.set)}, ${part("looked at", c.view)}, ${part("searched", c.search)}, ${part("opened the app", c.app_open)}.` +
+    (data.more ? ` Showing the newest ${number.format(data.events.length)} things.` : "");
+  $("user-events").replaceChildren(
+    ...(data.events.length
+      ? data.events.map((e) => {
+          // What it was done to: a wallpaper or collection by name, a search by
+          // its words, the app by its version and system.
+          const what = e.kind === "app_open" ? [e.subject, e.detail].filter(Boolean).join(", ") : e.title || e.detail || e.subject;
+          const line = el("span", {}, EVENT_WORDS[e.kind] || e.kind, what ? " " : "", what ? el("b", { textContent: what }) : "");
+          return el("li", {}, e.thumb ? el("img", { src: e.thumb, alt: "", loading: "lazy" }) : "", line, el("time", { textContent: whenLabel(e.at) }));
+        })
+      : [el("li", { className: "hint", textContent: "Nothing recorded yet." })]),
+  );
+  userDialog.showModal();
+}
+
+async function loadUsers() {
+  const params = new URLSearchParams();
+  if ($("user-search").value.trim()) params.set("q", $("user-search").value.trim());
+  if ($("user-status").value) params.set("status", $("user-status").value);
+  const data = await api("/users?" + params);
+  $("user-count").textContent =
+    `${number.format(data.users.length)} shown of ${number.format(data.total)}` +
+    (data.blocked ? `, ${number.format(data.blocked)} blocked` : "") +
+    (data.more ? " (list cut short: search to narrow it)" : "");
+  $("user-csv").href = "/v1/admin/users.csv" + ($("user-status").value ? "?status=" + $("user-status").value : "");
+  $("users-empty").hidden = data.users.length > 0;
+  $("users-empty").textContent = data.total ? "Nobody matches." : data.signIn ? "Nobody has signed in yet." : "Nobody has signed in yet: signing in is switched off on this server (see Activity).";
+
+  $("users").tBodies[0].replaceChildren(
+    ...data.users.map((u) => {
+      const blocked = u.status === "blocked";
+      const open = el("button", { type: "button", className: "link", textContent: u.email, title: "See what they did" });
+      open.addEventListener("click", act(() => showUser(u)));
+      const note = el("button", { type: "button", textContent: u.note || "Add a note", title: "Change the note" });
+      note.addEventListener(
+        "click",
+        act(async () => {
+          const next = window.prompt("Note for " + u.email, u.note);
+          if (next === null) return;
+          await api("/users/" + u.id, { method: "PATCH", body: { note: next } });
+          await loadUsers();
+        }),
+      );
+      const block = el("button", { type: "button", className: "plain", textContent: blocked ? "Unblock" : "Block" });
+      block.addEventListener(
+        "click",
+        act(async () => {
+          if (!blocked && !window.confirm(`Block ${u.email}? They are signed out everywhere and cannot sign in again until you unblock them.`)) return;
+          await api("/users/" + u.id, { method: "PATCH", body: { status: blocked ? "active" : "blocked" } });
+          await loadUsers();
+        }),
+      );
+      const remove = el("button", { type: "button", className: "plain", textContent: "Remove" });
+      remove.addEventListener(
+        "click",
+        act(async () => {
+          if (!window.confirm(`Remove ${u.email} and everything recorded about them? This cannot be undone.`)) return;
+          await api("/users/" + u.id, { method: "DELETE" });
+          await loadUsers();
+        }),
+      );
+      return el(
+        "tr",
+        {},
+        el("td", {}, open),
+        el("td", { textContent: whenLabel(u.createdAt) }),
+        el("td", { textContent: whenLabel(u.lastSeenAt) }),
+        el("td", { textContent: u.country }),
+        el("td", { className: "num", textContent: number.format(u.events) }),
+        el("td", {}, el("span", { className: blocked ? "pill bad" : "pill", textContent: blocked ? "Blocked" : "Can sign in" })),
+        el("td", { className: "note" }, note),
+        el("td", {}, block, remove),
+      );
+    }),
+  );
+}
+
+let userSearchTimer;
+$("user-search").addEventListener("input", () => {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(act(loadUsers), 250);
+});
+$("user-status").addEventListener("change", act(loadUsers));
+
+// ---- releases -----------------------------------------------------------------
+
+// Which system a file is probably for, from its name. The owner can change it.
+function guessPlatform(name) {
+  const n = name.toLowerCase();
+  const arm = /aarch64|arm64/.test(n);
+  if (/\.(dmg|pkg)$/.test(n) || /mac|darwin/.test(n)) return /universal/.test(n) ? "mac-universal" : /x64|x86_64|intel/.test(n) ? "mac-x64" : "mac-arm64";
+  if (/\.(exe|msi)$/.test(n)) return arm ? "windows-arm64" : "windows-x64";
+  if (/\.(appimage|deb|rpm|tar\.gz)$/.test(n)) return arm ? "linux-arm64" : "linux-x64";
+  return "";
+}
+
+function releaseCard(r, data) {
+  const published = r.publishedAt !== null;
+  const reload = () => loadReleases();
+
+  const state = r.latest ? "On the website" : published ? "Published, replaced by a newer one" : "Draft";
+  const head = el(
+    "header",
+    {},
+    el("h2", {}, r.version, " ", el("span", { className: "pill", textContent: r.channel === "stable" ? "Stable" : "Beta" })),
+    el("span", { className: r.latest ? "pill sent" : "pill", textContent: state }),
+    el("span", { className: "grow hint", textContent: published ? "Published " + whenLabel(r.publishedAt) : "Started " + whenLabel(r.createdAt) }),
+  );
+
+  const publish = el("button", { type: "button", className: published ? "" : "primary", textContent: published ? "Take back" : "Publish" });
+  publish.disabled = !published && r.builds.length === 0;
+  publish.title = publish.disabled ? "Add at least one file first" : "";
+  publish.addEventListener(
+    "click",
+    act(async () => {
+      const question = published
+        ? `Take ${r.version} back? The website stops offering it` + (r.latest ? " and offers the release published before it, if there is one." : ".")
+        : `Publish ${r.version}? The website will offer it to everyone straight away.`;
+      if (!window.confirm(question)) return;
+      await api("/releases/" + r.id, { method: "PATCH", body: { published: !published } });
+      await reload();
+    }),
+  );
+  const channel = el("button", { type: "button", textContent: r.channel === "stable" ? "Call it beta" : "Call it stable" });
+  channel.addEventListener(
+    "click",
+    act(async () => {
+      await api("/releases/" + r.id, { method: "PATCH", body: { channel: r.channel === "stable" ? "beta" : "stable" } });
+      await reload();
+    }),
+  );
+  const notes = el("button", { type: "button", textContent: r.notes ? "Change the notes" : "Add notes" });
+  notes.addEventListener(
+    "click",
+    act(async () => {
+      const next = window.prompt("What is new in " + r.version + "? This is shown on the website.", r.notes);
+      if (next === null) return;
+      await api("/releases/" + r.id, { method: "PATCH", body: { notes: next } });
+      await reload();
+    }),
+  );
+  const remove = el("button", { type: "button", className: "plain", textContent: "Delete release" });
+  remove.addEventListener(
+    "click",
+    act(async () => {
+      if (!window.confirm(`Delete ${r.version} and its ${r.builds.length} file(s)? This cannot be undone.`)) return;
+      await api("/releases/" + r.id, { method: "DELETE" });
+      await reload();
+    }),
+  );
+
+  const rows = r.builds.map((b) => {
+    const drop = el("button", { type: "button", className: "plain", textContent: "Remove" });
+    drop.addEventListener(
+      "click",
+      act(async () => {
+        if (!window.confirm(`Remove ${b.filename}? The file is deleted.`)) return;
+        await api("/builds/" + b.id, { method: "DELETE" });
+        await reload();
+      }),
+    );
+    return el(
+      "tr",
+      {},
+      el("td", { textContent: b.label }),
+      el("td", {}, published ? el("a", { href: b.url, textContent: b.filename }) : b.filename),
+      el("td", { className: "num", textContent: sizeLabel(b.bytes) }),
+      el("td", {}, el("code", { textContent: b.sha256.slice(0, 16) + "…", title: "SHA-256: " + b.sha256 })),
+      el("td", { className: "num", textContent: number.format(b.downloads30) }),
+      el("td", { className: "num", textContent: number.format(b.downloadsAll) }),
+      el("td", {}, drop),
+    );
+  });
+  const table = el(
+    "table",
+    {},
+    el("thead", {}, el("tr", {}, ...["System", "File", "Size", "Fingerprint", "Downloads, 30 days", "All time", ""].map((t, i) => el("th", { className: i === 2 || i > 3 ? "num" : "", textContent: t })))),
+    el("tbody", {}, ...rows),
+  );
+
+  // Adding a file: choose it, check the system it is for, upload.
+  const file = el("input", { type: "file" });
+  file.setAttribute("aria-label", "File for " + r.version);
+  const system = el("select", {}, el("option", { value: "", textContent: "Which system?" }), ...data.platforms.map((p) => el("option", { value: p.id, textContent: p.label })));
+  system.setAttribute("aria-label", "System the file is for");
+  const send = el("button", { type: "submit", textContent: "Upload" });
+  const progress = el("span", { className: "grow hint" });
+  file.addEventListener("change", () => {
+    if (file.files[0]) system.value = guessPlatform(file.files[0].name);
+  });
+  const upload = el("form", { className: "bar" }, file, system, send, progress);
+  upload.addEventListener(
+    "submit",
+    act(async () => {
+      const chosen = file.files[0];
+      if (!chosen) throw new Error("Choose the file to upload.");
+      if (!system.value) throw new Error("Choose which system the file is for.");
+      if (chosen.size > data.maxBuildBytes) throw new Error(`That file is ${sizeLabel(chosen.size)}; a build can be at most ${sizeLabel(data.maxBuildBytes)}.`);
+      send.disabled = true;
+      progress.textContent = `Uploading ${sizeLabel(chosen.size)}…`;
+      try {
+        await api(`/releases/${r.id}/builds?` + new URLSearchParams({ platform: system.value, filename: chosen.name }), { method: "POST", file: chosen });
+      } finally {
+        send.disabled = false;
+        progress.textContent = "";
+      }
+      await reload();
+    }),
+  );
+  upload.hidden = !data.enabled;
+
+  return el(
+    "article",
+    { className: "release" },
+    head,
+    r.notes ? el("p", { className: "notes", textContent: r.notes }) : "",
+    r.builds.length ? el("div", { className: "scroll" }, table) : el("p", { className: "hint", textContent: "No files yet." }),
+    upload,
+    el("div", { className: "bar" }, publish, channel, notes, el("span", { className: "grow" }), remove),
+  );
+}
+
+async function loadReleases() {
+  const data = await api("/releases");
+  $("releases-off").hidden = data.enabled;
+  $("releases-empty").hidden = data.releases.length > 0;
+  $("releases").replaceChildren(...data.releases.map((r) => releaseCard(r, data)));
+}
+
+$("release-new").addEventListener(
+  "submit",
+  act(async () => {
+    await api("/releases", { method: "POST", body: { version: $("release-version").value, channel: $("release-channel").value, notes: $("release-notes").value } });
+    $("release-new").reset();
+    await loadReleases();
+  }),
+);
+
 // ---- wallpapers ---------------------------------------------------------------
 
 let items = [];
@@ -333,6 +604,8 @@ function renderItems() {
         el("td", { className: "num", textContent: number.format(w.fetches7) }),
         el("td", { className: "num", textContent: number.format(w.fetches30) }),
         el("td", { className: "num", textContent: number.format(w.fetchesAll) }),
+        el("td", { className: "num", textContent: number.format(w.savedBy) }),
+        el("td", { className: "num", textContent: number.format(w.setBy) }),
       ),
     ),
   );

@@ -51,7 +51,27 @@ npx tauri build --bundles app
 open src-tauri/target/release/bundle/macos/Still.app
 ```
 
-The result is unsigned (ad-hoc signature), so it runs on the Mac that built it but is not something to hand to other people; that needs the signing steps in the Mac App Store section. A release copy talks to the deployed catalog at `https://walls.utkarshjoshi.com`; a development run talks to `http://localhost:8787`. Both use the same library folder and library list, so quit one before opening the other.
+A release copy talks to the deployed catalog at `https://walls.utkarshjoshi.com`; a development run talks to `http://localhost:8787`. Both use the same library folder and library list, so quit one before opening the other. The app runs from any folder: `~/Applications` works as well as `/Applications`, which matters on a Mac that does not let you change the latter.
+
+## Releasing a beta
+
+The app is given away from the landing page (decided 2026-11-12). To put a build there:
+
+```sh
+cd apps/desktop
+npm run build        # Still.app and src-tauri/target/release/bundle/dmg/Still_<version>_aarch64.dmg
+```
+
+Then open the catalog service's admin portal, **Releases**, start a release with the version from `src-tauri/tauri.conf.json`, upload the `.dmg`, and publish ([apps/api, "Downloads"](../api/README.md#downloads)). The version number in `tauri.conf.json` is the one place to change it; the interface reads it from there too.
+
+**Which Macs it runs on.** The Rust that Homebrew installs here builds for Apple silicon only, so `npm run build` makes an Apple-silicon build. For Intel Macs there are two ways, neither tried yet:
+
+- push a tag such as `v0.1.0`: `.github/workflows/release.yml` builds one disk image for both kinds of Mac on GitHub and keeps it as a draft release to download; or
+- install Rust with `rustup`, run `rustup target add x86_64-apple-darwin`, then `npx tauri build --target universal-apple-darwin`.
+
+**What people see the first time they open it.** The build carries an ad-hoc signature (`"signingIdentity": "-"` in `tauri.conf.json`), which makes the bundle whole but says nothing about who made it. This is how macOS treats any app from a developer it cannot identify: it refuses to open a downloaded copy until its owner approves it once in System Settings, Privacy & Security, "Open Anyway", and a Mac managed by an employer may not allow that at all. The landing page tells people to expect this. Nobody has yet downloaded a copy on another Mac and gone through it, so do that before announcing anything. Without that setting the bundle's signature is incomplete (`codesign --verify` fails on it), which macOS on Apple silicon reports as a damaged app with no way to approve it. The only way to remove the prompt is an Apple Developer Program membership (US$99 a year), a "Developer ID Application" certificate, and notarisation: set `APPLE_SIGNING_IDENTITY` and the `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID` variables and `tauri build` does both. Not done.
+
+**Signing in.** The More menu offers "Sign in…" when the catalog service says it can send codes (`GET /v1/auth/status`); against a service that cannot, the entry is not there. While someone is signed in, `apps/web/src/api/account.ts` reports what they do with catalog wallpapers; signed out, it reports nothing. The token is kept in the window's local storage.
 
 ## What has actually been run (2026-11-10)
 

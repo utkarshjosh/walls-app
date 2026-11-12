@@ -17,9 +17,10 @@ npm run build      # writes dist/
 | Live scenes | A real scene from the catalog running in a sandboxed frame, with a row to choose others. Only one runs at a time, and it pauses when scrolled away. | `src/main.ts` |
 | Wallpapers | A strip of stills from the catalog. | `src/main.ts` |
 | The app | Screenshots of the three tabs. | `public/media/app/` |
-| Closing | Where to get it, and a form to ask for the early build. | `index.html`, `src/main.ts` |
+| Closing | The download: a button for this visitor's computer, what to expect the first time it is opened, and every build of the latest release. | `index.html`, `src/download.ts` |
+| Privacy | A second, plain page saying what is recorded about a visitor and about someone who signs in to the app. | `privacy.html` |
 
-All the wording is in `index.html`. The product name appears there and in `<title>`; it is still a working name, so changing it is a find-and-replace in that one file. The Mac App Store link does not exist yet: the three places that will point to it are the links with `href="#get"`.
+All the wording is in `index.html` and `privacy.html`. The product name appears there and in each `<title>`; it is still a working name, so changing it is a find-and-replace in those two files. The page's public address, `https://walls.utkarshjoshi.com`, is written out in `index.html` (the tags that describe the page to search engines and to sites that draw link cards), `privacy.html`, `public/robots.txt` and `public/sitemap.xml`: change all four if the address changes.
 
 ## The hero runs real catalog scenes
 
@@ -44,9 +45,24 @@ Which scenes and stills appear, and in what order, is chosen by hand in `src/con
 
 A live scene is one self-contained file of at most 512 KB that may load nothing ([the scene standard](../../docs/16-live-scene-standard.md)); three.js alone is larger than that. Scenes are written as shaders through the kit instead, which is also cheaper to run all day behind a desktop. The page has no such limit, so the hero uses three.js, loaded as its own file after the text is on screen.
 
-## The early-build form and the visit count
+## The download buttons and the visit count
 
-The form at the bottom posts the address to the catalog service (`POST /v1/signups`); the list is read in the service's admin portal at `/admin` ([apps/api](../api/README.md#sign-ups-and-the-admin-portal)). The page also tells the service once per browser tab that it was opened (`POST /v1/visits`), which carries no cookie or identifier. On the server the page and the service share an address. In development they do not, so `vite.config.mjs` passes `/v1` and `/admin` on to a service on `localhost:8787`: start it (`cd ../api && go run ./cmd/walls serve`) to try the form.
+The page does not hold the app's files or know its version. It asks the catalog service which builds exist (`GET /v1/releases/latest`), and the owner puts builds there in the service's admin portal ([apps/api, "Downloads"](../api/README.md#downloads)). Publishing a new release there changes what this page offers without the page being rebuilt.
+
+Every element marked `data-download` is a download button. Without script each one links to `/v1/download/mac`, where the service picks the build that suits most Macs. With script, `src/download.ts` works out what the visitor's computer is and points the buttons at the right build:
+
+| Visitor | What they get |
+| --- | --- |
+| A Mac, and a build for every Mac exists (`mac-universal`) | That build. Nothing to work out. |
+| A Mac whose chip the browser reveals (Chrome, Edge, Firefox) | The Apple silicon or the Intel build. If only the other kind exists, the page says so. |
+| A Mac in Safari, which does not reveal the chip | The Apple silicon build, with a line offering the Intel one if there is one. |
+| Windows or Linux | A line saying Still is a Mac app for now, with a link to the Mac build. If a build for their system is ever uploaded, they get that instead. |
+| A phone or tablet | A line saying to open the page on a Mac. |
+| Anyone, when nothing is published | "The first build is being prepared." |
+
+"All downloads" lists every build of the latest release with its size and SHA-256. The "Opening it the first time" paragraph is true while builds are not signed with an Apple Developer ID; delete it from `index.html` once they are signed and notarised.
+
+The page also tells the service once per browser tab that it was opened (`POST /v1/visits`), which carries no cookie or identifier. On the server the page and the service share an address. In development they do not, so `vite.config.mjs` passes `/v1` and `/admin` on to a service on `localhost:8787`: start it (`cd ../api && go run ./cmd/walls serve`) to see the buttons work.
 
 ## Serving it
 

@@ -9,6 +9,11 @@
 # service. Safe to run again after `walls seed` or `walls ingest`: the server
 # ends up serving exactly the local catalog and the page as it is in this folder.
 #
+# What it never touches on the server: data/records.db (the people who signed
+# in, what they did, the list of builds) and data/releases/ (the builds
+# themselves). Those exist only there. Each run brings a copy of records.db
+# back to this machine, in data/backups/.
+#
 # Settings (environment variables):
 #   WALLS_DEPLOY_HOST   ssh alias of the server         (default agent-server-oci)
 #   WALLS_DOMAIN        the public name                 (default walls.utkarshjoshi.com)
@@ -45,7 +50,7 @@ else
 fi
 
 echo "4/5  Uploading to $HOST:$DIR ($items items)"
-ssh "$HOST" "mkdir -p '$DIR/bin' '$DIR/data/objects' '$DIR/site'"
+ssh "$HOST" "mkdir -p '$DIR/bin' '$DIR/data/objects' '$DIR/data/releases' '$DIR/site'"
 [ -z "$site" ] || rsync -az --delete "$site/dist/" "$HOST:$DIR/site/"
 rsync -az --delete data/objects/ "$HOST:$DIR/data/objects/"
 rsync -az "$work/catalog.db" "$HOST:$DIR/data/catalog.db.new"
@@ -61,7 +66,22 @@ if ssh "$HOST" "cd '$DIR' && sudo docker compose exec -T api /app/walls signups"
   echo "     Saved the sign-up list ($(($(wc -l < "$backup") - 1)) people) to apps/api/$backup"
 else
   rm -f "$backup"
-  echo "     No sign-up list saved (normal on the first deploy that has sign-ups)"
+  echo "     No sign-up list saved (normal when nobody is on the earlier list)"
+fi
+
+# The same file holds everything else that exists only on the server: the
+# people who signed in, what they did, and the list of builds. Bring back a
+# complete copy. It holds people's addresses, so it stays out of git
+# (data/ is ignored) and readable only by you.
+records="data/backups/records-$(date +%Y%m%d-%H%M%S).db"
+if ssh "$HOST" "cd '$DIR' && rm -f data/records-backup.db && sudo docker compose exec -T api /app/walls backup /data/records-backup.db" >/dev/null 2>&1 \
+  && rsync -az "$HOST:$DIR/data/records-backup.db" "$records"; then
+  ssh "$HOST" "rm -f '$DIR/data/records-backup.db'"
+  chmod 600 "$records"
+  echo "     Saved a copy of the server's records to apps/api/$records"
+else
+  rm -f "$records"
+  echo "     No copy of the server's records saved (normal on the first deploy of a version that can make one)"
 fi
 
 echo "5/5  Starting the service"

@@ -29,8 +29,10 @@
         <strong class="mark">Still admin</strong>
         <nav class="tabs" role="tablist" aria-label="Sections">
           <button role="tab" type="button" data-tab="activity" aria-selected="true">Activity</button>
-          <button role="tab" type="button" data-tab="people" aria-selected="false">People</button>
+          <button role="tab" type="button" data-tab="users" aria-selected="false">Users</button>
+          <button role="tab" type="button" data-tab="releases" aria-selected="false">Releases</button>
           <button role="tab" type="button" data-tab="wallpapers" aria-selected="false">Wallpapers</button>
+          <button role="tab" type="button" data-tab="people" aria-selected="false">Early list</button>
         </nav>
         <button class="plain" type="button" id="logout">Sign out</button>
       </header>
@@ -40,7 +42,12 @@
       <section id="tab-activity">
         <div class="tiles" id="tiles"></div>
         <p class="hint">
-          Last 30 days, by day in UTC. These are plain totals: nothing about who visited or which Mac asked is kept.
+          Last 30 days, by day in UTC. Visits, downloads and fetches are plain totals: nothing about who asked is kept.
+          Users, and what they saved, come only from people who signed in to the app.
+        </p>
+        <p class="hint warn" id="signin-off" hidden>
+          Signing in is switched off on this server, so nobody can become a user yet. Set the mail relay
+          (<code>WALLS_SMTP_HOST</code> and the settings beside it) and restart it.
         </p>
         <div class="charts" id="charts"></div>
         <div class="split">
@@ -49,13 +56,76 @@
             <ol class="top-list" id="top"></ol>
           </div>
           <div>
+            <h2>Saved by the most people, last 30 days</h2>
+            <ol class="top-list" id="top-saved"></ol>
+          </div>
+          <div>
             <h2>What you did here</h2>
             <ul class="log" id="log"></ul>
           </div>
         </div>
       </section>
 
+      <section id="tab-users" hidden>
+        <div class="bar">
+          <input id="user-search" type="search" placeholder="Search addresses and notes" aria-label="Search addresses and notes" />
+          <select id="user-status" aria-label="Show">
+            <option value="">Everyone</option>
+            <option value="active">Can sign in</option>
+            <option value="blocked">Blocked</option>
+          </select>
+          <span class="grow" id="user-count"></span>
+          <a class="button" id="user-csv" href="/v1/admin/users.csv">Download CSV</a>
+        </div>
+        <p class="hint">
+          People who signed in to the app with a code sent to their address. "Did" counts what the app reported for
+          them: wallpapers looked at, saved and set, collections opened, searches. Blocking signs a person out and stops
+          them signing in; removing deletes them and everything recorded about them.
+        </p>
+        <div class="scroll">
+          <table id="users">
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Joined</th>
+                <th>Last seen</th>
+                <th>From</th>
+                <th class="num">Did</th>
+                <th>Status</th>
+                <th>Note</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="users-empty" hidden>Nobody has signed in yet.</p>
+      </section>
+
+      <section id="tab-releases" hidden>
+        <p class="hint">
+          A release is one version of the app, with one file per system. The website offers the newest published
+          release; drafts are not visible to anyone. Uploading again for the same system replaces the file.
+        </p>
+        <p class="hint warn" id="releases-off" hidden>This server has nowhere to keep builds, so files cannot be uploaded.</p>
+        <form class="bar" id="release-new">
+          <input id="release-version" type="text" placeholder="Version, e.g. 0.1.0" aria-label="Version" maxlength="40" required />
+          <select id="release-channel" aria-label="Channel">
+            <option value="beta">Beta</option>
+            <option value="stable">Stable</option>
+          </select>
+          <input id="release-notes" type="text" maxlength="2000" placeholder="What is new (shown on the website, optional)" aria-label="Notes" />
+          <button type="submit">Start a release</button>
+        </form>
+        <div id="releases"></div>
+        <p class="hint" id="releases-empty" hidden>No releases yet. Start one above, add its files, then publish it.</p>
+      </section>
+
       <section id="tab-people" hidden>
+        <p class="hint">
+          People who left an address on the landing page when it had a form asking for one, or whom you added by hand.
+          The form is gone: the page now offers the download directly. This list is kept so you can still write to them.
+        </p>
         <div class="bar">
           <input id="search" type="search" placeholder="Search addresses and notes" aria-label="Search addresses and notes" />
           <select id="status" aria-label="Show">
@@ -99,9 +169,9 @@
       <section id="tab-wallpapers" hidden>
         <p class="hint" id="storage"></p>
         <p class="hint">
-          "Fetched" counts the full file being downloaded: a picture being saved or set, a live wallpaper being
-          previewed or saved. This list only reads the catalog. To add or remove wallpapers, use
-          <code>walls ingest</code> / <code>walls rm</code> and deploy.
+          "Fetched" counts the full file being downloaded by anyone: a picture being saved or set, a live wallpaper
+          being previewed or saved. "Saved by" and "Set by" count signed-in people, each once. This list only reads the
+          catalog. To add or remove wallpapers, use <code>walls ingest</code> / <code>walls rm</code> and deploy.
         </p>
         <h2>Collections</h2>
         <div class="scroll">
@@ -129,6 +199,8 @@
                 <th class="num"><button type="button" data-sort="fetches7">Fetched, 7 days</button></th>
                 <th class="num"><button type="button" data-sort="fetches30">30 days</button></th>
                 <th class="num"><button type="button" data-sort="fetchesAll">All time</button></th>
+                <th class="num"><button type="button" data-sort="savedBy">Saved by</button></th>
+                <th class="num"><button type="button" data-sort="setBy">Set by</button></th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -136,6 +208,15 @@
         </div>
       </section>
     </div>
+
+    <dialog id="user-dialog" aria-labelledby="user-title">
+      <header>
+        <h2 id="user-title"></h2>
+        <button class="plain" type="button" id="user-close">Close</button>
+      </header>
+      <p class="hint" id="user-summary"></p>
+      <ul class="log" id="user-events"></ul>
+    </dialog>
 
     <div class="tip" id="tip" hidden></div>
     <script src="/admin/admin.js"></script>

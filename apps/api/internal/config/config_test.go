@@ -109,3 +109,44 @@ WALLS_PUBLIC_URL=
 		t.Errorf("malformed .env: %v", err)
 	}
 }
+
+func TestMailSettings(t *testing.T) {
+	clearEnv(t)
+	c, err := FromEnv()
+	if err != nil || c.MailEnabled() {
+		t.Fatalf("with nothing set: mail on = %v, err = %v", c.MailEnabled(), err)
+	}
+
+	t.Setenv("WALLS_SMTP_HOST", "smtp.example.com")
+	if _, err := FromEnv(); err == nil || !strings.Contains(err.Error(), "WALLS_MAIL_FROM") {
+		t.Errorf("a relay with no From address: err = %v", err)
+	}
+	t.Setenv("WALLS_MAIL_FROM", "Still <hello@still.example>")
+	c, err = FromEnv()
+	if err != nil || !c.MailEnabled() || c.SMTPPort != 587 || c.MailToLog {
+		t.Fatalf("relay settings = %+v, %v", c, err)
+	}
+	t.Setenv("WALLS_SMTP_USER", "apikey")
+	if _, err := FromEnv(); err == nil {
+		t.Error("a user name with no password was accepted")
+	}
+	t.Setenv("WALLS_SMTP_PASSWORD", "s3cret")
+	t.Setenv("WALLS_SMTP_PORT", "465")
+	if c, err = FromEnv(); err != nil || c.SMTPPort != 465 || c.SMTPPassword != "s3cret" {
+		t.Fatalf("full relay settings = %+v, %v", c, err)
+	}
+	for name, bad := range map[string]string{"WALLS_SMTP_PORT": "smtp", "WALLS_MAIL_FROM": "nobody", "WALLS_MAIL_TO_LOG": "maybe"} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(name, bad)
+			if _, err := FromEnv(); err == nil {
+				t.Errorf("%s=%q was accepted", name, bad)
+			}
+		})
+	}
+
+	clearEnv(t)
+	t.Setenv("WALLS_MAIL_TO_LOG", "1")
+	if c, err = FromEnv(); err != nil || !c.MailEnabled() || !c.MailToLog {
+		t.Errorf("mail to the log = %+v, %v", c, err)
+	}
+}

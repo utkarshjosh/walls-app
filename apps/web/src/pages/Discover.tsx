@@ -11,6 +11,7 @@ import {
   type CatalogPack,
   type CatalogQuery,
 } from "@/api/client";
+import { track } from "@/api/account";
 import { canSpan, fitsAny } from "@/lib/fit";
 import { fitNote } from "@/lib/fitNote";
 import { cn, plural } from "@/lib/utils";
@@ -89,6 +90,21 @@ export function DiscoverPage({ onOpenCollection }: { onOpenCollection: (id: stri
     const timer = setTimeout(() => setTerm(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // What a signed-in person does here is what suggestions will be made from
+  // (src/api/account.ts; nothing is reported for someone signed out).
+  useEffect(() => track("discover_open"), []);
+  // A search counts once the words have stopped changing, so half-typed
+  // words are not reported.
+  useEffect(() => {
+    if (!term) return;
+    const timer = setTimeout(() => track("search", "", term.slice(0, 100)), 1500);
+    return () => clearTimeout(timer);
+  }, [term]);
+  const viewingId = viewing === null ? undefined : items[viewing]?.id;
+  useEffect(() => {
+    if (viewingId) track("view", viewingId);
+  }, [viewingId]);
 
   // Shelves and filter names. Failing here is fine: the grid below reports problems.
   useEffect(() => {

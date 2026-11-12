@@ -1,6 +1,8 @@
-// Package records is the second SQLite file, records.db: the list of people
-// who asked for the build, daily counts of what the site and the app asked
-// the server for, admin sign-ins, and a log of what the admin changed.
+// Package records is the second SQLite file, records.db: the people who sign
+// in to the app and what they did there, the builds offered for download,
+// daily counts of what the site and the app asked the server for, the earlier
+// list of people who asked for a build, admin sign-ins, and a log of what the
+// admin changed.
 //
 // It is kept apart from the catalog on purpose. catalog.db is rebuilt from the
 // repository and replaced on every deploy; records.db exists only where the
@@ -42,6 +44,7 @@ const (
 	CountDiscover = "discover" // the app asked for the list of collections
 	CountFile     = "file"     // a wallpaper's full file was fetched; subject is the item id
 	CountPack     = "pack"     // one collection was opened in full; subject is the pack id
+	CountDownload = "download" // a build of the app was downloaded; subject is "<version>/<platform>"
 )
 
 // MaxSignups stops the list growing without limit if the form is abused.
@@ -133,6 +136,18 @@ func Open(path string) (*DB, error) {
 // Close releases the database.
 func (db *DB) Close() error { return db.sql.Close() }
 
+// Backup writes a complete, consistent copy of the file to path, which must
+// not exist yet. It is safe while a server is writing to the same file.
+func (db *DB) Backup(ctx context.Context, path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("records: %s already exists", path)
+	}
+	if _, err := db.sql.ExecContext(ctx, `VACUUM INTO ?`, path); err != nil {
+		return fmt.Errorf("records: backup: %w", err)
+	}
+	return os.Chmod(path, 0o600)
+}
+
 // migrations run once each, in order. Append; never edit one that has shipped.
 var migrations = []string{
 	`CREATE TABLE signups (
@@ -163,6 +178,63 @@ var migrations = []string{
 		at     TEXT NOT NULL,
 		action TEXT NOT NULL,
 		detail TEXT NOT NULL
+	);`,
+
+	// 2: people who sign in to the app (users.go) and the builds offered for
+	// download (releases.go).
+	`CREATE TABLE users (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		email        TEXT NOT NULL UNIQUE,
+		country      TEXT NOT NULL DEFAULT '',
+		status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','blocked')),
+		note         TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL,
+		last_seen_at TEXT NOT NULL
+	);
+	CREATE INDEX users_created ON users (created_at);
+	CREATE TABLE login_codes (
+		email      TEXT PRIMARY KEY,
+		code_hash  TEXT NOT NULL,
+		attempts   INTEGER NOT NULL DEFAULT 0,
+		expires_at TEXT NOT NULL
+	) WITHOUT ROWID;
+	CREATE TABLE user_sessions (
+		token_hash   TEXT PRIMARY KEY,
+		user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		client       TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL,
+		last_used_at TEXT NOT NULL,
+		expires_at   TEXT NOT NULL
+	) WITHOUT ROWID;
+	CREATE INDEX user_sessions_user ON user_sessions (user_id);
+	CREATE TABLE user_events (
+		id      INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		at      TEXT NOT NULL,
+		kind    TEXT NOT NULL,
+		subject TEXT NOT NULL DEFAULT '',
+		detail  TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX user_events_user ON user_events (user_id, id);
+	CREATE INDEX user_events_at ON user_events (at);
+	CREATE INDEX user_events_kind ON user_events (kind, subject);
+	CREATE TABLE releases (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		version      TEXT NOT NULL UNIQUE,
+		channel      TEXT NOT NULL DEFAULT 'beta' CHECK (channel IN ('beta','stable')),
+		notes        TEXT NOT NULL DEFAULT '',
+		created_at   TEXT NOT NULL,
+		published_at TEXT
+	);
+	CREATE TABLE builds (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		release_id INTEGER NOT NULL REFERENCES releases(id) ON DELETE CASCADE,
+		platform   TEXT NOT NULL,
+		filename   TEXT NOT NULL,
+		bytes      INTEGER NOT NULL,
+		sha256     TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		UNIQUE (release_id, platform)
 	);`,
 }
 

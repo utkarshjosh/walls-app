@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { MotionConfig, motion } from "motion/react";
 import { Ellipsis, FlaskConical } from "lucide-react";
+import { account, track, useAccount } from "@/api/account";
 import { cn } from "@/lib/utils";
 import { isMac, isWebPlatform, platform, type SimulatedLayout } from "@/platform";
 import { LibraryProvider, useLibrary } from "@/state/store";
+import { AccountDialog } from "@/components/AccountDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
@@ -58,6 +60,18 @@ function Shell() {
   // position, search text and loaded pages survive switching away and back.
   const [visited, setVisited] = useState<ReadonlySet<Destination>>(new Set(["library"]));
   const [libraryOpenId, setLibraryOpenId] = useState<string | null>(null);
+
+  // Signing in is optional. The menu offers it only when the catalog service
+  // can do it; someone already signed in always sees their account.
+  const signedIn = useAccount();
+  const [canSignIn, setCanSignIn] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  useEffect(() => {
+    void account.available().then(setCanSignIn);
+    // Once per launch: check the remembered sign-in still stands, then note
+    // the launch (which does nothing for someone signed out).
+    void account.refresh().then(() => track("app_open", __APP_VERSION__, platform.kind === "desktop" ? "Mac app" : "browser preview"));
+  }, []);
 
   const go = (next: Destination) => {
     setDestination(next);
@@ -144,11 +158,26 @@ function Shell() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {signedIn ? (
+                <>
+                  <DropdownMenuLabel>{signedIn.email}</DropdownMenuLabel>
+                  <DropdownMenuItem onSelect={() => setAccountOpen(true)}>Account…</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : (
+                canSignIn && (
+                  <>
+                    <DropdownMenuItem onSelect={() => setAccountOpen(true)}>Sign in…</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )
+              )}
               <DropdownMenuItem onSelect={library.exportBackup}>Export library backup</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </header>
+      <AccountDialog open={accountOpen} onClose={() => setAccountOpen(false)} />
 
       <main className="min-h-0 flex-1">
         {DESTINATIONS.map((item) => (

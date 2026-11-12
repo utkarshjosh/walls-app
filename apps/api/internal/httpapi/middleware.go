@@ -85,11 +85,14 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		if allowed && r.Header.Get("Access-Control-Request-Method") != "" {
 			h.Add("Vary", "Access-Control-Request-Method")
 			h.Add("Vary", "Access-Control-Request-Headers")
-			h.Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+			// The app reads the catalog, and posts to sign in and to report
+			// what a signed-in person did. No cookie is ever allowed across
+			// origins: the app proves who it is with a token in a header.
+			h.Set("Access-Control-Allow-Methods", "GET, HEAD, POST, DELETE, OPTIONS")
 			if req := r.Header.Get("Access-Control-Request-Headers"); req != "" {
 				h.Set("Access-Control-Allow-Headers", req)
 			} else {
-				h.Set("Access-Control-Allow-Headers", "Range, Content-Type, Accept")
+				h.Set("Access-Control-Allow-Headers", "Range, Content-Type, Accept, Authorization")
 			}
 			h.Set("Access-Control-Max-Age", "600")
 		}

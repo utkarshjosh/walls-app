@@ -1,15 +1,17 @@
 # Still (working name) — wallpapers that change on their own
 
-A Mac app that keeps your desktop fresh: collect wallpapers, pick which collections take turns, and it rotates them for you. Connect a second display and it can stretch one wallpaper across both. It also plays live (animated) wallpapers. Target: a paid app on the Mac App Store.
+A Mac app that keeps your desktop fresh: collect wallpapers, pick which collections take turns, and it rotates them for you. Connect a second display and it can stretch one wallpaper across both. It also plays live (animated) wallpapers.
 
-**Status, 2026-11-10:** a first working build exists in four parts.
+**Direction, changed by the owner on 2026-11-12:** the app is free, in beta (0.x), and downloaded straight from the website. Signing in is optional, by a code sent to an email address; what signed-in people save and set is recorded so Discover can suggest wallpapers later. The earlier target was a paid app on the Mac App Store with no accounts; [the first-launch scope](docs/15-first-launch-scope.md) lists what that changes. How to announce it is in the [launch kit](docs/17-launch-kit.md).
+
+**Status, 2026-11-12:** a working beta exists in four parts. None of the 2026-11-12 work is deployed yet.
 
 | Part | Where | State |
 | --- | --- | --- |
 | Interface (React, TypeScript) | [apps/web](apps/web/README.md) | Library, Discover and Rotation work; runs in the Mac app and as a browser preview |
-| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover; 30 original wallpapers and 10 live scenes. Also keeps the early-build sign-up list and serves the owner's admin portal at `/admin` (not deployed yet). **Deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare), serving from the server's disk |
-| Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar |
-| Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes. Built and previewed locally; **not deployed yet** |
+| Catalog server (Go, SQLite, object storage) | [apps/api](apps/api/README.md) | Serves Discover. Also: sign-in by emailed code, per-user activity records, the app's downloadable builds, and the owner's admin portal at `/admin` (users, releases, activity, wallpapers). **The catalog is deployed at https://walls.utkarshjoshi.com** (on `agent-server-oci`, behind Cloudflare); sign-in, downloads and the portal are **not deployed yet**, and sign-in needs a mail relay configured first |
+| Mac app (Tauri 2, Rust) | [apps/desktop](apps/desktop/README.md) | Native shell: sets wallpapers per display, spans displays, plays live wallpapers, rotates from the menu bar. Builds for Apple silicon on this machine; an Intel or universal build needs the GitHub workflow or `rustup`. Not signed with an Apple Developer ID |
+| Landing page (TypeScript, three.js) | [apps/site](apps/site/README.md) | One static page with a 3D hero that runs real catalog scenes, a download button that picks the build for the visitor's computer, and a privacy page. Built and previewed locally; **not deployed yet** |
 
 What is deliberately **not** being built before launch, and what still blocks launch, is in [docs/15-first-launch-scope.md](docs/15-first-launch-scope.md). Read that before adding features.
 
@@ -37,8 +39,9 @@ The documents below record how the plan got here. Where they disagree with the f
 5. [Implementation roadmap](docs/08-roadmap.md) and [decisions and open questions](docs/09-decisions-and-questions.md).
 6. [Unified desktop and direct distribution](docs/11-desktop-and-distribution.md), [Collections design history](docs/12-design-brief.md), and [motion/iteration guide](docs/13-motion-and-ui-iteration.md).
 7. [Current component foundation](docs/14-component-foundation.md) and [component catalog](docs/design/component-catalog.json) — approved reuse approach, source links, design principles and integration checks.
-8. [First-launch scope](docs/15-first-launch-scope.md) — what ships first, the list of things not to build yet, and what blocks launch.
+8. [First-launch scope](docs/15-first-launch-scope.md) — what ships first, the list of things not to build yet, and what blocks launch. Its opening section records the 2026-11-12 change of direction.
 9. [Live scene standard](docs/16-live-scene-standard.md) — what a live wallpaper made of code must be, how to make one from web material, and how the app contains it.
+10. [Launch kit](docs/17-launch-kit.md) — where to announce the beta, in what order, with the words ready to paste.
 
 ## Earlier product default (planning history)
 
