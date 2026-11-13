@@ -124,6 +124,19 @@ func (db *DB) Release(ctx context.Context, id int64) (Release, error) {
 	return r, err
 }
 
+// ReleaseByVersion returns the release with this version and its builds, or ErrNotFound.
+func (db *DB) ReleaseByVersion(ctx context.Context, version string) (Release, error) {
+	r, err := scanRelease(db.sql.QueryRowContext(ctx, `SELECT `+releaseCols+` FROM releases WHERE version = ?`, version))
+	if errors.Is(err, sql.ErrNoRows) {
+		return r, ErrNotFound
+	}
+	if err != nil {
+		return r, err
+	}
+	r.Builds, err = db.buildsOf(ctx, r.ID)
+	return r, err
+}
+
 // Releases returns every release with its builds, newest first.
 func (db *DB) Releases(ctx context.Context) ([]Release, error) {
 	rows, err := db.sql.QueryContext(ctx, `SELECT `+releaseCols+` FROM releases ORDER BY id DESC`)

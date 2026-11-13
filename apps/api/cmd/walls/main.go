@@ -40,6 +40,8 @@ Usage:
   walls signups                print the earlier list of people who asked for a build, as CSV
   walls users                  print the people who have signed in to the app, as CSV
   walls backup <file>          write a complete copy of records.db (users, activity, builds list)
+  walls release [-publish] [-channel beta|stable] [-notes text] <version> <platform> <file>
+							   add a build of the app to a release, for the website to offer
   walls render [flags]         write the starter artwork to a folder (for tuning the generator)
 
 Settings come from WALLS_* environment variables, or a .env file in the
@@ -69,6 +71,8 @@ func main() {
 		err = cmdUsers(args)
 	case "backup":
 		err = cmdBackup(args)
+	case "release":
+		err = cmdRelease(args)
 	case "scene":
 		err = cmdScene(args)
 	case "render":
@@ -435,6 +439,113 @@ func cmdBackup(args []string) error {
 		return err
 	}
 	fmt.Printf("Wrote a copy of the records to %s\n", fs.Arg(0))
+	return nil
+}
+
+// cmdRelease adds a build of the app to a release, starting the release if
+// this is its first build. With -publish the website offers it straight away.
+// It does what the admin portal's Releases tab does, for an operator who has
+// a shell on the server rather than a browser. Safe while the service is
+// running: both write the same file through the same code.
+func cmdRelease(args []string) error {
+	fs := flag.NewFlagSet("release", flag.ContinueOnError)
+	channel := fs.String("channel", "", `what the website calls the release: "beta" (the default for a new release) or "stable"`)
+	notes := fs.String("notes", "", "what is new, shown on the website")
+	publish := fs.Bool("publish", false, "offer the release on the website straight away")
+	const usageLine = "usage: walls release [-publish] [-channel beta|stable] [-notes text] <version> <platform> <file>"
+	fs.Usage = func() {
+		fmt.Fprintln(fs.Output(), usageLine)
+		fmt.Fprintln(fs.Output(), "  platform is one of:", strings.Join(httpapi.PlatformIDs(), ", "))
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 3 {
+		return errors.New(usageLine)
+	}
+	version, ok := httpapi.CleanVersion(fs.Arg(0))
+	if !ok {
+		return errors.New(httpapi.VersionRule)
+	}
+	platform, file := fs.Arg(1), fs.Arg(2)
+	if !httpapi.ValidPlatform(platform) {
+		return fmt.Errorf("%q is not a system a build can be for; use one of: %s", platform, strings.Join(httpapi.PlatformIDs(), ", "))
+	}
+	name := filepath.Base(file)
+	if !httpapi.ValidBuildName(name) {
+		return errors.New(httpapi.BuildNameRule)
+	}
+	if *channel != "" && *channel != records.ChannelBeta && *channel != records.ChannelStable {
+		return errors.New(`-channel must be "beta" or "stable"`)
+	}
+
+	if err := config.LoadDotEnv(".env"); err != nil {
+		return err
+	}
+	cfg, err := config.FromEnv()
+	if err != nil {
+		return err
+	}
+	src, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	rec, err := records.Open(filepath.Join(cfg.DataDir, "records.db"))
+	if err != nil {
+		return err
+	}
+	defer rec.Close()
+	ctx, stop := signalContext()
+	defer stop()
+	now := time.Now()
+
+	rel, err := rec.ReleaseByVersion(ctx, version)
+	switch {
+	case errors.Is(err, records.ErrNotFound):
+		first := *channel
+		if first == "" {
+			first = records.ChannelBeta
+		}
+		if rel, err = rec.CreateRelease(ctx, version, first, strings.TrimSpace(*notes), now); err != nil {
+			return err
+		}
+	case err != nil:
+		return err
+	case *channel != "" || *notes != "":
+		// An existing release keeps whichever of the two was not given.
+		if *channel != "" {
+			rel.Channel = *channel
+		}
+		if *notes != "" {
+			rel.Notes = strings.TrimSpace(*notes)
+		}
+		if err := rec.UpdateRelease(ctx, rel.ID, rel.Channel, rel.Notes); err != nil {
+			return err
+		}
+	}
+
+	b, err := httpapi.StoreBuild(ctx, rec, filepath.Join(cfg.DataDir, "releases"), rel, platform, name, src, now)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Added %s (%s, sha256 %s) to release %s for %s.\n", b.Filename, ingest.HumanBytes(b.Bytes), b.SHA256, rel.Version, platform)
+	// The portal's log is where the owner sees what changed and when.
+	_ = rec.Log(ctx, now, "Uploaded a build", rel.Version+" for "+platform+", from the command line")
+
+	switch {
+	case *publish && !rel.Published():
+		if err := rec.SetReleasePublished(ctx, rel.ID, true, now); err != nil {
+			return err
+		}
+		_ = rec.Log(ctx, now, "Published a release", rel.Version+", from the command line")
+		fmt.Printf("Published: the website now offers %s %s.\n", rel.Channel, rel.Version)
+	case rel.Published():
+		fmt.Printf("Release %s was already published, so the website offers this build now.\n", rel.Version)
+	default:
+		fmt.Printf("Release %s is a draft. Run this again with -publish, or publish it in the admin portal, to offer it.\n", rel.Version)
+	}
 	return nil
 }
 

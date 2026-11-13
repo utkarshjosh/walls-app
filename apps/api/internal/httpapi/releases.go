@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -85,11 +86,100 @@ var (
 	filenamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$`)
 )
 
+// The rules for a release's version and a build's file name, as sentences to
+// show whoever got them wrong.
+const (
+	VersionRule   = `A version looks like "0.1.0" or "0.2.0-beta.1".`
+	BuildNameRule = "The file name may use letters, digits, dots, dashes and underscores, and must end in .dmg, .pkg, .zip, .exe, .msi, .AppImage, .deb, .rpm or .tar.gz."
+)
+
+// CleanVersion tidies a version someone typed ("v0.1.0" is "0.1.0") and
+// reports whether it is one.
+func CleanVersion(raw string) (string, bool) {
+	v := strings.TrimPrefix(strings.TrimSpace(raw), "v")
+	return v, len(v) <= 40 && versionPattern.MatchString(v)
+}
+
+// ValidPlatform reports whether id names a system a build can be for.
+func ValidPlatform(id string) bool { return platformLabel(id) != "" }
+
+// PlatformIDs lists every system a build can be for.
+func PlatformIDs() []string {
+	ids := make([]string, len(platforms))
+	for i, p := range platforms {
+		ids[i] = p.ID
+	}
+	return ids
+}
+
+// ValidBuildName reports whether name can be a build's file name.
+func ValidBuildName(name string) bool {
+	return filenamePattern.MatchString(name) && buildTypes[strings.ToLower(filepath.Ext(name))] != ""
+}
+
 // ReleasesEnabled reports whether builds can be kept and offered here.
 func (s *Server) ReleasesEnabled() bool { return s.Records != nil && s.ReleasesDir != "" }
 
-func (s *Server) buildPath(b records.Build) string {
-	return filepath.Join(s.ReleasesDir, strconv.FormatInt(b.ID, 10)+"-"+b.Filename)
+// BuildPath is where a build's file is kept inside the releases folder dir.
+func BuildPath(dir string, b records.Build) string {
+	return filepath.Join(dir, strconv.FormatInt(b.ID, 10)+"-"+b.Filename)
+}
+
+func (s *Server) buildPath(b records.Build) string { return BuildPath(s.ReleasesDir, b) }
+
+// What can go wrong with a build's bytes before anything is recorded.
+var (
+	ErrBuildEmpty    = errors.New("the build is empty")
+	ErrBuildCutShort = errors.New("the build could not be read to its end")
+)
+
+// StoreBuild keeps src as the build of a release for one platform: the bytes
+// go into dir and the build is recorded. A build the platform already had is
+// replaced, and its file removed. It is used by the admin portal's upload and
+// by the `walls release` command, so both store a build the same way.
+//
+// plat and name must already have passed ValidPlatform and ValidBuildName.
+func StoreBuild(ctx context.Context, rec *records.DB, dir string, rel records.Release, plat, name string, src io.Reader, now time.Time) (records.Build, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return records.Build{}, err
+	}
+	// Written beside its final place, so moving it there cannot half-happen.
+	tmp, err := os.CreateTemp(dir, "upload-*.part")
+	if err != nil {
+		return records.Build{}, err
+	}
+	defer os.Remove(tmp.Name()) // a no-op once it has been moved into place
+	defer tmp.Close()
+
+	sum := sha256.New()
+	n, err := io.Copy(io.MultiWriter(tmp, sum), src)
+	if err != nil {
+		return records.Build{}, fmt.Errorf("%w: %w", ErrBuildCutShort, err)
+	}
+	if n == 0 {
+		return records.Build{}, ErrBuildEmpty
+	}
+	if err := tmp.Sync(); err != nil {
+		return records.Build{}, err
+	}
+	if err := tmp.Close(); err != nil {
+		return records.Build{}, err
+	}
+
+	b, replaced, err := rec.PutBuild(ctx, rel.ID, plat, name, n, hex.EncodeToString(sum.Sum(nil)), now)
+	if err != nil {
+		return records.Build{}, err
+	}
+	if err := os.Rename(tmp.Name(), BuildPath(dir, b)); err != nil {
+		_, _ = rec.DeleteBuild(ctx, b.ID)
+		return records.Build{}, err
+	}
+	_ = os.Chmod(BuildPath(dir, b), 0o644)
+	if replaced != nil {
+		// A file that will not go is left: the build is already gone from the list.
+		_ = os.Remove(BuildPath(dir, *replaced))
+	}
+	return b, nil
 }
 
 func (s *Server) buildFileURL(b records.Build) string {
@@ -348,9 +438,9 @@ func (s *Server) handleAdminCreateRelease(w http.ResponseWriter, r *http.Request
 	if !readJSON(w, r, &body, 16<<10) {
 		return
 	}
-	version := strings.TrimPrefix(strings.TrimSpace(body.Version), "v")
-	if len(version) > 40 || !versionPattern.MatchString(version) {
-		writeError(w, http.StatusBadRequest, "invalid_version", `A version looks like "0.1.0" or "0.2.0-beta.1".`)
+	version, ok := CleanVersion(body.Version)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid_version", VersionRule)
 		return
 	}
 	if body.Channel == "" {
@@ -479,13 +569,12 @@ func (s *Server) handleAdminUploadBuild(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	plat, name := r.URL.Query().Get("platform"), r.URL.Query().Get("filename")
-	if platformLabel(plat) == "" {
+	if !ValidPlatform(plat) {
 		writeError(w, http.StatusBadRequest, "invalid_platform", "Choose which system the build is for.")
 		return
 	}
-	if !filenamePattern.MatchString(name) || buildTypes[strings.ToLower(filepath.Ext(name))] == "" {
-		writeError(w, http.StatusBadRequest, "invalid_filename",
-			"The file name may use letters, digits, dots, dashes and underscores, and must end in .dmg, .pkg, .zip, .exe, .msi, .AppImage, .deb, .rpm or .tar.gz.")
+	if !ValidBuildName(name) {
+		writeError(w, http.StatusBadRequest, "invalid_filename", BuildNameRule)
 		return
 	}
 	ctx := r.Context()
@@ -504,55 +593,21 @@ func (s *Server) handleAdminUploadBuild(w http.ResponseWriter, r *http.Request) 
 	_ = rc.SetReadDeadline(time.Now().Add(30 * time.Minute))
 	_ = rc.SetWriteDeadline(time.Now().Add(31 * time.Minute))
 
-	if err := os.MkdirAll(s.ReleasesDir, 0o755); err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	// Written beside its final place, so moving it there cannot half-happen.
-	tmp, err := os.CreateTemp(s.ReleasesDir, "upload-*.part")
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	defer os.Remove(tmp.Name()) // a no-op once it has been moved into place
-	defer tmp.Close()
-
-	sum := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, sum), http.MaxBytesReader(w, r.Body, maxBuildBytes))
+	b, err := StoreBuild(ctx, s.Records, s.ReleasesDir, rel, plat, name, http.MaxBytesReader(w, r.Body, maxBuildBytes), s.now())
 	var tooBig *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooBig):
 		writeError(w, http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("A build can be at most %d MB.", maxBuildBytes>>20))
 		return
-	case err != nil:
-		writeError(w, http.StatusBadRequest, "invalid_body", "The upload was cut short. Try again.")
-		return
-	case n == 0:
+	case errors.Is(err, ErrBuildEmpty):
 		writeError(w, http.StatusBadRequest, "invalid_body", "The upload was empty.")
 		return
-	}
-	if err := tmp.Sync(); err != nil {
+	case errors.Is(err, ErrBuildCutShort):
+		writeError(w, http.StatusBadRequest, "invalid_body", "The upload was cut short. Try again.")
+		return
+	case err != nil:
 		s.fail(w, r, err)
 		return
-	}
-	if err := tmp.Close(); err != nil {
-		s.fail(w, r, err)
-		return
-	}
-
-	b, replaced, err := s.Records.PutBuild(ctx, rel.ID, plat, name, n, hex.EncodeToString(sum.Sum(nil)), s.now())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	if err := os.Rename(tmp.Name(), s.buildPath(b)); err != nil {
-		_, _ = s.Records.DeleteBuild(ctx, b.ID)
-		s.fail(w, r, err)
-		return
-	}
-	_ = os.Chmod(s.buildPath(b), 0o644)
-	if replaced != nil {
-		s.removeBuildFile(*replaced)
 	}
 	s.audit(r, "Uploaded a build", rel.Version+" for "+platformLabel(plat))
 	writeJSON(w, http.StatusCreated, s.adminBuild(b, rel.Version, nil, nil))

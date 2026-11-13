@@ -62,7 +62,13 @@ cd apps/desktop
 npm run build        # Still.app and src-tauri/target/release/bundle/dmg/Still_<version>_aarch64.dmg
 ```
 
-Then open the catalog service's admin portal, **Releases**, start a release with the version from `src-tauri/tauri.conf.json`, upload the `.dmg`, and publish ([apps/api, "Downloads"](../api/README.md#downloads)). The version number in `tauri.conf.json` is the one place to change it; the interface reads it from there too.
+Then put it on the website, with the version from `src-tauri/tauri.conf.json`:
+
+```sh
+../api/deploy/release.sh 0.1.0 mac-arm64 src-tauri/target/release/bundle/dmg/Still_0.1.0_aarch64.dmg "What is new, in a sentence."
+```
+
+The same can be done in a browser, in the catalog service's admin portal under **Releases** ([apps/api, "Downloads"](../api/README.md#downloads)). Building the app and deploying the server do not publish anything by themselves. The version number in `tauri.conf.json` is the one place to change it; the interface reads it from there too.
 
 **Which Macs it runs on.** The Rust that Homebrew installs here builds for Apple silicon only, so `npm run build` makes an Apple-silicon build. For Intel Macs there are two ways, neither tried yet:
 

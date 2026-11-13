@@ -27,6 +27,7 @@ It is one program, `walls`, with a few commands:
 | `walls rm <id>` | Removes one item and its stored files. |
 | `walls users` | Prints the people who have signed in to the app as CSV. Safe while the service is running. |
 | `walls backup <file>` | Writes a complete copy of `records.db` to a new file. Safe while the service is running; the deploy script uses it. |
+| `walls release <version> <platform> <file>` | Adds a build of the app to a release; with `-publish` the website offers it. Safe while the service is running. `deploy/release.sh` runs it on the server. |
 | `walls signups` | Prints the earlier list of people who asked for a build (from the form the landing page used to have) as CSV. |
 | `walls render` | Writes the starter artwork to a folder without touching the catalog (for tuning the generator). |
 
@@ -176,10 +177,28 @@ version of the app with one **build** (file) per system. A release is a draft
 until you publish it; the newest published release is the one the website
 offers. The files are kept on the server's disk in `data/releases/`.
 
-To put a build on the website: open `/admin`, **Releases**, start a release
-with its version, choose the file and the system it is for, upload, publish.
-Uploading again for the same system replaces the file. Cloudflare's free plan
-refuses uploads over 100 MB.
+There are two ways to put a build on the website, and they do the same thing.
+
+From this machine, with one command:
+
+```sh
+./deploy/release.sh 0.1.0 mac-arm64 ../desktop/src-tauri/target/release/bundle/dmg/Still_0.1.0_aarch64.dmg "The first public beta."
+```
+
+It copies the file to the server and runs `walls release -publish` there,
+which adds the file to that version's release (starting the release if this is
+its first file) and publishes it. Set `WALLS_DRAFT=1` to add the file without
+publishing. It needs no password: like `deploy.sh`, it uses your ssh access to
+the server.
+
+Or in a browser: open `/admin`, **Releases**, start a release with its
+version, choose the file and the system it is for, upload, publish.
+Cloudflare's free plan refuses uploads over 100 MB that way; the command has no
+such limit.
+
+Either way, adding a file again for the same version and system replaces the
+earlier one. Deploying the server does not publish anything: a build is on the
+website only after one of these two.
 
 How the website uses it: `GET /v1/releases/latest` lists the builds, and each
 button links to `GET /v1/download/<platform>`, which adds one to that build's
