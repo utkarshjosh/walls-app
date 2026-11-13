@@ -4,7 +4,7 @@ A Mac app that keeps your desktop fresh: collect wallpapers, pick which collecti
 
 **Direction, changed by the owner on 2026-11-12:** the app is free, in beta (0.x), and downloaded straight from the website. Signing in is optional, by a code sent to an email address; what signed-in people save and set is recorded so Discover can suggest wallpapers later. The earlier target was a paid app on the Mac App Store with no accounts; [the first-launch scope](docs/15-first-launch-scope.md) lists what that changes. How to announce it is in the [launch kit](docs/17-launch-kit.md).
 
-**Status, 2026-11-12:** a working beta exists in four parts, and all of it is deployed at https://walls.utkarshjoshi.com. Two things there wait on the owner: the page offers a download only once a release is published in the admin portal, and signing in stays off until a mail relay is set on the server.
+**Status, 2026-11-13:** a working beta exists in four parts, and all of it is deployed at https://walls.utkarshjoshi.com. Beta 0.1.0 for Apple silicon is published there and the page offers it. Signing in stays off until a mail relay is set on the server. A new build reaches the page with `apps/api/deploy/release.sh`, not by deploying.
 
 | Part | Where | State |
 | --- | --- | --- |
