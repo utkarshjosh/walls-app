@@ -56,7 +56,7 @@ Every element marked `data-download` is a download button. Without script each o
 | A Mac, and a build for every Mac exists (`mac-universal`) | That build. Nothing to work out. |
 | A Mac whose chip the browser reveals (Chrome, Edge, Firefox) | The Apple silicon or the Intel build. If only the other kind exists, the page says so. |
 | A Mac in Safari, which does not reveal the chip | The Apple silicon build, with a line offering the Intel one if there is one. |
-| Windows or Linux | A line saying Still is a Mac app for now, with a link to the Mac build. If a build for their system is ever uploaded, they get that instead. |
+| Windows or Linux | The Mac download, with a line saying Still is a Mac app for now and there is no version for their system. If a build for their system is ever uploaded, they get that instead. |
 | A phone or tablet | A line saying to open the page on a Mac. |
 | Anyone, when nothing is published | "The first build is being prepared." |
 

@@ -82,10 +82,13 @@ export function choose(builds: Build[], os: Os, chip: Chip): Choice {
   if (os === "windows" || os === "linux") {
     const own = of(`${os}-${chip === "arm64" ? "arm64" : "x64"}`) ?? of(`${os}-x64`) ?? of(`${os}-arm64`);
     if (own) return { build: own, other: null, note: "" };
+    // Nothing for this system. The Mac download stays in plain sight all the
+    // same: people fetch it here for a Mac they have elsewhere, and a page
+    // with no button reads as "there is nothing to download".
     return {
-      build: null,
-      other: anyMac,
-      note: `Still is a Mac app for now. There is no ${OS_NAMES[os]} version yet.`,
+      build: anyMac,
+      other: null,
+      note: `Still is a Mac app for now. There is no ${OS_NAMES[os]} version yet${anyMac ? ", so this is the Mac download" : ""}.`,
     };
   }
   if (!anyMac) return { build: null, other: null, note: "There is no Mac build of this release yet." };
